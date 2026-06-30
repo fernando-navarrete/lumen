@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
+import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 BoxDecoration get _codeDecoration => BoxDecoration(
   color: AppColors.codeBackground,
@@ -9,11 +12,24 @@ BoxDecoration get _codeDecoration => BoxDecoration(
   border: Border.all(color: AppColors.border12, width: 1.2),
 );
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  LoginStep _step = LoginStep.Begin;
+
+  @override
   Widget build(BuildContext context) {
+    final gogState = ref.watch(gogStateProvider);
     var size = MediaQuery.of(context).size;
     return GradientBackground(
       child: Center(
@@ -171,6 +187,11 @@ class LoginScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 32),
                         _LoginStep(
+                          isComplete:
+                              _step == LoginStep.OpenLoginUrl ||
+                              _step == LoginStep.CopyCode ||
+                              _step == LoginStep.PasteCode,
+                          step: 1,
                           title: "Open the GOG login page",
                           description: Text(
                             "This opens your browser at GOG's official sign-in. Enter your email and password there.",
@@ -181,7 +202,12 @@ class LoginScreen extends StatelessWidget {
                             ),
                           ),
                           action: _PrimaryButton(
-                            onTap: () {},
+                            onTap: () {
+                              _openLoginUrl(
+                                context,
+                                ref.read(gogStateProvider),
+                              );
+                            },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               spacing: 4.0,
@@ -204,6 +230,10 @@ class LoginScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 24),
                         _LoginStep(
+                          isComplete:
+                              _step == LoginStep.CopyCode ||
+                              _step == LoginStep.PasteCode,
+                          step: 2,
                           title: "Copy the code form the address bar",
                           description: RichText(
                             text: TextSpan(
@@ -291,6 +321,8 @@ class LoginScreen extends StatelessWidget {
                         ),
                         SizedBox(height: 24),
                         _LoginStep(
+                          isComplete: _step == LoginStep.PasteCode,
+                          step: 3,
                           title: "Paste the code to finish",
                           description: Text(
                             "Lumen exchanges it for your access tokens. Nothing leaves your machine but the code.",
@@ -361,6 +393,24 @@ class LoginScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _openLoginUrl(BuildContext context, GogState gogState) async {
+    setState(() {
+      _step = LoginStep.OpenLoginUrl;
+    });
+    final loginUrl = gogState.getLoginUrl();
+    if (!await launchUrlString(loginUrl)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open login URL: $loginUrl')),
+      );
+    }
+    Future.delayed(Duration(seconds: 10), () {
+      setState(() {
+        _step = LoginStep.CopyCode;
+      });
+    });
+  }
 }
 
 class _GlowingSquare extends StatelessWidget {
@@ -420,29 +470,61 @@ class _PrimaryButton extends StatelessWidget {
   );
 }
 
+enum LoginStep { Begin, OpenLoginUrl, CopyCode, PasteCode }
+
+class _StepIndicator extends StatelessWidget {
+  final bool isComplete;
+  final int step;
+
+  const _StepIndicator({required this.isComplete, required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(90),
+        border: isComplete
+            ? null
+            : Border.all(color: AppColors.primary, width: 1.0),
+        color: isComplete ? AppColors.primary : AppColors.primary.withAlpha(64),
+      ),
+      child: isComplete
+          ? const Icon(Icons.check, color: Colors.black, size: 14)
+          : Center(
+              child: Text(
+                step.toString(),
+                style: AppText.onest(
+                  size: 12,
+                  weight: FontWeight.w400,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+    );
+  }
+}
+
 class _LoginStep extends StatelessWidget {
   const _LoginStep({
     required this.title,
     required this.description,
     required this.action,
+    required this.isComplete,
+    required this.step,
   });
   final String title;
   final Widget description;
   final Widget action;
+  final bool isComplete;
+  final int step;
 
   @override
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Container(
-        width: 30,
-        height: 30,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(90),
-          color: AppColors.primary,
-        ),
-        child: const Icon(Icons.check, color: Colors.black, size: 14),
-      ),
+      _StepIndicator(isComplete: isComplete, step: step),
       const SizedBox(width: 16),
       Expanded(
         child: Column(
