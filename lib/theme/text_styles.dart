@@ -8,12 +8,25 @@ class AppText {
     required Color color,
     double? letterSpacing,
     double? height,
-  }) =>
-      GoogleFonts.onest(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        letterSpacing: letterSpacing,
-        height: height,
-      );
+  }) => GoogleFonts.onest(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: letterSpacing,
+    height: height,
+  );
+  static TextStyle monospace({
+    required double size,
+    required FontWeight weight,
+    required Color color,
+    double? letterSpacing,
+    double? height,
+  }) => TextStyle(
+    fontFamily: 'monospace',
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: letterSpacing,
+    height: height,
+  );
 }
