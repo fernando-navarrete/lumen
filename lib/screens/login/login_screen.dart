@@ -156,290 +156,307 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   color: Colors.deepPurple.withAlpha(8),
                 ),
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: EdgeInsets.all(32.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "SECURE SIGN-IN",
-                          style: AppText.monospace(
-                            size: 10.0,
-                            weight: FontWeight.w100,
-                            color: AppColors.primaryLight,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          "Connect your account",
-                          style: AppText.onest(
-                            size: 24.0,
-                            weight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          "Three quick steps. You'll authenticate on GOG, then paste the code it gives you hack here.",
-                          style: AppText.onest(
-                            size: 12.0,
-                            weight: FontWeight.w200,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        SizedBox(height: 32),
-                        _LoginStep(
-                          isComplete:
-                              _step == LoginStep.OpenLoginUrl ||
-                              _step == LoginStep.CopyCode ||
-                              _step == LoginStep.PasteCode,
-                          step: 1,
-                          title: "Open the GOG login page",
-                          description: Text(
-                            "This opens your browser at GOG's official sign-in. Enter your email and password there.",
-                            style: AppText.onest(
-                              size: 12.0,
-                              weight: FontWeight.w200,
-                              color: Colors.grey,
+                child: Stack(
+                  children: [
+                    SingleChildScrollView(
+                      child: Container(
+                        padding: EdgeInsets.all(32.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "SECURE SIGN-IN",
+                              style: AppText.monospace(
+                                size: 10.0,
+                                weight: FontWeight.w100,
+                                color: AppColors.primaryLight,
+                              ),
                             ),
-                          ),
-                          action: _PrimaryButton(
-                            onTap: () async {
-                              await _openLoginUrl(
-                                context,
-                                ref.read(gogStateProvider),
-                              );
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              spacing: 4.0,
-                              children: [
-                                Icon(
-                                  Icons.open_in_browser,
-                                  color: Colors.black,
-                                ),
-                                Text(
-                                  "Open GOG login",
-                                  style: AppText.onest(
-                                    size: 14.0,
-                                    weight: FontWeight.w600,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
+                            SizedBox(height: 8),
+                            Text(
+                              "Connect your account",
+                              style: AppText.onest(
+                                size: 24.0,
+                                weight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        _LoginStep(
-                          isComplete:
-                              _step == LoginStep.CopyCode ||
-                              _step == LoginStep.PasteCode,
-                          step: 2,
-                          title: "Copy the code form the address bar",
-                          description: RichText(
-                            text: TextSpan(
-                              children: [
-                                TextSpan(
-                                  text:
-                                      "After signing in, GOG redirects to a blank page. Copy everything after ",
-                                  style: AppText.onest(
-                                    size: 12.0,
-                                    weight: FontWeight.w200,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: "code= ",
-                                  style: AppText.onest(
-                                    size: 12.0,
-                                    weight: FontWeight.w200,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: "in the URL.",
-                                  style: AppText.onest(
-                                    size: 12.0,
-                                    weight: FontWeight.w200,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
+                            SizedBox(height: 8),
+                            Text(
+                              "Three quick steps. You'll authenticate on GOG, then paste the code it gives you hack here.",
+                              style: AppText.onest(
+                                size: 12.0,
+                                weight: FontWeight.w200,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
-                          action: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 11,
-                              vertical: 13,
-                            ),
-                            decoration: _codeDecoration,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "REDIRECT URL LOOKS LIKE THIS:",
-                                  style: AppText.monospace(
-                                    size: 9.0,
-                                    weight: FontWeight.w500,
-                                    color: AppColors.textMuted,
-                                  ),
+                            SizedBox(height: 32),
+                            _LoginStep(
+                              isComplete:
+                                  _step == LoginStep.OpenLoginUrl ||
+                                  _step == LoginStep.CopyCode ||
+                                  _step == LoginStep.PasteCode,
+                              step: 1,
+                              title: "Open the GOG login page",
+                              description: Text(
+                                "This opens your browser at GOG's official sign-in. Enter your email and password there.",
+                                style: AppText.onest(
+                                  size: 12.0,
+                                  weight: FontWeight.w200,
+                                  color: Colors.grey,
                                 ),
-                                SizedBox(height: 6),
-                                RichText(
-                                  text: TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text:
-                                            ".../on_login_success?origin=client&",
-                                        style: AppText.monospace(
-                                          size: 12.0,
-                                          weight: FontWeight.w500,
-                                          color: AppColors.textMuted,
-                                        ),
-                                      ),
-                                      TextSpan(
-                                        text: "code=",
-                                        style: AppText.monospace(
-                                          size: 12.0,
-                                          weight: FontWeight.w500,
-                                          color: AppColors.primary,
-                                        ),
-                                      ),
-                                      TextSpan(
-                                        text: "M0xY7...",
-                                        style: AppText.monospace(
-                                          size: 12.0,
-                                          weight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        _LoginStep(
-                          isComplete: _step == LoginStep.PasteCode,
-                          step: 3,
-                          title: "Paste the code to finish",
-                          description: Text(
-                            "Lumen exchanges it for your access tokens. Nothing leaves your machine but the code.",
-                            style: AppText.onest(
-                              size: 12.0,
-                              weight: FontWeight.w200,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          action: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                spacing: 12,
-                                mainAxisSize: MainAxisSize.max,
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 11.0,
-                                      ),
-                                      decoration: _codeDecoration,
-                                      child: TextField(
-                                        controller: _codeController,
-                                        onChanged: (value) async {
-                                          await _onEnteredCode(value, gogState);
-                                        },
-                                        onSubmitted: (value) async {
-                                          await _onSubmitCode(value, gogState);
-                                        },
-                                        decoration: InputDecoration(
-                                          contentPadding: EdgeInsets.symmetric(
-                                            vertical: 12,
-                                          ),
-                                          isDense: true,
-                                          border: InputBorder.none,
-                                          prefixIcon: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                              vertical: 12,
-                                            ),
-                                            child: Text(
-                                              "code=",
-                                              style: AppText.monospace(
-                                                size: 12.0,
-                                                weight: FontWeight.w500,
-                                                color: AppColors.textMuted,
-                                              ),
-                                            ),
-                                          ),
-                                          hint: RichText(
-                                            text: TextSpan(
-                                              children: [
-                                                TextSpan(
-                                                  text:
-                                                      " paste authorization code",
-                                                  style: AppText.monospace(
-                                                    size: 12.0,
-                                                    weight: FontWeight.w500,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
+                              ),
+                              action: _PrimaryButton(
+                                onTap: () async {
+                                  await _openLoginUrl(
+                                    context,
+                                    ref.read(gogStateProvider),
+                                  );
+                                },
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  spacing: 4.0,
+                                  children: [
+                                    Icon(
+                                      Icons.open_in_browser,
+                                      color: Colors.black,
                                     ),
-                                  ),
-                                  _PrimaryButton(
-                                    onTap: () async {
-                                      await _onSubmitCode(
-                                        _codeController.text,
-                                        gogState,
-                                      );
-                                    },
-                                    child: Text(
-                                      "Sign in",
+                                    Text(
+                                      "Open GOG login",
                                       style: AppText.onest(
                                         size: 14.0,
                                         weight: FontWeight.w600,
                                         color: Colors.black,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                              SizedBox(height: 8.0),
-                              loginError
-                                  ? Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.error, color: Colors.red),
-                                        SizedBox(width: 8.0),
-                                        Expanded(
-                                          child: Text(
-                                            "That code looks incomplete. Copy the full value after code= and try again.",
-                                            style: AppText.onest(
-                                              color: Colors.red,
+                            ),
+                            SizedBox(height: 24),
+                            _LoginStep(
+                              isComplete:
+                                  _step == LoginStep.CopyCode ||
+                                  _step == LoginStep.PasteCode,
+                              step: 2,
+                              title: "Copy the code form the address bar",
+                              description: RichText(
+                                text: TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text:
+                                          "After signing in, GOG redirects to a blank page. Copy everything after ",
+                                      style: AppText.onest(
+                                        size: 12.0,
+                                        weight: FontWeight.w200,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: "code= ",
+                                      style: AppText.onest(
+                                        size: 12.0,
+                                        weight: FontWeight.w200,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: "in the URL.",
+                                      style: AppText.onest(
+                                        size: 12.0,
+                                        weight: FontWeight.w200,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              action: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 11,
+                                  vertical: 13,
+                                ),
+                                decoration: _codeDecoration,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "REDIRECT URL LOOKS LIKE THIS:",
+                                      style: AppText.monospace(
+                                        size: 9.0,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6),
+                                    RichText(
+                                      text: TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text:
+                                                ".../on_login_success?origin=client&",
+                                            style: AppText.monospace(
                                               size: 12.0,
-                                              weight: FontWeight.w200,
+                                              weight: FontWeight.w500,
+                                              color: AppColors.textMuted,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: "code=",
+                                            style: AppText.monospace(
+                                              size: 12.0,
+                                              weight: FontWeight.w500,
+                                              color: AppColors.primary,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: "M0xY7...",
+                                            style: AppText.monospace(
+                                              size: 12.0,
+                                              weight: FontWeight.w500,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 24),
+                            _LoginStep(
+                              isComplete: _step == LoginStep.PasteCode,
+                              step: 3,
+                              title: "Paste the code to finish",
+                              description: Text(
+                                "Lumen exchanges it for your access tokens. Nothing leaves your machine but the code.",
+                                style: AppText.onest(
+                                  size: 12.0,
+                                  weight: FontWeight.w200,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              action: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    spacing: 12,
+                                    mainAxisSize: MainAxisSize.max,
+                                    children: [
+                                      Expanded(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 11.0,
+                                          ),
+                                          decoration: _codeDecoration,
+                                          child: TextField(
+                                            controller: _codeController,
+                                            onChanged: (value) async {
+                                              await _onEnteredCode(
+                                                value,
+                                                gogState,
+                                              );
+                                            },
+                                            onSubmitted: (value) async {
+                                              await _onSubmitCode(
+                                                value,
+                                                gogState,
+                                              );
+                                            },
+                                            decoration: InputDecoration(
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              isDense: true,
+                                              border: InputBorder.none,
+                                              prefixIcon: Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                    ),
+                                                child: Text(
+                                                  "code=",
+                                                  style: AppText.monospace(
+                                                    size: 12.0,
+                                                    weight: FontWeight.w500,
+                                                    color: AppColors.textMuted,
+                                                  ),
+                                                ),
+                                              ),
+                                              hint: RichText(
+                                                text: TextSpan(
+                                                  children: [
+                                                    TextSpan(
+                                                      text:
+                                                          " paste authorization code",
+                                                      style: AppText.monospace(
+                                                        size: 12.0,
+                                                        weight: FontWeight.w500,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    )
-                                  : SizedBox.shrink(),
-                            ],
-                          ),
+                                      ),
+                                      _PrimaryButton(
+                                        onTap: () async {
+                                          await _onSubmitCode(
+                                            _codeController.text,
+                                            gogState,
+                                          );
+                                        },
+                                        child: Text(
+                                          "Sign in",
+                                          style: AppText.onest(
+                                            size: 14.0,
+                                            weight: FontWeight.w600,
+                                            color: Colors.black,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8.0),
+                                  loginError
+                                      ? Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.error,
+                                              color: Colors.red,
+                                            ),
+                                            SizedBox(width: 8.0),
+                                            Expanded(
+                                              child: Text(
+                                                "That code looks incomplete. Copy the full value after code= and try again.",
+                                                style: AppText.onest(
+                                                  color: Colors.red,
+                                                  size: 12.0,
+                                                  weight: FontWeight.w200,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : SizedBox.shrink(),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    _DynamicGradient(step: _step),
+                  ],
                 ),
               ),
             ],
@@ -484,6 +501,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _step = LoginStep.CopyCode;
       });
     });
+  }
+}
+
+class _DynamicGradient extends StatelessWidget {
+  const _DynamicGradient({required this.step});
+  final LoginStep step;
+
+  Alignment get _centerForStep => switch (step) {
+    LoginStep.Begin => const Alignment(-0.2, 1.0),
+    LoginStep.OpenLoginUrl => const Alignment(-0.2, 1.3),
+    LoginStep.CopyCode => const Alignment(-0.2, 1.6),
+    LoginStep.PasteCode => const Alignment(-0.2, 1.9),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              colors: [Colors.black.withAlpha(255), Colors.transparent],
+              center: _centerForStep,
+              radius: 1.0,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
