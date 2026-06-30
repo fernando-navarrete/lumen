@@ -13,4 +13,12 @@ class AppColors {
   static const border08 = Color(0x14FFFFFF);
   // rgba(255, 255, 255, 0.12)
   static const border12 = Color(0x1EFFFFFF);
+  // rgba(255, 255, 255, ~0.09)
+  static const border09 = Color(0x18FFFFFF);
+  // rgba(45, 212, 191, 0.4) — CTA glow shadow
+  static const primaryGlow = Color(0x662DD4BF);
+  // rgba(0, 0, 0, ~0.35) — code block background
+  static const codeBackground = Color(0x5A000000);
+  // rgba(255, 255, 255, ~0.35) — muted text in code blocks
+  static const textMuted = Color(0x5AFFFFFF);
 }
