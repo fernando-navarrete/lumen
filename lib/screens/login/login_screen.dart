@@ -27,10 +27,7 @@ class LoginScreen extends StatelessWidget {
                 spreadRadius: 20,
               ),
             ],
-            border: Border.all(
-              color: AppColors.border09,
-              width: 0.75,
-            ),
+            border: Border.all(color: AppColors.border09, width: 0.75),
             borderRadius: BorderRadius.circular(22.0),
           ),
           child: Row(
@@ -44,10 +41,7 @@ class LoginScreen extends StatelessWidget {
                     bottomLeft: Radius.circular(22.0),
                   ),
                   border: Border(
-                    right: BorderSide(
-                      color: AppColors.border09,
-                      width: 0.75,
-                    ),
+                    right: BorderSide(color: AppColors.border09, width: 0.75),
                   ),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
@@ -55,6 +49,80 @@ class LoginScreen extends StatelessWidget {
                     colors: [
                       Color.fromARGB(25, 45, 212, 191),
                       Color.fromARGB(34, 42, 35, 80),
+                    ],
+                  ),
+                ),
+                child: Container(
+                  padding: EdgeInsets.all(32.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        spacing: 12,
+                        children: [
+                          _GlowingSquare(width: 27),
+                          Text(
+                            "Lumen",
+                            style: AppText.onest(
+                              size: 18.0,
+                              weight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Expanded(
+                        child: Center(
+                          child: Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primaryGlow.withAlpha(64),
+                                  blurRadius: 24,
+                                  spreadRadius: 1,
+                                  offset: Offset(0, 0),
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: Colors.white.withAlpha(25),
+                                width: 1.8,
+                              ),
+                              color: AppColors.primary.withAlpha(16),
+                            ),
+                            child: Center(child: _GlowingSquare(width: 54)),
+                          ),
+                        ),
+                      ),
+                      SizedBox(
+                        width:
+                            (size.width - (size.width * 0.2) - 2) * 0.45 * 0.7,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              "Your GOG library, unwrapped.",
+                              style: AppText.onest(
+                                size: 21.0,
+                                weight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              "An unofficial client. Lumen never sees your password - you sign in on GOG's own page and hand back a one-time code.",
+                              style: AppText.onest(
+                                size: 12.0,
+                                weight: FontWeight.w200,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -118,7 +186,10 @@ class LoginScreen extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               spacing: 4.0,
                               children: [
-                                Icon(Icons.open_in_browser, color: Colors.black),
+                                Icon(
+                                  Icons.open_in_browser,
+                                  color: Colors.black,
+                                ),
                                 Text(
                                   "Open GOG login",
                                   style: AppText.onest(
@@ -187,7 +258,8 @@ class LoginScreen extends StatelessWidget {
                                   text: TextSpan(
                                     children: [
                                       TextSpan(
-                                        text: ".../on_login_success?origin=client&",
+                                        text:
+                                            ".../on_login_success?origin=client&",
                                         style: AppText.monospace(
                                           size: 12.0,
                                           weight: FontWeight.w500,
@@ -286,6 +358,35 @@ class LoginScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GlowingSquare extends StatelessWidget {
+  const _GlowingSquare({required this.width});
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: width,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryGlow,
+            blurRadius: width / 3.375,
+            spreadRadius: 1,
+            offset: Offset(0, 0),
+          ),
+        ],
+        gradient: RadialGradient(
+          colors: [AppColors.primaryGlow, AppColors.primaryLight],
+          center: Alignment(1, 1),
+          radius: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(width / 3.375),
       ),
     );
   }
