@@ -9,6 +9,10 @@ class GogState {
   String getLoginUrl() {
     return _gog.getLoginUrl();
   }
+
+  Future<void> loginWithCode(String code) async {
+    await _gog.loginWithCode(code: code);
+  }
 }
 
 final gogStateProvider = Provider<GogState>((ref) {
