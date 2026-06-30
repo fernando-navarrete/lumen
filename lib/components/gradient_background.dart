@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 class GradientBackground extends StatelessWidget {
-  const GradientBackground({super.key});
+  const GradientBackground({super.key, this.child});
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -37,8 +39,7 @@ class GradientBackground extends StatelessWidget {
           scaleY: 1.0,
           stopAt: 1.0,
         ),
-
-        //if (child != null) child!,
+        ?child,
       ],
     );
   }
@@ -86,8 +87,8 @@ class _EllipseTransform extends GradientTransform {
     final cx = bounds.left + (center.x + 1) / 2 * bounds.width;
     final cy = bounds.top + (center.y + 1) / 2 * bounds.height;
     return Matrix4.identity()
-      ..translate(cx, cy)
-      ..scale(1 / scaleX, 1 / scaleY)
-      ..translate(-cx, -cy);
+      ..translateByVector3(Vector3(cx, cy, 0))
+      ..scaleByVector3(Vector3(1 / scaleX, 1 / scaleY, 1.0))
+      ..translateByVector3(Vector3(-cx, -cy, 0));
   }
 }

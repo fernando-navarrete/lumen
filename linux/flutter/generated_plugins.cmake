@@ -3,10 +3,12 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  url_launcher_linux
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
   gogdl2_flutter_bridge
+  jni
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)
