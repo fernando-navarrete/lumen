@@ -62,6 +62,28 @@ class GogState {
       }
     }
   }
+
+  Future<List<int>?> getOwnedGames() async {
+    try {
+      return await _gog.getOwnedGames();
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<String?> getGameName(int gameId) async {
+    try {
+      return await _gog.getGameTitle(gameId: gameId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
 }
 
 final gogStateProvider = Provider<GogState>((ref) {
