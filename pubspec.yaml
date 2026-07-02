@@ -40,6 +40,7 @@ dependencies:
   url_launcher: ^6.3.1
   vector_math: ^2.2.0
   flutter_riverpod: ^3.3.2
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

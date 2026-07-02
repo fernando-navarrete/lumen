@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/components/glowing_square.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
+import 'package:gogdl2_flutter/screens/home/home_screen.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
@@ -22,6 +25,26 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final gogState = ref.watch(gogStateProvider);
+      try {
+        await gogState.restoreAuthFromStorage();
+        if (kDebugMode) {
+          print('Auth restored from storage');
+        }
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            // ignore: use_build_context_synchronously
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+          );
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print(e);
+        }
+      }
+    });
     super.initState();
   }
 
@@ -79,7 +102,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       Row(
                         spacing: 12,
                         children: [
-                          _GlowingSquare(width: 27),
+                          GlowingSquare(width: 27),
                           Text(
                             "Lumen",
                             style: AppText.onest(
@@ -111,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               color: AppColors.primary.withAlpha(16),
                             ),
-                            child: Center(child: _GlowingSquare(width: 54)),
+                            child: Center(child: GlowingSquare(width: 54)),
                           ),
                         ),
                       ),
@@ -472,6 +495,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         loginError = false;
       });
+      if (context.mounted) {
+        Navigator.pushReplacement(
+          // ignore: use_build_context_synchronously
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      }
     } catch (e) {
       setState(() {
         loginError = true;
@@ -530,35 +560,6 @@ class _DynamicGradient extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _GlowingSquare extends StatelessWidget {
-  const _GlowingSquare({required this.width});
-  final double width;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: width,
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryGlow,
-            blurRadius: width / 3.375,
-            spreadRadius: 1,
-            offset: Offset(0, 0),
-          ),
-        ],
-        gradient: RadialGradient(
-          colors: [AppColors.primaryGlow, AppColors.primaryLight],
-          center: Alignment(1, 1),
-          radius: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(width / 3.375),
       ),
     );
   }

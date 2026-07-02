@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 class GogState {
@@ -10,8 +14,53 @@ class GogState {
     return _gog.getLoginUrl();
   }
 
+  Future<void> refreshAuthWithCallback() async {
+    try {
+      await _gog.refreshAuthWithCallback(
+        callback: (auth) async {
+          final storage = FlutterSecureStorage();
+          await storage.write(key: 'auth', value: auth);
+        },
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+    }
+  }
+
   Future<void> loginWithCode(String code) async {
-    await _gog.loginWithCode(code: code);
+    try {
+      String auth = await _gog.loginWithCode(code: code);
+      final storage = FlutterSecureStorage();
+      await storage.write(key: 'auth', value: auth);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+    }
+  }
+
+  Future<void> restoreAuthFromStorage() async {
+    try {
+      final storage = FlutterSecureStorage();
+      String? auth = await storage.read(key: 'auth');
+      if (auth != null) {
+        if (kDebugMode) {
+          print(auth);
+        }
+        await _gog.restoreAuthFromString(token: auth);
+      } else {
+        throw Exception('No auth token found in storage');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+    }
   }
 }
 
