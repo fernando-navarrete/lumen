@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
 import 'package:gogdl2_flutter/components/nav_bar.dart';
 import 'package:gogdl2_flutter/screens/home/pages/downloads_page.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library_page.dart';
+import 'package:gogdl2_flutter/screens/home/pages/library/library_page.dart';
 import 'package:gogdl2_flutter/state/home_state.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -30,7 +30,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 });
               },
             ),
-            _Content(item: navBarState.item),
+            Expanded(child: _Content(item: navBarState.item)),
           ],
         ),
       ),
