@@ -144,6 +144,25 @@ class GogState {
       return null;
     }
   }
+
+  Future<List<DownloadableProduct>?> getProducts(
+    int gameId,
+    String buildName,
+  ) async {
+    try {
+      // Bridge param is named `buildId` but the Rust side takes the build's
+      // version name, not its id.
+      return await _gog.getDownloadableProducts(
+        gameId: gameId,
+        buildId: buildName,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
 }
 
 final gogStateProvider = Provider<GogState>((ref) {

@@ -38,7 +38,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
       if (selectedName == null) {
         selectedBuild = -1;
       } else {
-        int index = _builds!.indexWhere((b) => b.buildId == selectedName);
+        int index = _builds!.indexWhere((b) => b.versionName == selectedName);
         selectedBuild = index;
       }
       setState(() {});
@@ -77,7 +77,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                             });
                             gamesState.setSelectedBuild(
                               widget.gameId,
-                              gameBuild.buildId,
+                              gameBuild.versionName,
                             );
                           },
                         ),

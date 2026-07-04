@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/centered_loader.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
+import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
-/// List of the game's available builds.
 class ProductsTab extends ConsumerStatefulWidget {
   const ProductsTab({super.key, required this.gameId});
 
@@ -21,13 +21,22 @@ class ProductsTab extends ConsumerStatefulWidget {
 }
 
 class _ProductsTabState extends ConsumerState<ProductsTab> {
-  List<GameBuild>? _builds;
+  List<DownloadableProduct>? _products;
 
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       GogState gogState = ref.read(gogStateProvider);
-      _builds = await gogState.getBuilds(widget.gameId);
+      GamesState gamesState = ref.read(gamesStateProvider);
+      String? selectedVersionName = gamesState.getSelectedBuild(widget.gameId);
+
+      if (selectedVersionName != null) {
+        _products = await gogState.getProducts(
+          widget.gameId,
+          selectedVersionName,
+        );
+      }
+
       setState(() {});
     });
     super.initState();
@@ -49,13 +58,14 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                   style: AppText.caption(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                (_builds != null)
+                (_products != null)
                     ? ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _builds!.length,
-                        itemBuilder: (context, index) =>
-                            _BuildListItem(gameBuild: _builds![index]),
+                        itemCount: _products!.length,
+                        itemBuilder: (context, index) {
+                          return Text(_products?[index].name ?? '');
+                        },
                       )
                     : const CenteredLoader(),
               ],
