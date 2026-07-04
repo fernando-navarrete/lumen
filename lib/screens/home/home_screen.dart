@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/components/bounce_marquee.dart';
 import 'package:gogdl2_flutter/components/glowing_square.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
@@ -13,7 +14,33 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: GradientBackground(
-        child: Column(children: [_NavBar(), _Library()]),
+        child: Column(children: [_NavBar(), _LibraryFilter(), _Library()]),
+      ),
+    );
+  }
+}
+
+class _LibraryFilter extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    var size = MediaQuery.of(context).size;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: size.width * 0.05,
+        vertical: 24,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            "Your library",
+            style: AppText.onest(
+              size: 18,
+              color: Colors.white,
+              weight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -27,32 +54,131 @@ class _Library extends ConsumerWidget {
 
     var ownedGames = gogStage.getOwnedGames();
     return Expanded(
-      child: FutureBuilder<List<int>?>(
-        future: ownedGames,
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            return GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: size.width ~/ 200,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: size.width * 0.05),
+        child: FutureBuilder<List<int>?>(
+          future: ownedGames,
+          builder: (context, snapshot) {
+            if (snapshot.hasData) {
+              return GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: size.width ~/ 200,
+                  childAspectRatio: 9 / 12,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                ),
+                itemBuilder: (context, index) {
+                  return FutureBuilder<String?>(
+                    future: gogStage.getGameName(snapshot.data![index]),
+                    builder: (context, nameSnapshot) {
+                      if (nameSnapshot.hasData) {
+                        String? title = nameSnapshot.data ?? '';
+                        int? gameId = snapshot.data?[index];
+                        if (title.isEmpty || gameId == null) {
+                          return SizedBox.shrink();
+                        }
+                        return _GameCard(
+                          gameId: gameId,
+                          gameName: title,
+                          gogState: gogStage,
+                        );
+                      } else {
+                        return CircularProgressIndicator();
+                      }
+                    },
+                  );
+                },
+                itemCount: snapshot.data?.length,
+              );
+            } else {
+              return Center(child: CircularProgressIndicator());
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _GameCard extends StatelessWidget {
+  final int? gameId;
+  final String gameName;
+  final GogState gogState;
+
+  const _GameCard({
+    this.gameId,
+    required this.gameName,
+    required this.gogState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border12, width: 1.0),
+        borderRadius: BorderRadius.circular(13.0),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13.0),
               ),
-              itemBuilder: (context, index) {
-                return FutureBuilder<String?>(
-                  future: gogStage.getGameName(snapshot.data![index]),
-                  builder: (context, nameSnapshot) {
-                    if (nameSnapshot.hasData) {
-                      return Text(nameSnapshot.data!);
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(13.0),
+                child: FutureBuilder<String>(
+                  future: gogState.getGameBoxartLink(gameId!),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return Image.network(snapshot.data!, fit: BoxFit.cover);
                     } else {
-                      return CircularProgressIndicator();
+                      return SizedBox.shrink();
                     }
                   },
-                );
-              },
-              itemCount: snapshot.data?.length,
-            );
-          } else {
-            return Center(child: CircularProgressIndicator());
-          }
-        },
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 56,
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withAlpha(0),
+                    Colors.black.withAlpha(196),
+                    Colors.black.withAlpha(255),
+                  ],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AutoMarqueeText(
+                    text: gameName,
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  Text(
+                    "Not installed",
+                    style: AppText.onest(
+                      size: 12,
+                      color: Colors.grey,
+                      weight: FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -30,6 +30,19 @@ class GogState {
     }
   }
 
+  Future<String> getGameBoxartLink(int gameId) async {
+    try {
+      String link = await _gog.getGameBoxartLink(gameId: gameId);
+      return link;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+      return '';
+    }
+  }
+
   Future<void> loginWithCode(String code) async {
     try {
       String auth = await _gog.loginWithCode(code: code);
