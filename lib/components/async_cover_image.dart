@@ -22,7 +22,7 @@ class AsyncCoverImage extends StatelessWidget {
           if (snapshot.hasData) {
             return Image.network(snapshot.data!, fit: BoxFit.cover);
           }
-          return const SizedBox.shrink();
+          return const Center(child: CircularProgressIndicator());
         },
       ),
     );

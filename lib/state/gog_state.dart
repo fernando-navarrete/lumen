@@ -100,6 +100,17 @@ class GogState {
     }
   }
 
+  Future<List<GameBuild>?> getBuilds(int gameId) async {
+    try {
+      return await _gog.getGameBuilds(gameId: gameId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
   Future<String?> getGameName(int gameId) async {
     try {
       return await _gog.getGameTitle(gameId: gameId);

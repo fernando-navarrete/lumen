@@ -10,17 +10,14 @@ import 'package:gogdl2_flutter/theme/text_styles.dart';
 class GameCard extends ConsumerWidget {
   final int? gameId;
   final String gameName;
+  final VoidCallback? onTap;
 
-  const GameCard({super.key, this.gameId, required this.gameName});
+  const GameCard({super.key, this.gameId, required this.gameName, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () {
-        if (gameId != null) {
-          _onGameTap(context, gameId!);
-        }
-      },
+      onTap: onTap,
       child: Container(
         decoration: AppDecorations.card(
           borderRadius: 13.0,
@@ -78,6 +75,4 @@ class GameCard extends ConsumerWidget {
       ),
     );
   }
-
-  void _onGameTap(BuildContext context, int gameId) {}
 }

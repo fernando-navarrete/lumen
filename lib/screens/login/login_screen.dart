@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/brand_lockup.dart';
 import 'package:gogdl2_flutter/components/glowing_square.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
+import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/screens/home/home_screen.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
@@ -204,7 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 "This opens your browser at GOG's official sign-in. Enter your email and password there.",
                                 style: AppText.body(color: Colors.grey),
                               ),
-                              action: _PrimaryButton(
+                              action: PrimaryButton(
                                 onTap: () async {
                                   await _openLoginUrl(
                                     context,
@@ -380,7 +381,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           ),
                                         ),
                                       ),
-                                      _PrimaryButton(
+                                      PrimaryButton(
                                         onTap: () async {
                                           await _onSubmitCode(
                                             _codeController.text,
@@ -512,34 +513,6 @@ class _DynamicGradient extends StatelessWidget {
       ),
     );
   }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.onTap, required this.child});
-  final VoidCallback onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(11.0),
-        boxShadow: [
-          BoxShadow(
-            offset: Offset(0, 2),
-            blurRadius: 18,
-            color: AppColors.primaryGlow,
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 11.0),
-        child: child,
-      ),
-    ),
-  );
 }
 
 enum LoginStep { begin, openLoginUrl, copyCode, pasteCode }
