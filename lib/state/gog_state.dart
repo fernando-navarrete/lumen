@@ -56,6 +56,19 @@ class GogState {
     }
   }
 
+  Future<String> getGameSummary(int gameId) async {
+    try {
+      String summary = await _gog.getGameSummary(gameId: gameId);
+      return summary;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+      return '';
+    }
+  }
+
   Future<void> loginWithCode(String code) async {
     try {
       String auth = await _gog.loginWithCode(code: code);

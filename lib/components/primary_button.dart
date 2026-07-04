@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 
 class PrimaryButton extends StatelessWidget {
@@ -13,7 +14,7 @@ class PrimaryButton extends StatelessWidget {
   final bool glowing;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  Widget build(BuildContext context) => ClickableContainer(
     onTap: onTap,
     child: Container(
       decoration: BoxDecoration(

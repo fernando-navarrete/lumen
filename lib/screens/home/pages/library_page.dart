@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/game_card.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
@@ -7,6 +8,7 @@ import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -216,7 +218,9 @@ class _GameInfoState extends ConsumerState<_GameInfo> {
         SizedBox(height: 24),
         Expanded(
           child: switch (_selectedTab) {
-            SelectedTab.overview => Text('overview'),
+            SelectedTab.overview => _OverviewTab(
+              selectedGameId: widget.gameId!,
+            ),
             SelectedTab.builds => _BuildsTab(selectedGameId: widget.gameId!),
             SelectedTab.settings => Text('settings'),
           },
@@ -226,14 +230,74 @@ class _GameInfoState extends ConsumerState<_GameInfo> {
   }
 }
 
-class _BuildsTab extends ConsumerWidget {
+class _OverviewTab extends ConsumerStatefulWidget {
+  final int _selectedGameId;
+
+  const _OverviewTab({required this._selectedGameId});
+
+  @override
+  _OverviewTabState createState() => _OverviewTabState();
+}
+
+class _OverviewTabState extends ConsumerState<_OverviewTab> {
+  String? _gameSummary;
+
+  @override
+  void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      GogState gogState = ref.watch(gogStateProvider);
+      _gameSummary = await gogState.getGameSummary(widget._selectedGameId);
+      setState(() {});
+    });
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: (_gameSummary == null)
+              ? Center(child: CircularProgressIndicator())
+              : Text(
+                  _gameSummary!,
+                  style: AppText.onest(
+                    size: 14.0,
+                    weight: FontWeight.w400,
+                    color: Colors.white.withAlpha(128),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BuildsTab extends ConsumerStatefulWidget {
   final int _selectedGameId;
 
   const _BuildsTab({required this._selectedGameId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    GogState gogState = ref.watch(gogStateProvider);
+  _BuildsTabState createState() => _BuildsTabState();
+}
+
+class _BuildsTabState extends ConsumerState<_BuildsTab> {
+  List<GameBuild>? _builds;
+
+  @override
+  void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      GogState gogState = ref.watch(gogStateProvider);
+      _builds = await gogState.getBuilds(widget._selectedGameId);
+      setState(() {});
+    });
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -247,16 +311,15 @@ class _BuildsTab extends ConsumerWidget {
         ),
         SizedBox(height: 16),
         Expanded(
-          child: FutureBuilder(
-            future: gogState.getBuilds(_selectedGameId),
-            builder: (context, snapshot) {
-              if (snapshot.hasData) {
-                return ListView.builder(
-                  itemCount: snapshot.data!.length,
+          child: (_builds != null)
+              ? ListView.builder(
+                  itemCount: _builds!.length,
                   itemBuilder: (context, index) {
-                    String title = snapshot.data![index].versionName;
-                    String releaseDate = snapshot.data![index].releaseDate
-                        .replaceAll(RegExp(r'\+0000'), '');
+                    String title = _builds![index].versionName;
+                    String releaseDate = _builds![index].releaseDate.replaceAll(
+                      RegExp(r'\+0000'),
+                      '',
+                    );
                     return Container(
                       padding: EdgeInsets.symmetric(vertical: 4),
                       child: Container(
@@ -294,11 +357,8 @@ class _BuildsTab extends ConsumerWidget {
                       ),
                     );
                   },
-                );
-              }
-              return Center(child: CircularProgressIndicator());
-            },
-          ),
+                )
+              : Center(child: CircularProgressIndicator()),
         ),
       ],
     );
@@ -318,7 +378,7 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return ClickableContainer(
       onTap: onPressed,
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),

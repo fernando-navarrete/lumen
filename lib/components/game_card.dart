@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/bounce_marquee.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
@@ -16,7 +17,7 @@ class GameCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
+    return ClickableContainer(
       onTap: onTap,
       child: Container(
         decoration: AppDecorations.card(

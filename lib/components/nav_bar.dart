@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/components/brand_lockup.dart';
 import 'package:gogdl2_flutter/state/home_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
@@ -80,7 +81,7 @@ class _NavBarButton extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return ClickableContainer(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
