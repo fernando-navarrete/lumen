@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
+import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
@@ -72,6 +73,39 @@ class GameHeader extends ConsumerWidget {
                         ),
                       );
                     },
+                  ),
+                  Container(
+                    child: Row(
+                      children: [
+                        Text(
+                          "Not installed",
+                          style: AppText.onest(
+                            color: Colors.white.withAlpha(196),
+                            size: 12,
+                            weight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  PrimaryButton(
+                    onTap: () {},
+                    glowing: true,
+                    child: Row(
+                      spacing: 8,
+                      children: [
+                        Icon(Icons.arrow_downward, color: Colors.black),
+                        Text(
+                          "Install",
+                          style: AppText.onest(
+                            color: Colors.black,
+                            size: 16,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

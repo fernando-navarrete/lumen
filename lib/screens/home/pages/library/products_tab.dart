@@ -2,10 +2,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/components/centered_loader.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
@@ -13,34 +11,23 @@ import 'package:gogdl2_flutter/theme/text_styles.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 /// List of the game's available builds.
-class BuildsTab extends ConsumerStatefulWidget {
-  const BuildsTab({super.key, required this.gameId});
+class ProductsTab extends ConsumerStatefulWidget {
+  const ProductsTab({super.key, required this.gameId});
 
   final int gameId;
 
   @override
-  ConsumerState<BuildsTab> createState() => _BuildsTabState();
+  ConsumerState<ProductsTab> createState() => _ProductsTabState();
 }
 
-class _BuildsTabState extends ConsumerState<BuildsTab> {
+class _ProductsTabState extends ConsumerState<ProductsTab> {
   List<GameBuild>? _builds;
-  int selectedBuild = -1;
 
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       GogState gogState = ref.read(gogStateProvider);
       _builds = await gogState.getBuilds(widget.gameId);
-      setState(() {});
-
-      GamesState gamesState = ref.read(gamesStateProvider);
-      String? selectedName = gamesState.getSelectedBuild(widget.gameId);
-      if (selectedName == null) {
-        selectedBuild = -1;
-      } else {
-        int index = _builds!.indexWhere((b) => b.buildId == selectedName);
-        selectedBuild = index;
-      }
       setState(() {});
     });
     super.initState();
@@ -49,7 +36,6 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-    GamesState gamesState = ref.read(gamesStateProvider);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -68,19 +54,8 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _builds!.length,
-                        itemBuilder: (context, index) => _BuildListItem(
-                          isSelected: index == selectedBuild,
-                          gameBuild: _builds![index],
-                          onTap: (gameBuild) {
-                            setState(() {
-                              selectedBuild = index;
-                            });
-                            gamesState.setSelectedBuild(
-                              widget.gameId,
-                              gameBuild.buildId,
-                            );
-                          },
-                        ),
+                        itemBuilder: (context, index) =>
+                            _BuildListItem(gameBuild: _builds![index]),
                       )
                     : const CenteredLoader(),
               ],
@@ -101,42 +76,32 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 }
 
 class _BuildListItem extends StatelessWidget {
-  const _BuildListItem({
-    required this.gameBuild,
-    required this.onTap,
-    required this.isSelected,
-  });
+  const _BuildListItem({required this.gameBuild});
 
   final GameBuild gameBuild;
-  final Function(GameBuild) onTap;
-  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
     final releaseDate = gameBuild.releaseDate.replaceAll(RegExp(r'\+0000'), '');
-    return ClickableContainer(
-      onTap: () => onTap(gameBuild),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Panel(
-          selected: isSelected,
-          child: Column(
-            spacing: AppSpacing.xs,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                gameBuild.versionName,
-                style: AppText.bodyMedium(
-                  color: Colors.white,
-                  weight: FontWeight.w600,
-                ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Panel(
+        child: Column(
+          spacing: AppSpacing.xs,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              gameBuild.versionName,
+              style: AppText.bodyMedium(
+                color: Colors.white,
+                weight: FontWeight.w600,
               ),
-              Text(
-                releaseDate,
-                style: AppText.caption(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
+            ),
+            Text(
+              releaseDate,
+              style: AppText.caption(color: AppColors.textSecondary),
+            ),
+          ],
         ),
       ),
     );

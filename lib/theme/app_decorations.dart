@@ -31,6 +31,15 @@ class AppDecorations {
         borderRadius: BorderRadius.circular(borderRadius),
       );
 
+  /// Flat bordered panel (no shadow): details card, build list rows.
+  static BoxDecoration highlightedPanel({
+    double borderRadius = AppRadii.card,
+  }) => BoxDecoration(
+    color: AppColors.backgroundTeal.withAlpha(128),
+    border: Border.all(color: AppColors.primaryGlow, width: 1.2),
+    borderRadius: BorderRadius.circular(borderRadius),
+  );
+
   /// Dark inset code/input block.
   static BoxDecoration get codeBlock => BoxDecoration(
     color: AppColors.codeBackground,

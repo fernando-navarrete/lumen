@@ -7,16 +7,20 @@ class Panel extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+    this.selected = false,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
     padding: padding,
-    decoration: AppDecorations.panel(),
+    decoration: selected
+        ? AppDecorations.highlightedPanel()
+        : AppDecorations.panel(),
     child: child,
   );
 }
