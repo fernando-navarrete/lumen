@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
-import 'package:gogdl2_flutter/components/nav_bar.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
@@ -26,7 +25,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       body: GradientBackground(
         child: Column(
           children: [
-            const NavBar(),
+            //const NavBar(),
             const _BackButton(),
             _GameHeader(gameId: widget.gameId),
           ],
@@ -65,7 +64,7 @@ class _GameHeader extends ConsumerWidget {
         vertical: 24,
       ),
       child: Container(
-        height: size.height * 0.5,
+        height: 316,
         decoration: AppDecorations.card(
           borderRadius: 13.0,
           borderColor: AppColors.border12,
