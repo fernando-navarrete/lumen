@@ -30,6 +30,19 @@ class GogState {
     }
   }
 
+  Future<String> getGameBackgroundLink(int gameId) async {
+    try {
+      String link = await _gog.getBackgroundImageLink(gameId: gameId);
+      return link;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+      return '';
+    }
+  }
+
   Future<String> getGameBoxartLink(int gameId) async {
     try {
       String link = await _gog.getGameBoxartLink(gameId: gameId);
