@@ -13,6 +13,14 @@ class NavBarState {
 
 enum NavBarItem { library, downloads, settings }
 
+extension NavBarItemLabel on NavBarItem {
+  String get label => switch (this) {
+    NavBarItem.library => 'Library',
+    NavBarItem.downloads => 'Downloads',
+    NavBarItem.settings => 'Settings',
+  };
+}
+
 final navBarItemProvider = Provider<NavBarState>((ref) {
   final instance = NavBarState(NavBarItem.library);
   return instance;
