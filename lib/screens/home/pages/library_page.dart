@@ -45,59 +45,66 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 }
 
-class _Library extends ConsumerWidget {
+class _Library extends ConsumerStatefulWidget {
   final Function(int) onGameTap;
 
   const _Library({required this.onGameTap});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  _LibraryState createState() => _LibraryState();
+}
+
+class _LibraryState extends ConsumerState<_Library> {
+  List<int> _ownedGames = [];
+  List<String> _gameNames = [];
+
+  @override
+  void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      var gogState = ref.watch(gogStateProvider);
+      _ownedGames = await gogState.getOwnedGames() ?? [];
+      _gameNames = List.filled(_ownedGames.length, '');
+      setState(() {});
+      for (int i = 0; i < _ownedGames.length; i++) {
+        final name = await gogState.getGameName(_ownedGames[i]);
+        if (name != null) {
+          _gameNames[i] = name;
+          setState(() {});
+        }
+      }
+    });
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-    var gogState = ref.watch(gogStateProvider);
     return Expanded(
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: size.width * 0.05),
-        child: FutureBuilder<List<int>?>(
-          future: gogState.getOwnedGames(),
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return GridView.builder(
+        child: _ownedGames.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : GridView.builder(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: size.width ~/ 200,
                   childAspectRatio: 9 / 12,
                   mainAxisSpacing: (size.width * 0.015).clamp(0.0, 15.0),
                   crossAxisSpacing: (size.width * 0.015).clamp(0.0, 15.0),
                 ),
+                itemCount: _ownedGames.length,
                 itemBuilder: (context, index) {
-                  return FutureBuilder<String?>(
-                    future: gogState.getGameName(snapshot.data![index]),
-                    builder: (context, nameSnapshot) {
-                      if (nameSnapshot.hasData) {
-                        String? title = nameSnapshot.data ?? '';
-                        int? gameId = snapshot.data?[index];
-                        if (title.isEmpty || gameId == null) {
-                          return const SizedBox.shrink();
-                        }
-                        return GameCard(
-                          gameId: gameId,
-                          gameName: title,
-                          onTap: () {
-                            onGameTap(gameId);
-                          },
-                        );
-                      } else {
-                        return const CircularProgressIndicator();
-                      }
+                  if (_gameNames[index].isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return GameCard(
+                    gameId: _ownedGames[index],
+                    gameName: _gameNames[index],
+                    onTap: () {
+                      widget.onGameTap(_ownedGames[index]);
                     },
                   );
                 },
-                itemCount: snapshot.data?.length,
-              );
-            } else {
-              return const Center(child: CircularProgressIndicator());
-            }
-          },
-        ),
+              ),
       ),
     );
   }
