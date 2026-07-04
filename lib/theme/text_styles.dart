@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:gogdl2_flutter/theme/app_colors.dart';
 
 class AppText {
   static TextStyle onest({
@@ -37,4 +38,22 @@ class AppText {
   /// Inline code / redirect-URL snippets.
   static TextStyle code({required Color color}) =>
       monospace(size: 12.0, weight: FontWeight.w500, color: color);
+
+  /// Uppercase section headers, e.g. "MEDIA" / "DETAILS".
+  static TextStyle get sectionLabel =>
+      monospace(size: 13.0, weight: FontWeight.w500, color: AppColors.textMuted);
+
+  /// Standard 14px body text (summaries, status rows, tab labels).
+  static TextStyle bodyMedium({
+    required Color color,
+    FontWeight weight = FontWeight.w400,
+  }) => onest(size: 14.0, weight: weight, color: color);
+
+  /// Button labels.
+  static TextStyle button({required Color color}) =>
+      onest(size: 14.0, weight: FontWeight.w600, color: color);
+
+  /// 12px secondary copy, e.g. release dates and install status.
+  static TextStyle caption({required Color color}) =>
+      onest(size: 12.0, weight: FontWeight.w400, color: color);
 }

@@ -6,6 +6,7 @@ import 'package:gogdl2_flutter/components/bounce_marquee.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
+import 'package:gogdl2_flutter/theme/app_dimens.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
 
 class GameCard extends ConsumerWidget {
@@ -20,10 +21,7 @@ class GameCard extends ConsumerWidget {
     return ClickableContainer(
       onTap: onTap,
       child: Container(
-        decoration: AppDecorations.card(
-          borderRadius: 13.0,
-          borderColor: AppColors.border12,
-        ),
+        decoration: AppDecorations.card(),
         child: Stack(
           children: [
             Positioned.fill(
@@ -41,7 +39,7 @@ class GameCard extends ConsumerWidget {
                 height: 56,
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
+                  borderRadius: BorderRadius.circular(AppRadii.card),
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -57,15 +55,11 @@ class GameCard extends ConsumerWidget {
                   children: [
                     AutoMarqueeText(
                       text: gameName,
-                      style: TextStyle(color: Colors.white),
+                      style: AppText.bodyMedium(color: Colors.white),
                     ),
                     Text(
                       "Not installed",
-                      style: AppText.onest(
-                        size: 12,
-                        color: Colors.grey,
-                        weight: FontWeight.normal,
-                      ),
+                      style: AppText.caption(color: AppColors.textSecondary),
                     ),
                   ],
                 ),

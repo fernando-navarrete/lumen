@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 class GradientBackground extends StatelessWidget {
@@ -11,11 +12,11 @@ class GradientBackground extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // Base solid color (the final fallback in the CSS background list)
-        Container(color: const Color(0xFF0B1015)),
+        Container(color: AppColors.backgroundBase),
 
         // radial-gradient(120% 95% at 10% 6%, #163a44 0%, transparent 52%)
         _RadialLayer(
-          color: const Color(0xFF163A44),
+          color: AppColors.backgroundTeal,
           center: const Alignment(-1, 1), // 10% 6% -> (-1..1)
           scaleX: 0.55,
           scaleY: 0.95,
@@ -24,7 +25,7 @@ class GradientBackground extends StatelessWidget {
 
         // radial-gradient(120% 90% at 92% 16%, #2a2552 0%, transparent 48%)
         _RadialLayer(
-          color: const Color(0xFF2A2552),
+          color: AppColors.backgroundIndigo,
           center: const Alignment(1.1, -0.38), // 92% 16%
           scaleX: 1.0,
           scaleY: 1.0,
@@ -33,7 +34,7 @@ class GradientBackground extends StatelessWidget {
 
         // radial-gradient(150% 130% at 62% 104%, #11212a 0%, transparent 58%)
         _RadialLayer(
-          color: const Color(0xFF11212A),
+          color: AppColors.backgroundDeep,
           center: const Alignment(0.2, -1.2), // 62% 104%
           scaleX: 0.80,
           scaleY: 1.0,

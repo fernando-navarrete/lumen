@@ -23,4 +23,13 @@ class AppColors {
   static const textMuted = Color(0x5AFFFFFF);
   // rgba(0, 0, 0, ~0.35) — drop shadow under elevated cards
   static const shadow = Color(0x5A000000);
+  // rgba(255, 255, 255, 0.5) — muted foreground text
+  static const textSecondary = Color(0x80FFFFFF);
+  // rgba(255, 255, 255, ~0.03) — subtle panel fill
+  static const fill08 = Color(0x08FFFFFF);
+  // Gradient background layers
+  static const backgroundBase = Color(0xFF0B1015);
+  static const backgroundTeal = Color(0xFF163A44);
+  static const backgroundIndigo = Color(0xFF2A2552);
+  static const backgroundDeep = Color(0xFF11212A);
 }
