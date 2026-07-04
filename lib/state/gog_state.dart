@@ -72,11 +72,6 @@ class GogState {
   Future<List<String>> getGameScreenshots(int gameId) async {
     try {
       List<String> screenshots = await _gog.getGameScreenshots(gameId: gameId);
-      for (String screenshot in screenshots) {
-        if (kDebugMode) {
-          print(screenshot);
-        }
-      }
       return screenshots;
     } catch (e) {
       if (kDebugMode) {
@@ -105,9 +100,6 @@ class GogState {
       final storage = FlutterSecureStorage();
       String? auth = await storage.read(key: 'auth');
       if (auth != null) {
-        if (kDebugMode) {
-          print(auth);
-        }
         await _gog.restoreAuthFromString(token: auth);
       } else {
         throw Exception('No auth token found in storage');

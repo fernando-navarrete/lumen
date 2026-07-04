@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/common/clickable_container.dart';
@@ -216,15 +218,11 @@ class _GameInfoState extends ConsumerState<_GameInfo> {
           ),
         ),
         SizedBox(height: 24),
-        Expanded(
-          child: switch (_selectedTab) {
-            SelectedTab.overview => _OverviewTab(
-              selectedGameId: widget.gameId!,
-            ),
-            SelectedTab.builds => _BuildsTab(selectedGameId: widget.gameId!),
-            SelectedTab.settings => Text('settings'),
-          },
-        ),
+        switch (_selectedTab) {
+          SelectedTab.overview => _OverviewTab(selectedGameId: widget.gameId!),
+          SelectedTab.builds => _BuildsTab(selectedGameId: widget.gameId!),
+          SelectedTab.settings => Text('settings'),
+        },
       ],
     );
   }
@@ -257,47 +255,123 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        (_gameSummary == null)
-            ? Center(child: CircularProgressIndicator())
-            : Text(
-                _gameSummary!,
-                style: AppText.onest(
-                  size: 14.0,
-                  weight: FontWeight.w400,
-                  color: Colors.white.withAlpha(128),
-                ),
+    var size = MediaQuery.of(context).size;
+    return Expanded(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  (_gameSummary == null)
+                      ? Center(child: CircularProgressIndicator())
+                      : Text(
+                          _gameSummary!,
+                          style: AppText.onest(
+                            size: 14.0,
+                            weight: FontWeight.w400,
+                            color: Colors.white.withAlpha(128),
+                          ),
+                        ),
+                  SizedBox(height: 32.0),
+                  Text(
+                    "MEDIA",
+                    style: AppText.monospace(
+                      size: 13.0,
+                      weight: FontWeight.w500,
+                      color: Colors.grey.withAlpha(128),
+                    ),
+                  ),
+                  SizedBox(height: 8.0),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 16 / 9,
+                      crossAxisSpacing: 12.0,
+                      mainAxisSpacing: 12.0,
+                    ),
+                    itemCount: _screenshots.length,
+                    itemBuilder: (context, index) {
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(13),
+                        child: Image.network(
+                          _screenshots[index],
+                          fit: BoxFit.fill,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-        SizedBox(height: 32.0),
-        Text(
-          "MEDIA",
-          style: AppText.monospace(
-            size: 13.0,
-            weight: FontWeight.w500,
-            color: Colors.grey,
-          ),
-        ),
-        SizedBox(height: 8.0),
-        Expanded(
-          child: GridView.builder(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8.0,
-              mainAxisSpacing: 8.0,
             ),
-            itemCount: _screenshots.length,
-            itemBuilder: (context, index) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(13),
-                child: Image.network(_screenshots[index], fit: BoxFit.cover),
-              );
-            },
           ),
-        ),
-      ],
+          SizedBox(width: 24),
+          SizedBox(
+            width: _getTabWidth(size.width),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                (_getTabWidth(size.width) > 0)
+                    ? Text(
+                        "DETAILS",
+                        style: AppText.monospace(
+                          size: 13.0,
+                          weight: FontWeight.w500,
+                          color: Colors.grey.withAlpha(128),
+                        ),
+                      )
+                    : SizedBox.shrink(),
+                SizedBox(height: 8.0),
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(8),
+                    border: Border.all(color: AppColors.border12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Status",
+                            style: AppText.onest(
+                              size: 14.0,
+                              weight: FontWeight.w400,
+                              color: Colors.white.withAlpha(128),
+                            ),
+                          ),
+                          Text(
+                            "Not installed",
+                            style: AppText.onest(
+                              size: 14.0,
+                              weight: FontWeight.w400,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  double _getTabWidth(double width) {
+    double tabWidth = width > 1080 ? pow(width * 0.05, 1.3).toDouble() : 0;
+    return tabWidth;
   }
 }
 
@@ -325,70 +399,86 @@ class _BuildsTabState extends ConsumerState<_BuildsTab> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Select which build to install. Switching re-downloads the changed files.',
-          style: AppText.onest(
-            size: 12.0,
-            weight: FontWeight.w400,
-            color: Colors.grey,
+    var size = MediaQuery.of(context).size;
+    return Expanded(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Select which build to install. Switching re-downloads the changed files.',
+                    style: AppText.onest(
+                      size: 12.0,
+                      weight: FontWeight.w400,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  (_builds != null)
+                      ? ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: _builds!.length,
+                          itemBuilder: (context, index) {
+                            String title = _builds![index].versionName;
+                            String releaseDate = _builds![index].releaseDate
+                                .replaceAll(RegExp(r'\+0000'), '');
+                            return Container(
+                              padding: EdgeInsets.symmetric(vertical: 4),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  vertical: 16,
+                                  horizontal: 18,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withAlpha(8),
+                                  border: Border.all(color: AppColors.border12),
+                                  borderRadius: BorderRadius.circular(13),
+                                ),
+                                child: Column(
+                                  spacing: 8,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      title,
+                                      style: AppText.onest(
+                                        size: 14.0,
+                                        weight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      releaseDate,
+                                      style: AppText.onest(
+                                        size: 12.0,
+                                        weight: FontWeight.w400,
+                                        color: Colors.white.withAlpha(128),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Center(child: CircularProgressIndicator()),
+                ],
+              ),
+            ),
           ),
-        ),
-        SizedBox(height: 16),
-        Expanded(
-          child: (_builds != null)
-              ? ListView.builder(
-                  itemCount: _builds!.length,
-                  itemBuilder: (context, index) {
-                    String title = _builds![index].versionName;
-                    String releaseDate = _builds![index].releaseDate.replaceAll(
-                      RegExp(r'\+0000'),
-                      '',
-                    );
-                    return Container(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 16,
-                          horizontal: 18,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withAlpha(8),
-                          border: Border.all(color: AppColors.border12),
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: Column(
-                          spacing: 8,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: AppText.onest(
-                                size: 14.0,
-                                weight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              releaseDate,
-                              style: AppText.onest(
-                                size: 12.0,
-                                weight: FontWeight.w400,
-                                color: Colors.white.withAlpha(128),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : Center(child: CircularProgressIndicator()),
-        ),
-      ],
+          SizedBox(width: _getTabWidth(size.width)),
+        ],
+      ),
     );
+  }
+
+  double _getTabWidth(double width) {
+    double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
+    return tabWidth;
   }
 }
 
