@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 
 class GlowingSquare extends StatelessWidget {
-  const GlowingSquare({required this.width});
+  const GlowingSquare({super.key, required this.width});
   final double width;
 
   @override

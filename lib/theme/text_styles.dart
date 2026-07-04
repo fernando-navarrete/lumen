@@ -29,4 +29,12 @@ class AppText {
     letterSpacing: letterSpacing,
     height: height,
   );
+
+  /// Small body copy, e.g. step descriptions and helper text.
+  static TextStyle body({required Color color}) =>
+      onest(size: 12.0, weight: FontWeight.w200, color: color);
+
+  /// Inline code / redirect-URL snippets.
+  static TextStyle code({required Color color}) =>
+      monospace(size: 12.0, weight: FontWeight.w500, color: color);
 }

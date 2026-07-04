@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
 import 'package:gogdl2_flutter/components/nav_bar.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
 
 class GameScreen extends ConsumerStatefulWidget {
@@ -24,8 +26,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       body: GradientBackground(
         child: Column(
           children: [
-            NavBar(),
-            _BackButton(),
+            const NavBar(),
+            const _BackButton(),
             _GameHeader(gameId: widget.gameId),
           ],
         ),
@@ -40,7 +42,7 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(Icons.arrow_back),
+      icon: const Icon(Icons.arrow_back),
       onPressed: () {
         Navigator.pop(context);
       },
@@ -64,37 +66,17 @@ class _GameHeader extends ConsumerWidget {
       ),
       child: Container(
         height: size.height * 0.5,
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Color.fromARGB(90, 0, 0, 0),
-              blurRadius: 18,
-              spreadRadius: 8,
-            ),
-          ],
-          borderRadius: BorderRadius.circular(13.0),
-          border: Border.all(color: AppColors.border12),
+        decoration: AppDecorations.card(
+          borderRadius: 13.0,
+          borderColor: AppColors.border12,
+          blurRadius: 18,
+          spreadRadius: 8,
         ),
         child: Stack(
           children: [
             Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13.0),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(13.0),
-                  child: FutureBuilder<String>(
-                    future: gogState.getGameBackgroundLink(gameId!),
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        return Image.network(snapshot.data!, fit: BoxFit.cover);
-                      } else {
-                        return SizedBox.shrink();
-                      }
-                    },
-                  ),
-                ),
+              child: AsyncCoverImage(
+                imageUrl: gogState.getGameBackgroundLink(gameId!),
               ),
             ),
             Positioned(
@@ -134,25 +116,14 @@ class _GameHeader extends ConsumerWidget {
                     FutureBuilder<String?>(
                       future: gogState.getGameName(gameId!),
                       builder: (context, snapshot) {
-                        if (snapshot.hasData) {
-                          return Text(
-                            snapshot.data!,
-                            style: AppText.onest(
-                              color: Colors.white,
-                              size: 44,
-                              weight: FontWeight.w800,
-                            ),
-                          );
-                        } else {
-                          return Text(
-                            'Loading...',
-                            style: AppText.onest(
-                              color: Colors.white,
-                              size: 44,
-                              weight: FontWeight.w800,
-                            ),
-                          );
-                        }
+                        return Text(
+                          snapshot.data ?? 'Loading...',
+                          style: AppText.onest(
+                            color: Colors.white,
+                            size: 44,
+                            weight: FontWeight.w800,
+                          ),
+                        );
                       },
                     ),
                   ],

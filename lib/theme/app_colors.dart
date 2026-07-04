@@ -21,4 +21,6 @@ class AppColors {
   static const codeBackground = Color(0x5A000000);
   // rgba(255, 255, 255, ~0.35) — muted text in code blocks
   static const textMuted = Color(0x5AFFFFFF);
+  // rgba(0, 0, 0, ~0.35) — drop shadow under elevated cards
+  static const shadow = Color(0x5A000000);
 }

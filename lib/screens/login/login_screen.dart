@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/components/brand_lockup.dart';
 import 'package:gogdl2_flutter/components/glowing_square.dart';
 import 'package:gogdl2_flutter/components/gradient_background.dart';
 import 'package:gogdl2_flutter/screens/home/home_screen.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
@@ -36,7 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           Navigator.pushReplacement(
             // ignore: use_build_context_synchronously
             context,
-            MaterialPageRoute(builder: (context) => HomeScreen()),
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
       } catch (e) {
@@ -48,7 +50,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.initState();
   }
 
-  LoginStep _step = LoginStep.Begin;
+  LoginStep _step = LoginStep.begin;
   bool loginError = false;
 
   final _codeController = TextEditingController();
@@ -61,16 +63,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       child: Center(
         child: Container(
           margin: EdgeInsets.all(size.width * 0.1),
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: Color.fromARGB(90, 0, 0, 0),
-                blurRadius: 45,
-                spreadRadius: 20,
-              ),
-            ],
-            border: Border.all(color: AppColors.border09, width: 0.75),
-            borderRadius: BorderRadius.circular(22.0),
+          decoration: AppDecorations.card(
+            borderRadius: 22.0,
+            borderColor: AppColors.border09,
+            borderWidth: 0.75,
+            blurRadius: 45,
+            spreadRadius: 20,
           ),
           child: Row(
             children: [
@@ -99,20 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        spacing: 12,
-                        children: [
-                          GlowingSquare(width: 27),
-                          Text(
-                            "Lumen",
-                            style: AppText.onest(
-                              size: 18.0,
-                              weight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
+                      const BrandLockup(),
                       Expanded(
                         child: Center(
                           child: Container(
@@ -134,7 +119,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               color: AppColors.primary.withAlpha(16),
                             ),
-                            child: Center(child: GlowingSquare(width: 54)),
+                            child: const Center(
+                              child: GlowingSquare(width: 54),
+                            ),
                           ),
                         ),
                       ),
@@ -156,11 +143,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             SizedBox(height: 16),
                             Text(
                               "An unofficial client. Lumen never sees your password - you sign in on GOG's own page and hand back a one-time code.",
-                              style: AppText.onest(
-                                size: 12.0,
-                                weight: FontWeight.w200,
-                                color: Colors.grey,
-                              ),
+                              style: AppText.body(color: Colors.grey),
                             ),
                           ],
                         ),
@@ -207,27 +190,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             SizedBox(height: 8),
                             Text(
                               "Three quick steps. You'll authenticate on GOG, then paste the code it gives you hack here.",
-                              style: AppText.onest(
-                                size: 12.0,
-                                weight: FontWeight.w200,
-                                color: Colors.grey,
-                              ),
+                              style: AppText.body(color: Colors.grey),
                             ),
                             SizedBox(height: 32),
                             _LoginStep(
                               isComplete:
-                                  _step == LoginStep.OpenLoginUrl ||
-                                  _step == LoginStep.CopyCode ||
-                                  _step == LoginStep.PasteCode,
+                                  _step == LoginStep.openLoginUrl ||
+                                  _step == LoginStep.copyCode ||
+                                  _step == LoginStep.pasteCode,
                               step: 1,
                               title: "Open the GOG login page",
                               description: Text(
                                 "This opens your browser at GOG's official sign-in. Enter your email and password there.",
-                                style: AppText.onest(
-                                  size: 12.0,
-                                  weight: FontWeight.w200,
-                                  color: Colors.grey,
-                                ),
+                                style: AppText.body(color: Colors.grey),
                               ),
                               action: _PrimaryButton(
                                 onTap: () async {
@@ -259,8 +234,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             SizedBox(height: 24),
                             _LoginStep(
                               isComplete:
-                                  _step == LoginStep.CopyCode ||
-                                  _step == LoginStep.PasteCode,
+                                  _step == LoginStep.copyCode ||
+                                  _step == LoginStep.pasteCode,
                               step: 2,
                               title: "Copy the code form the address bar",
                               description: RichText(
@@ -269,27 +244,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     TextSpan(
                                       text:
                                           "After signing in, GOG redirects to a blank page. Copy everything after ",
-                                      style: AppText.onest(
-                                        size: 12.0,
-                                        weight: FontWeight.w200,
-                                        color: Colors.grey,
-                                      ),
+                                      style: AppText.body(color: Colors.grey),
                                     ),
                                     TextSpan(
                                       text: "code= ",
-                                      style: AppText.onest(
-                                        size: 12.0,
-                                        weight: FontWeight.w200,
+                                      style: AppText.body(
                                         color: AppColors.primary,
                                       ),
                                     ),
                                     TextSpan(
                                       text: "in the URL.",
-                                      style: AppText.onest(
-                                        size: 12.0,
-                                        weight: FontWeight.w200,
-                                        color: Colors.grey,
-                                      ),
+                                      style: AppText.body(color: Colors.grey),
                                     ),
                                   ],
                                 ),
@@ -318,25 +283,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           TextSpan(
                                             text:
                                                 ".../on_login_success?origin=client&",
-                                            style: AppText.monospace(
-                                              size: 12.0,
-                                              weight: FontWeight.w500,
+                                            style: AppText.code(
                                               color: AppColors.textMuted,
                                             ),
                                           ),
                                           TextSpan(
                                             text: "code=",
-                                            style: AppText.monospace(
-                                              size: 12.0,
-                                              weight: FontWeight.w500,
+                                            style: AppText.code(
                                               color: AppColors.primary,
                                             ),
                                           ),
                                           TextSpan(
                                             text: "M0xY7...",
-                                            style: AppText.monospace(
-                                              size: 12.0,
-                                              weight: FontWeight.w500,
+                                            style: AppText.code(
                                               color: Colors.white,
                                             ),
                                           ),
@@ -349,16 +308,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                             SizedBox(height: 24),
                             _LoginStep(
-                              isComplete: _step == LoginStep.PasteCode,
+                              isComplete: _step == LoginStep.pasteCode,
                               step: 3,
                               title: "Paste the code to finish",
                               description: Text(
                                 "Lumen exchanges it for your access tokens. Nothing leaves your machine but the code.",
-                                style: AppText.onest(
-                                  size: 12.0,
-                                  weight: FontWeight.w200,
-                                  color: Colors.grey,
-                                ),
+                                style: AppText.body(color: Colors.grey),
                               ),
                               action: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -403,9 +358,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                     ),
                                                 child: Text(
                                                   "code=",
-                                                  style: AppText.monospace(
-                                                    size: 12.0,
-                                                    weight: FontWeight.w500,
+                                                  style: AppText.code(
                                                     color: AppColors.textMuted,
                                                   ),
                                                 ),
@@ -416,9 +369,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                                     TextSpan(
                                                       text:
                                                           " paste authorization code",
-                                                      style: AppText.monospace(
-                                                        size: 12.0,
-                                                        weight: FontWeight.w500,
+                                                      style: AppText.code(
                                                         color: Colors.white,
                                                       ),
                                                     ),
@@ -461,10 +412,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             Expanded(
                                               child: Text(
                                                 "That code looks incomplete. Copy the full value after code= and try again.",
-                                                style: AppText.onest(
+                                                style: AppText.body(
                                                   color: Colors.red,
-                                                  size: 12.0,
-                                                  weight: FontWeight.w200,
                                                 ),
                                               ),
                                             ),
@@ -499,7 +448,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Navigator.pushReplacement(
           // ignore: use_build_context_synchronously
           context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       }
     } catch (e) {
@@ -511,13 +460,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _onEnteredCode(String code, GogState gogState) async {
     setState(() {
-      _step = LoginStep.PasteCode;
+      _step = LoginStep.pasteCode;
     });
   }
 
   Future<void> _openLoginUrl(BuildContext context, GogState gogState) async {
     setState(() {
-      _step = LoginStep.OpenLoginUrl;
+      _step = LoginStep.openLoginUrl;
     });
     final loginUrl = gogState.getLoginUrl();
     if (!await launchUrlString(loginUrl)) {
@@ -528,7 +477,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     Future.delayed(Duration(seconds: 10), () {
       setState(() {
-        _step = LoginStep.CopyCode;
+        _step = LoginStep.copyCode;
       });
     });
   }
@@ -539,10 +488,10 @@ class _DynamicGradient extends StatelessWidget {
   final LoginStep step;
 
   Alignment get _centerForStep => switch (step) {
-    LoginStep.Begin => const Alignment(-0.2, 1.0),
-    LoginStep.OpenLoginUrl => const Alignment(-0.2, 1.3),
-    LoginStep.CopyCode => const Alignment(-0.2, 1.6),
-    LoginStep.PasteCode => const Alignment(-0.2, 1.9),
+    LoginStep.begin => const Alignment(-0.2, 1.0),
+    LoginStep.openLoginUrl => const Alignment(-0.2, 1.3),
+    LoginStep.copyCode => const Alignment(-0.2, 1.6),
+    LoginStep.pasteCode => const Alignment(-0.2, 1.9),
   };
 
   @override
@@ -593,7 +542,7 @@ class _PrimaryButton extends StatelessWidget {
   );
 }
 
-enum LoginStep { Begin, OpenLoginUrl, CopyCode, PasteCode }
+enum LoginStep { begin, openLoginUrl, copyCode, pasteCode }
 
 class _StepIndicator extends StatelessWidget {
   final bool isComplete;
