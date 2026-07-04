@@ -247,15 +247,44 @@ class _BuildsTab extends ConsumerWidget {
                 return ListView.builder(
                   itemCount: snapshot.data!.length,
                   itemBuilder: (context, index) {
-                    return ListTile(
-                      title: Text(snapshot.data![index].versionName),
-                      subtitle: Text(
-                        snapshot.data![index].releaseDate.replaceAll(
-                          RegExp(r'\+0000'),
-                          '',
+                    String title = snapshot.data![index].versionName;
+                    String releaseDate = snapshot.data![index].releaseDate
+                        .replaceAll(RegExp(r'\+0000'), '');
+                    return Container(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(8),
+                          border: Border.all(color: AppColors.border12),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                        child: Column(
+                          spacing: 8,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: AppText.onest(
+                                size: 14.0,
+                                weight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              releaseDate,
+                              style: AppText.onest(
+                                size: 12.0,
+                                weight: FontWeight.w400,
+                                color: Colors.white.withAlpha(128),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      onTap: () {},
                     );
                   },
                 );
