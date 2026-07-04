@@ -145,7 +145,7 @@ class _LibraryItem extends StatelessWidget {
           SizedBox(height: 24),
           _GameHeader(gameId: gameId),
           SizedBox(height: 24),
-          _GameInfo(gameId: gameId),
+          Expanded(child: _GameInfo(gameId: gameId)),
         ],
       ),
     );
@@ -207,7 +207,7 @@ class _GameInfoState extends ConsumerState<_GameInfo> {
           ),
         ),
         SizedBox(height: 24),
-        Container(
+        Expanded(
           child: switch (_selectedTab) {
             SelectedTab.overview => Text('overview'),
             SelectedTab.builds => _BuildsTab(selectedGameId: widget.gameId!),
@@ -239,28 +239,30 @@ class _BuildsTab extends ConsumerWidget {
           ),
         ),
         SizedBox(height: 16),
-        FutureBuilder(
-          future: gogState.getBuilds(_selectedGameId),
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return ListView.builder(
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  return ListTile(
-                    title: Text(snapshot.data![index].versionName),
-                    subtitle: Text(
-                      snapshot.data![index].releaseDate.replaceAll(
-                        RegExp(r'\+0000'),
-                        '',
+        Expanded(
+          child: FutureBuilder(
+            future: gogState.getBuilds(_selectedGameId),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return ListView.builder(
+                  itemCount: snapshot.data!.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: Text(snapshot.data![index].versionName),
+                      subtitle: Text(
+                        snapshot.data![index].releaseDate.replaceAll(
+                          RegExp(r'\+0000'),
+                          '',
+                        ),
                       ),
-                    ),
-                    onTap: () {},
-                  );
-                },
-              );
-            }
-            return Center(child: CircularProgressIndicator());
-          },
+                      onTap: () {},
+                    );
+                  },
+                );
+              }
+              return Center(child: CircularProgressIndicator());
+            },
+          ),
         ),
       ],
     );
