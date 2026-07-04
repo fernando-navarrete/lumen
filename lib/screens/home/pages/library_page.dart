@@ -241,12 +241,15 @@ class _OverviewTab extends ConsumerStatefulWidget {
 
 class _OverviewTabState extends ConsumerState<_OverviewTab> {
   String? _gameSummary;
+  List<String> _screenshots = [];
 
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       GogState gogState = ref.watch(gogStateProvider);
       _gameSummary = await gogState.getGameSummary(widget._selectedGameId);
+      setState(() {});
+      _screenshots = await gogState.getGameScreenshots(widget._selectedGameId);
       setState(() {});
     });
     super.initState();
@@ -257,17 +260,41 @@ class _OverviewTabState extends ConsumerState<_OverviewTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: (_gameSummary == null)
-              ? Center(child: CircularProgressIndicator())
-              : Text(
-                  _gameSummary!,
-                  style: AppText.onest(
-                    size: 14.0,
-                    weight: FontWeight.w400,
-                    color: Colors.white.withAlpha(128),
-                  ),
+        (_gameSummary == null)
+            ? Center(child: CircularProgressIndicator())
+            : Text(
+                _gameSummary!,
+                style: AppText.onest(
+                  size: 14.0,
+                  weight: FontWeight.w400,
+                  color: Colors.white.withAlpha(128),
                 ),
+              ),
+        SizedBox(height: 32.0),
+        Text(
+          "MEDIA",
+          style: AppText.monospace(
+            size: 13.0,
+            weight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        SizedBox(height: 8.0),
+        Expanded(
+          child: GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8.0,
+              mainAxisSpacing: 8.0,
+            ),
+            itemCount: _screenshots.length,
+            itemBuilder: (context, index) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: Image.network(_screenshots[index], fit: BoxFit.cover),
+              );
+            },
+          ),
         ),
       ],
     );

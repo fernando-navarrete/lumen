@@ -69,6 +69,24 @@ class GogState {
     }
   }
 
+  Future<List<String>> getGameScreenshots(int gameId) async {
+    try {
+      List<String> screenshots = await _gog.getGameScreenshots(gameId: gameId);
+      for (String screenshot in screenshots) {
+        if (kDebugMode) {
+          print(screenshot);
+        }
+      }
+      return screenshots;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+        throw Exception(e);
+      }
+      return [];
+    }
+  }
+
   Future<void> loginWithCode(String code) async {
     try {
       String auth = await _gog.loginWithCode(code: code);
