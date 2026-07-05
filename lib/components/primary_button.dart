@@ -10,6 +10,7 @@ class PrimaryButton extends StatelessWidget {
     required this.onTap,
     required this.child,
     this.glowing = false,
+    this.enabled = true,
   });
 
   /// Convenience for the common icon + label content.
@@ -20,10 +21,12 @@ class PrimaryButton extends StatelessWidget {
     required String label,
     Color foreground = Colors.white,
     bool glowing = false,
+    bool enabled = true,
   }) => PrimaryButton(
     key: key,
     onTap: onTap,
     glowing: glowing,
+    enabled: enabled,
     child: Row(
       mainAxisSize: MainAxisSize.min,
       spacing: AppSpacing.xs,
@@ -37,29 +40,36 @@ class PrimaryButton extends StatelessWidget {
   final VoidCallback onTap;
   final Widget child;
   final bool glowing;
+  final bool enabled;
 
   @override
-  Widget build(BuildContext context) => ClickableContainer(
-    onTap: onTap,
-    child: Container(
-      decoration: BoxDecoration(
-        color: glowing ? AppColors.primary : AppColors.border08,
-        borderRadius: BorderRadius.circular(AppRadii.control),
-        boxShadow: glowing
-            ? [
-                BoxShadow(
-                  offset: Offset(0, 2),
-                  blurRadius: 18,
-                  color: AppColors.primaryGlow,
-                ),
-              ]
-            : null,
-        border: !glowing ? Border.all(color: AppColors.border12) : null,
+  Widget build(BuildContext context) {
+    final button = ClickableContainer(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: glowing ? AppColors.primary : AppColors.border08,
+          borderRadius: BorderRadius.circular(AppRadii.control),
+          boxShadow: glowing
+              ? [
+                  BoxShadow(
+                    offset: Offset(0, 2),
+                    blurRadius: 18,
+                    color: AppColors.primaryGlow,
+                  ),
+                ]
+              : null,
+          border: !glowing ? Border.all(color: AppColors.border12) : null,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 20.0,
+            vertical: 11.0,
+          ),
+          child: child,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 11.0),
-        child: child,
-      ),
-    ),
-  );
+    );
+    return enabled ? button : Opacity(opacity: 0.5, child: button);
+  }
 }

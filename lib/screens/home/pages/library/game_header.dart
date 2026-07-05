@@ -9,15 +9,82 @@ import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 /// Wide banner with the game's background art and its title over a scrim.
-class GameHeader extends ConsumerWidget {
+class GameHeader extends ConsumerStatefulWidget {
   const GameHeader({super.key, required this.gameId});
 
   final int gameId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GameHeader> createState() => _GameHeaderState();
+}
+
+class _GameHeaderState extends ConsumerState<GameHeader> {
+  /// Whether preloading the default build + products has finished, gating
+  /// the Install/Import buttons so they always have something to act on.
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _preload());
+  }
+
+  @override
+  void didUpdateWidget(covariant GameHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.gameId != widget.gameId) {
+      setState(() {
+        _ready = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _preload());
+    }
+  }
+
+  GameBuild _latestBuild(List<GameBuild> builds) => builds.reduce(
+    (a, b) => b.releaseDateTimestamp > a.releaseDateTimestamp ? b : a,
+  );
+
+  /// Preloads the default build (latest) and products (all) for
+  /// [widget.gameId], but only fills in defaults when nothing has been
+  /// saved yet — a prior user choice is left untouched.
+  Future<void> _preload() async {
+    final gogState = ref.read(gogStateProvider);
+    final gamesState = ref.read(gamesStateProvider);
+    final gameId = widget.gameId;
+
+    String? buildName = gamesState.getSelectedBuild(gameId);
+    if (buildName == null || buildName.isEmpty) {
+      final builds = await gogState.getBuilds(gameId);
+      if (builds != null && builds.isNotEmpty) {
+        buildName = _latestBuild(builds).versionName;
+        gamesState.setSelectedBuild(gameId, buildName);
+      }
+    }
+
+    if (buildName != null &&
+        buildName.isNotEmpty &&
+        gamesState.getProductIds(gameId).isEmpty) {
+      final products = await gogState.getProducts(gameId, buildName);
+      for (final product in products ?? const <DownloadableProduct>[]) {
+        gamesState.addProductId(gameId, product.id);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _ready =
+            (buildName != null && buildName.isNotEmpty) &&
+            gamesState.getProductIds(gameId).isNotEmpty;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    var gameId = widget.gameId;
     var size = MediaQuery.of(context).size;
     var gogState = ref.watch(gogStateProvider);
     var gamesState = ref.watch(gamesStateProvider);
@@ -95,6 +162,7 @@ class GameHeader extends ConsumerWidget {
                     spacing: 12,
                     children: [
                       PrimaryButton(
+                        enabled: _ready,
                         onTap: () async {
                           final PickedLocation? location =
                               await DirPicker.pick();
@@ -104,10 +172,6 @@ class GameHeader extends ConsumerWidget {
                             List<String> productIds = gamesState
                                 .getProductIds(gameId)
                                 .toList();
-                            print("PRODUCTS");
-                            for (String productId in productIds) {
-                              print(productId);
-                            }
                             String buildName =
                                 gamesState.getSelectedBuild(gameId) ?? "";
                             if (productIds.isNotEmpty) {
@@ -141,6 +205,7 @@ class GameHeader extends ConsumerWidget {
                         icon: Icons.folder_open,
                         label: "Import",
                         glowing: false,
+                        enabled: _ready,
                         onTap: () async {
                           final PickedLocation? location =
                               await DirPicker.pick();
