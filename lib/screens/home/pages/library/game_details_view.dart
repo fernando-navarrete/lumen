@@ -14,8 +14,8 @@ extension SelectedTabLabel on SelectedTab {
   String get label => switch (this) {
     SelectedTab.overview => 'Overview',
     SelectedTab.builds => 'Builds',
-    SelectedTab.settings => 'Settings',
     SelectedTab.dlc => 'DLC',
+    SelectedTab.settings => 'Settings',
   };
 }
 

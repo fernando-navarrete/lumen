@@ -154,7 +154,7 @@ class GogState {
       // version name, not its id.
       return await _gog.getDownloadableProducts(
         gameId: gameId,
-        buildId: buildName,
+        buildName: buildName,
       );
     } catch (e) {
       if (kDebugMode) {

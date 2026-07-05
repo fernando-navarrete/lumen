@@ -35,6 +35,9 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
           widget.gameId,
           selectedVersionName,
         );
+        _products = _products
+            ?.where((product) => product.productType != "GAME")
+            .toList();
       }
 
       setState(() {});
@@ -54,7 +57,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Select which build to install. Switching re-downloads the changed files.',
+                  'Select all products to download',
                   style: AppText.caption(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -64,7 +67,11 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _products!.length,
                         itemBuilder: (context, index) {
-                          return Text(_products?[index].name ?? '');
+                          return Column(
+                            children: [
+                              _BuildListItem(product: _products![index]),
+                            ],
+                          );
                         },
                       )
                     : const CenteredLoader(),
@@ -86,13 +93,12 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
 }
 
 class _BuildListItem extends StatelessWidget {
-  const _BuildListItem({required this.gameBuild});
+  const _BuildListItem({required this.product});
 
-  final GameBuild gameBuild;
+  final DownloadableProduct product;
 
   @override
   Widget build(BuildContext context) {
-    final releaseDate = gameBuild.releaseDate.replaceAll(RegExp(r'\+0000'), '');
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Panel(
@@ -101,14 +107,14 @@ class _BuildListItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              gameBuild.versionName,
+              product.name,
               style: AppText.bodyMedium(
                 color: Colors.white,
                 weight: FontWeight.w600,
               ),
             ),
             Text(
-              releaseDate,
+              product.productType,
               style: AppText.caption(color: AppColors.textSecondary),
             ),
           ],
