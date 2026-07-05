@@ -4,6 +4,7 @@ import 'package:gogdl2_flutter/components/gradient_background.dart';
 import 'package:gogdl2_flutter/components/nav_bar.dart';
 import 'package:gogdl2_flutter/screens/home/pages/downloads_page.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/library_page.dart';
+import 'package:gogdl2_flutter/screens/home/pages/settings_page.dart';
 import 'package:gogdl2_flutter/state/home_state.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -51,7 +52,7 @@ class _Content extends StatelessWidget {
       case NavBarItem.downloads:
         return DownloadsPage();
       case NavBarItem.settings:
-        return Container();
+        return const SettingsPage();
     }
   }
 }

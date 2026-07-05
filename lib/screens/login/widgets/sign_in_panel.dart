@@ -45,6 +45,7 @@ class SignInPanel extends StatelessWidget {
       ),
       child: Stack(
         children: [
+          _DynamicGradient(step: step),
           SingleChildScrollView(
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.xl),
@@ -75,6 +76,7 @@ class SignInPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.xl),
                   LoginStepTile(
+                    isDim: false,
                     isComplete:
                         step == LoginStep.openLoginUrl ||
                         step == LoginStep.copyCode ||
@@ -86,6 +88,7 @@ class SignInPanel extends StatelessWidget {
                       style: AppText.body(color: AppColors.textSecondary),
                     ),
                     action: PrimaryButton.icon(
+                      glowing: true,
                       onTap: onOpenLoginUrl,
                       icon: Icons.open_in_browser,
                       label: "Open GOG login",
@@ -94,6 +97,7 @@ class SignInPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   LoginStepTile(
+                    isDim: step == LoginStep.begin,
                     isComplete:
                         step == LoginStep.copyCode ||
                         step == LoginStep.pasteCode,
@@ -122,6 +126,9 @@ class SignInPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   LoginStepTile(
+                    isDim:
+                        step == LoginStep.begin ||
+                        step == LoginStep.openLoginUrl,
                     isComplete: step == LoginStep.pasteCode,
                     step: 3,
                     title: "Paste the code to finish",
@@ -140,7 +147,6 @@ class SignInPanel extends StatelessWidget {
               ),
             ),
           ),
-          _DynamicGradient(step: step),
         ],
       ),
     );
@@ -250,6 +256,7 @@ class _CodeEntry extends StatelessWidget {
               ),
             ),
             PrimaryButton(
+              glowing: true,
               onTap: () => onSubmitCode(codeController.text),
               child: Text(
                 "Sign in",

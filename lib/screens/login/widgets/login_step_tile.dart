@@ -51,6 +51,7 @@ class LoginStepTile extends StatelessWidget {
     required this.description,
     required this.action,
     required this.isComplete,
+    required this.isDim,
     required this.step,
   });
 
@@ -58,32 +59,36 @@ class LoginStepTile extends StatelessWidget {
   final Widget description;
   final Widget action;
   final bool isComplete;
+  final bool isDim;
   final int step;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      StepIndicator(isComplete: isComplete, step: step),
-      const SizedBox(width: AppSpacing.md),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: AppText.bodyMedium(
-                color: Colors.white,
-                weight: FontWeight.w500,
+  Widget build(BuildContext context) => Opacity(
+    opacity: isDim ? 0.5 : 1.0,
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        StepIndicator(isComplete: isComplete, step: step),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AppText.bodyMedium(
+                  color: Colors.white,
+                  weight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            description,
-            const SizedBox(height: AppSpacing.md),
-            action,
-          ],
+              const SizedBox(height: AppSpacing.xs),
+              description,
+              const SizedBox(height: AppSpacing.md),
+              action,
+            ],
+          ),
         ),
-      ),
-    ],
+      ],
+    ),
   );
 }

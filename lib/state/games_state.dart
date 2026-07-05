@@ -160,6 +160,14 @@ class GamesState {
       }
     });
   }
+
+  /// Wipes all SharedPreferences and the in-memory game config. Debug-only
+  /// usage: see the Settings page's "Clear SharedPreferences" button.
+  Future<void> clear() async {
+    _games.clear();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+  }
 }
 
 final gamesStateProvider = Provider<GamesState>((ref) {

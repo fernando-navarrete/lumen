@@ -115,6 +115,13 @@ class GogState {
     }
   }
 
+  /// Deletes the stored auth token so the next launch requires login again.
+  /// Debug-only usage: see the Settings page's "Clear auth token" button.
+  Future<void> clearAuth() async {
+    final storage = FlutterSecureStorage();
+    await storage.delete(key: 'auth');
+  }
+
   Future<List<int>?> getOwnedGames() async {
     try {
       return await _gog.getOwnedGames();
