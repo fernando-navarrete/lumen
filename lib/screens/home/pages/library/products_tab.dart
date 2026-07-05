@@ -37,9 +37,11 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
           widget.gameId,
           selectedVersionName,
         );
-        _products = _products
-            ?.where((product) => product.productType != "GAME")
-            .toList();
+        for (final product in _products ?? const <DownloadableProduct>[]) {
+          if (product.productType == "GAME") {
+            gamesState.addProductId(widget.gameId, product.id);
+          }
+        }
       }
 
       _selectedProductIds = gamesState.getProductIds(widget.gameId);
@@ -52,6 +54,9 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
     GamesState gamesState = ref.read(gamesStateProvider);
+    final dlcProducts = _products
+        ?.where((product) => product.productType != "GAME")
+        .toList();
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -69,9 +74,9 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                     ? ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _products!.length,
+                        itemCount: dlcProducts!.length,
                         itemBuilder: (context, index) {
-                          final product = _products![index];
+                          final product = dlcProducts[index];
                           return Column(
                             children: [
                               _BuildListItem(

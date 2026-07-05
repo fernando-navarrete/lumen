@@ -1,7 +1,9 @@
+import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
+import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
@@ -17,6 +19,7 @@ class GameHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     var size = MediaQuery.of(context).size;
     var gogState = ref.watch(gogStateProvider);
+    var gamesState = ref.watch(gamesStateProvider);
     return Container(
       height: 316,
       decoration: AppDecorations.card(blurRadius: 18, spreadRadius: 8),
@@ -74,23 +77,45 @@ class GameHeader extends ConsumerWidget {
                       );
                     },
                   ),
-                  Container(
-                    child: Row(
-                      children: [
-                        Text(
-                          "Not installed",
-                          style: AppText.onest(
-                            color: Colors.white.withAlpha(196),
-                            size: 12,
-                            weight: FontWeight.w400,
-                          ),
+                  Row(
+                    children: [
+                      Text(
+                        "Not installed",
+                        style: AppText.onest(
+                          color: Colors.white.withAlpha(196),
+                          size: 12,
+                          weight: FontWeight.w400,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 8),
                   PrimaryButton(
-                    onTap: () {},
+                    onTap: () async {
+                      final PickedLocation? location = await DirPicker.pick();
+
+                      if (location != null) {
+                        String path = location.uri!.toFilePath();
+                        List<String> productIds = gamesState
+                            .getProductIds(gameId)
+                            .toList();
+                        print("PRODUCTS");
+                        for (String productId in productIds) {
+                          print(productId);
+                        }
+                        String buildName =
+                            gamesState.getSelectedBuild(gameId) ?? "";
+                        if (productIds.isNotEmpty) {
+                          var stream = await gogState.verifyGameFiles(
+                            gameId,
+                            path,
+                            buildName,
+                            productIds,
+                          );
+                          if (stream != null) {}
+                        }
+                      }
+                    },
                     glowing: true,
                     child: Row(
                       spacing: 8,

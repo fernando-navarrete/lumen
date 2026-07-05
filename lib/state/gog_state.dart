@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,8 @@ import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 class GogState {
   final Gog _gog;
+  final HashMap<int, Stream<VerificationStream>> _verificationStreams =
+      HashMap();
 
   GogState(this._gog);
 
@@ -156,6 +159,32 @@ class GogState {
         gameId: gameId,
         buildName: buildName,
       );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<Stream<VerificationStream>?> verifyGameFiles(
+    int gameId,
+    String path,
+    String buildName,
+    List<String> productIds,
+  ) async {
+    try {
+      if (_verificationStreams.containsKey(gameId)) {
+        return _verificationStreams[gameId];
+      }
+      var stream = _gog.verifyDownload(
+        gameId: gameId,
+        path: path,
+        buildName: buildName,
+        selectedProducts: productIds,
+      );
+      _verificationStreams[gameId] = stream;
+      return stream;
     } catch (e) {
       if (kDebugMode) {
         print(e);

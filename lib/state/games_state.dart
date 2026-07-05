@@ -40,6 +40,10 @@ class GamesState {
   }
 
   void setSelectedBuild(int gameId, String buildName) {
+    final existing = _games[gameId];
+    if (existing != null && existing.selectedBuild == buildName) {
+      return;
+    }
     _games[gameId] = GameConfig(
       status: GameStatus.notInstalled,
       selectedBuild: buildName,
@@ -70,6 +74,19 @@ class GamesState {
       return;
     }
     _games[gameId] = existing.copyWith(productIds: productIds);
+    persist();
+  }
+
+  void addProductId(int gameId, String productId) {
+    final existing = _games[gameId];
+    if (existing == null) {
+      return;
+    }
+    if (existing.productIds.contains(productId)) {
+      return;
+    }
+    final updated = Set<String>.from(existing.productIds)..add(productId);
+    _games[gameId] = existing.copyWith(productIds: updated);
     persist();
   }
 
