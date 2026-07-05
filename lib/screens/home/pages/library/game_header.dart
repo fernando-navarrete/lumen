@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
+import 'package:gogdl2_flutter/state/downloads_state.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
@@ -90,47 +91,94 @@ class GameHeader extends ConsumerWidget {
                     ],
                   ),
                   SizedBox(height: 8),
-                  PrimaryButton(
-                    onTap: () async {
-                      final PickedLocation? location = await DirPicker.pick();
+                  Row(
+                    spacing: 12,
+                    children: [
+                      PrimaryButton(
+                        onTap: () async {
+                          final PickedLocation? location =
+                              await DirPicker.pick();
 
-                      if (location != null) {
-                        String path = location.uri!.toFilePath();
-                        List<String> productIds = gamesState
-                            .getProductIds(gameId)
-                            .toList();
-                        print("PRODUCTS");
-                        for (String productId in productIds) {
-                          print(productId);
-                        }
-                        String buildName =
-                            gamesState.getSelectedBuild(gameId) ?? "";
-                        if (productIds.isNotEmpty) {
-                          var stream = await gogState.verifyGameFiles(
-                            gameId,
-                            path,
-                            buildName,
-                            productIds,
-                          );
-                          if (stream != null) {}
-                        }
-                      }
-                    },
-                    glowing: true,
-                    child: Row(
-                      spacing: 8,
-                      children: [
-                        Icon(Icons.arrow_downward, color: Colors.black),
-                        Text(
-                          "Install",
-                          style: AppText.onest(
-                            color: Colors.black,
-                            size: 16,
-                            weight: FontWeight.w600,
-                          ),
+                          if (location != null) {
+                            String path = location.uri!.toFilePath();
+                            List<String> productIds = gamesState
+                                .getProductIds(gameId)
+                                .toList();
+                            print("PRODUCTS");
+                            for (String productId in productIds) {
+                              print(productId);
+                            }
+                            String buildName =
+                                gamesState.getSelectedBuild(gameId) ?? "";
+                            if (productIds.isNotEmpty) {
+                              var stream = await gogState.verifyGameFiles(
+                                gameId,
+                                path,
+                                buildName,
+                                productIds,
+                              );
+                              if (stream != null) {}
+                            }
+                          }
+                        },
+                        glowing: true,
+                        child: Row(
+                          spacing: 8,
+                          children: [
+                            Icon(Icons.arrow_downward, color: Colors.black),
+                            Text(
+                              "Install",
+                              style: AppText.onest(
+                                color: Colors.black,
+                                size: 16,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      PrimaryButton.icon(
+                        icon: Icons.folder_open,
+                        label: "Import",
+                        glowing: false,
+                        onTap: () async {
+                          final PickedLocation? location =
+                              await DirPicker.pick();
+                          if (location == null) {
+                            return;
+                          }
+
+                          final String path = location.uri!.toFilePath();
+                          final List<String> productIds = gamesState
+                              .getProductIds(gameId)
+                              .toList();
+                          final String buildName =
+                              gamesState.getSelectedBuild(gameId) ?? "";
+                          if (productIds.isEmpty) {
+                            return;
+                          }
+
+                          await ref
+                              .read(downloadsStateProvider)
+                              .startVerification(
+                                gameId,
+                                path: path,
+                                buildName: buildName,
+                                productIds: productIds,
+                              );
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "Verifying files — check the Downloads tab for progress",
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
