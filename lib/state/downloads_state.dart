@@ -75,9 +75,11 @@ class DownloadsState extends ChangeNotifier {
         notifyListeners();
       },
       onDone: () {
-        // The Rust side never emits a terminal `Verified` status — the
-        // stream closing is the only reliable completion signal.
-        task.status = TaskStatus.completed;
+        if (task.errorFiles.isNotEmpty) {
+          task.status = TaskStatus.failed;
+        } else {
+          task.status = TaskStatus.completed;
+        }
         notifyListeners();
       },
       onError: (Object error) {
