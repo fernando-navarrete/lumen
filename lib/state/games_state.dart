@@ -4,76 +4,122 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum GameStatus { downloading, downloaded, notInstalled }
+
+class GameConfig {
+  final GameStatus status;
+  final String selectedBuild;
+  final Set<String> productIds;
+
+  GameConfig({
+    required this.status,
+    required this.selectedBuild,
+    Set<String>? productIds,
+  }) : productIds = productIds != null
+           ? Set<String>.from(productIds)
+           : <String>{};
+
+  GameConfig copyWith({
+    GameStatus? status,
+    String? selectedBuild,
+    Set<String>? productIds,
+  }) {
+    return GameConfig(
+      status: status ?? this.status,
+      selectedBuild: selectedBuild ?? this.selectedBuild,
+      productIds: productIds ?? this.productIds,
+    );
+  }
+}
+
 class GamesState {
-  final HashMap<int, String> _selectedBuilds = HashMap<int, String>();
-  final HashMap<int, String> _downloadedBuilds = HashMap<int, String>();
+  final HashMap<int, GameConfig> _games = HashMap<int, GameConfig>();
 
   String? getSelectedBuild(int gameId) {
-    String? selectedBuild = _selectedBuilds[gameId];
-    if (selectedBuild == null) {
-      return null;
-    }
-    return selectedBuild;
+    return _games[gameId]?.selectedBuild;
   }
 
   void setSelectedBuild(int gameId, String buildName) {
-    _selectedBuilds[gameId] = buildName;
+    _games[gameId] = GameConfig(
+      status: GameStatus.notInstalled,
+      selectedBuild: buildName,
+    );
     persist();
   }
 
-  String _encodeMap(HashMap<int, String> map) {
+  GameStatus getGameStatus(int gameId) {
+    return _games[gameId]?.status ?? GameStatus.notInstalled;
+  }
+
+  void setGameStatus(int gameId, GameStatus status) {
+    final existing = _games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _games[gameId] = existing.copyWith(status: status);
+    persist();
+  }
+
+  Set<String> getProductIds(int gameId) {
+    return Set<String>.from(_games[gameId]?.productIds ?? <String>{});
+  }
+
+  void setProductIds(int gameId, Set<String> productIds) {
+    final existing = _games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _games[gameId] = existing.copyWith(productIds: productIds);
+    persist();
+  }
+
+  void toggleProductId(int gameId, String productId) {
+    final existing = _games[gameId];
+    if (existing == null) {
+      return;
+    }
+    final updated = Set<String>.from(existing.productIds);
+    if (!updated.remove(productId)) {
+      updated.add(productId);
+    }
+    _games[gameId] = existing.copyWith(productIds: updated);
+    persist();
+  }
+
+  String _encodeGames(HashMap<int, GameConfig> map) {
     final stringKeyed = map.map(
-      (gameId, buildId) => MapEntry(gameId.toString(), buildId),
+      (gameId, config) => MapEntry(gameId.toString(), {
+        'status': config.status.name,
+        'selectedBuild': config.selectedBuild,
+        'productIds': config.productIds.toList(),
+      }),
     );
     return jsonEncode(stringKeyed);
   }
 
-  void _decodeMap(String json, HashMap<int, String> target) {
+  void _decodeGames(String json, HashMap<int, GameConfig> target) {
     final decoded = jsonDecode(json) as Map<String, dynamic>;
     target.clear();
     target.addAll(
-      decoded.map(
-        (gameId, buildId) => MapEntry(int.parse(gameId), buildId as String),
-      ),
+      decoded.map((gameId, value) {
+        final entry = value as Map<String, dynamic>;
+        final productIds = entry['productIds'] as List<dynamic>?;
+        return MapEntry(
+          int.parse(gameId),
+          GameConfig(
+            status: GameStatus.values.byName(entry['status'] as String),
+            selectedBuild: entry['selectedBuild'] as String,
+            productIds: productIds?.map((id) => id as String).toSet(),
+          ),
+        );
+      }),
     );
-  }
-
-  String toJson() {
-    try {
-      return _encodeMap(_selectedBuilds);
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      return '';
-    }
-  }
-
-  void fromJson(String json) {
-    try {
-      _decodeMap(json, _selectedBuilds);
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      _selectedBuilds.clear();
-    }
-  }
-
-  void setDownloadedBuild(int gameId, String buildId) {
-    _downloadedBuilds[gameId] = buildId;
-    persist();
-  }
-
-  bool isDownloadedBuild(int gameId, String buildId) {
-    return _downloadedBuilds[gameId] == buildId;
   }
 
   void persist() {
     SharedPreferences.getInstance().then((prefs) {
-      prefs.setString('selectedBuilds', toJson());
       try {
-        prefs.setString('downloadedBuilds', _encodeMap(_downloadedBuilds));
+        prefs.setString('games', _encodeGames(_games));
       } catch (e) {
         if (kDebugMode) {
           print(e);
@@ -84,19 +130,15 @@ class GamesState {
 
   void load() {
     SharedPreferences.getInstance().then((prefs) {
-      String? selectedJson = prefs.getString('selectedBuilds');
-      if (selectedJson != null) {
-        fromJson(selectedJson);
-      }
-      String? downloadedJson = prefs.getString('downloadedBuilds');
-      if (downloadedJson != null) {
+      String? gamesJson = prefs.getString('games');
+      if (gamesJson != null) {
         try {
-          _decodeMap(downloadedJson, _downloadedBuilds);
+          _decodeGames(gamesJson, _games);
         } catch (e) {
           if (kDebugMode) {
             print(e);
           }
-          _downloadedBuilds.clear();
+          _games.clear();
         }
       }
     });

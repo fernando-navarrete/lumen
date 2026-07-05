@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/components/centered_loader.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
@@ -22,6 +23,7 @@ class ProductsTab extends ConsumerStatefulWidget {
 
 class _ProductsTabState extends ConsumerState<ProductsTab> {
   List<DownloadableProduct>? _products;
+  Set<String> _selectedProductIds = {};
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
             .toList();
       }
 
+      _selectedProductIds = gamesState.getProductIds(widget.gameId);
       setState(() {});
     });
     super.initState();
@@ -48,6 +51,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
+    GamesState gamesState = ref.read(gamesStateProvider);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -67,9 +71,28 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: _products!.length,
                         itemBuilder: (context, index) {
+                          final product = _products![index];
                           return Column(
                             children: [
-                              _BuildListItem(product: _products![index]),
+                              _BuildListItem(
+                                product: product,
+                                isSelected: _selectedProductIds.contains(
+                                  product.id,
+                                ),
+                                onTap: (product) {
+                                  setState(() {
+                                    if (!_selectedProductIds.remove(
+                                      product.id,
+                                    )) {
+                                      _selectedProductIds.add(product.id);
+                                    }
+                                  });
+                                  gamesState.toggleProductId(
+                                    widget.gameId,
+                                    product.id,
+                                  );
+                                },
+                              ),
                             ],
                           );
                         },
@@ -93,31 +116,41 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
 }
 
 class _BuildListItem extends StatelessWidget {
-  const _BuildListItem({required this.product});
+  const _BuildListItem({
+    required this.product,
+    required this.onTap,
+    required this.isSelected,
+  });
 
   final DownloadableProduct product;
+  final Function(DownloadableProduct) onTap;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Panel(
-        child: Column(
-          spacing: AppSpacing.xs,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              product.name,
-              style: AppText.bodyMedium(
-                color: Colors.white,
-                weight: FontWeight.w600,
+    return ClickableContainer(
+      onTap: () => onTap(product),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Panel(
+          selected: isSelected,
+          child: Column(
+            spacing: AppSpacing.xs,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product.name,
+                style: AppText.bodyMedium(
+                  color: Colors.white,
+                  weight: FontWeight.w600,
+                ),
               ),
-            ),
-            Text(
-              product.productType,
-              style: AppText.caption(color: AppColors.textSecondary),
-            ),
-          ],
+              Text(
+                product.productType,
+                style: AppText.caption(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
         ),
       ),
     );
