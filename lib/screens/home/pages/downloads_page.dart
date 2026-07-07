@@ -63,8 +63,8 @@ class _VerificationTaskCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final gogState = ref.watch(gogStateProvider);
-    final double? progress = task.totalFiles > 0
-        ? task.verifiedFiles / task.totalFiles
+    final double? progress = task.totalChunks > 0
+        ? task.verifiedChunks / task.totalChunks
         : null;
 
     return Panel(
@@ -95,7 +95,10 @@ class _VerificationTaskCard extends ConsumerWidget {
               ),
             ),
           ),
-          Text(_statusText(task), style: AppText.caption(color: _statusColor(task))),
+          Text(
+            _statusText(task),
+            style: AppText.caption(color: _statusColor(task)),
+          ),
         ],
       ),
     );
@@ -104,11 +107,11 @@ class _VerificationTaskCard extends ConsumerWidget {
   String _statusText(ActivityTask task) {
     switch (task.status) {
       case TaskStatus.running:
-        return "Verifying files… ${task.verifiedFiles}/${task.totalFiles}";
+        return "Verifying chunks… ${task.verifiedChunks}/${task.totalChunks}";
       case TaskStatus.completed:
-        return task.errorFiles.isEmpty
+        return task.errorChunks.isEmpty
             ? "Completed"
-            : "Completed — ${task.errorFiles.length} file(s) failed checksum";
+            : "Completed — ${task.errorChunks.length} chunk(s) failed checksum";
       case TaskStatus.failed:
         return "Verification failed";
     }
@@ -116,7 +119,7 @@ class _VerificationTaskCard extends ConsumerWidget {
 
   Color _statusColor(ActivityTask task) {
     if (task.status == TaskStatus.failed ||
-        (task.status == TaskStatus.completed && task.errorFiles.isNotEmpty)) {
+        (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty)) {
       return AppColors.error;
     }
     return AppColors.textSecondary;

@@ -10,17 +10,17 @@ class ActivityTask {
   final int gameId;
   final TaskKind kind;
   TaskStatus status;
-  int totalFiles;
-  int verifiedFiles;
-  List<String> errorFiles;
+  int totalChunks;
+  int verifiedChunks;
+  List<String> errorChunks;
 
   ActivityTask({
     required this.gameId,
     required this.kind,
     this.status = TaskStatus.running,
-    this.totalFiles = 0,
-    this.verifiedFiles = 0,
-    this.errorFiles = const [],
+    this.totalChunks = 0,
+    this.verifiedChunks = 0,
+    this.errorChunks = const [],
   });
 }
 
@@ -69,13 +69,13 @@ class DownloadsState extends ChangeNotifier {
 
     stream.listen(
       (event) {
-        task.totalFiles = event.totalFiles.toInt();
-        task.verifiedFiles = event.verifiedFiles.toInt();
-        task.errorFiles = event.errorFiles;
+        task.totalChunks = event.totalChunks.toInt();
+        task.verifiedChunks = event.verifiedChunks.toInt();
+        task.errorChunks = event.errorChunks;
         notifyListeners();
       },
       onDone: () {
-        if (task.errorFiles.isNotEmpty) {
+        if (task.errorChunks.isNotEmpty) {
           task.status = TaskStatus.failed;
         } else {
           task.status = TaskStatus.completed;
