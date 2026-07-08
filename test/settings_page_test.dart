@@ -30,39 +30,63 @@ class _FakeGogState extends GogState {
   }
 }
 
+/// Provides a fixed initial [GamesState] synchronously, skipping the real
+/// [GamesNotifier]'s async SharedPreferences load. Mutators are inherited
+/// from the real notifier unchanged and operate on top of the fixed state.
+class _FakeGamesNotifier extends GamesNotifier {
+  _FakeGamesNotifier(this._initial);
+
+  final GamesState _initial;
+
+  @override
+  GamesState build() => _initial;
+}
+
 void main() {
   const gameId = 7;
 
-  Future<void> pumpSettings(
+  Future<ProviderContainer> pumpSettings(
     WidgetTester tester,
     GogState gogState,
-    GamesState gamesState,
+    GamesState initialGamesState,
   ) async {
+    final container = ProviderContainer(
+      overrides: [
+        gogStateProvider.overrideWithValue(gogState),
+        gamesStateProvider.overrideWith(
+          () => _FakeGamesNotifier(initialGamesState),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          gogStateProvider.overrideWithValue(gogState),
-          gamesStateProvider.overrideWith((ref) => gamesState),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ),
     );
+    return container;
   }
 
   testWidgets('clearing SharedPreferences wipes saved game config', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
-    final gamesState = GamesState();
-    gamesState.setSelectedBuild(gameId, 'v1.0');
-    gamesState.setProductIds(gameId, {'base'});
+    final initialGamesState = GamesState({
+      gameId: GameConfig(
+        status: GameStatus.notInstalled,
+        selectedBuild: 'v1.0',
+        productIds: {'base'},
+      ),
+    });
 
     final gogState = _FakeGogState();
-    await pumpSettings(tester, gogState, gamesState);
+    final container = await pumpSettings(tester, gogState, initialGamesState);
 
     await tester.tap(find.text('Clear SharedPreferences'));
     await tester.pumpAndSettle();
 
+    final gamesState = container.read(gamesStateProvider);
     expect(gamesState.getSelectedBuild(gameId), isNull);
     expect(gamesState.getProductIds(gameId), isEmpty);
     expect(find.text('SharedPreferences cleared'), findsOneWidget);
@@ -73,9 +97,8 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({});
     final gogState = _FakeGogState();
-    final gamesState = GamesState();
 
-    await pumpSettings(tester, gogState, gamesState);
+    await pumpSettings(tester, gogState, const GamesState.empty());
 
     await tester.tap(find.text('Clear auth token'));
     await tester.pumpAndSettle();

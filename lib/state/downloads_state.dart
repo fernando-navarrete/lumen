@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 
@@ -41,33 +41,50 @@ class ActivityTask {
   });
 }
 
-/// Central registry of in-flight/finished download & verification tasks.
-///
-/// The bridge's verification stream is single-subscription, and [GogState]
-/// caches one stream per game, so this class must be the sole listener —
-/// any UI that needs progress reads it from here instead of the raw stream.
-class DownloadsState extends ChangeNotifier {
-  final GogState _gogState;
-  final GamesState _gamesState;
-  final Map<int, ActivityTask> _tasks = {};
+/// Immutable snapshot of in-flight/finished download & verification tasks,
+/// keyed by gameId. Read-only — mutations go through [DownloadsNotifier] via
+/// `downloadsStateProvider.notifier`.
+class DownloadsState {
+  final Map<int, ActivityTask> tasks;
 
-  DownloadsState(this._gogState, this._gamesState);
+  const DownloadsState(this.tasks);
 
-  List<ActivityTask> get verificationTasks => _tasks.values
-      .where((task) => task.kind == TaskKind.verification)
-      .toList();
+  const DownloadsState.empty() : tasks = const {};
+
+  List<ActivityTask> get verificationTasks =>
+      tasks.values.where((task) => task.kind == TaskKind.verification).toList();
 
   List<ActivityTask> get downloadTasks =>
-      _tasks.values.where((task) => task.kind == TaskKind.download).toList();
+      tasks.values.where((task) => task.kind == TaskKind.download).toList();
 
   List<ActivityTask> get repairTasks =>
-      _tasks.values.where((task) => task.kind == TaskKind.repair).toList();
+      tasks.values.where((task) => task.kind == TaskKind.repair).toList();
+}
+
+/// The bridge's verification stream is single-subscription, and [GogState]
+/// caches one stream per game, so this must be the sole listener — any UI
+/// that needs progress reads it from [DownloadsState] instead of the raw
+/// stream.
+class DownloadsNotifier extends Notifier<DownloadsState> {
+  late final GogState _gogState;
+  late final GamesNotifier _gamesNotifier;
+
+  @override
+  DownloadsState build() {
+    _gogState = ref.read(gogStateProvider);
+    _gamesNotifier = ref.read(gamesStateProvider.notifier);
+    return const DownloadsState.empty();
+  }
+
+  void _emit() {
+    state = DownloadsState({...state.tasks});
+  }
 
   /// Removes a task from the registry, e.g. to dequeue a failed verification
   /// before starting a repair for the same game.
   void removeTask(int gameId) {
-    _tasks.remove(gameId);
-    notifyListeners();
+    state.tasks.remove(gameId);
+    _emit();
   }
 
   Future<void> startVerification(
@@ -76,7 +93,7 @@ class DownloadsState extends ChangeNotifier {
     required String buildName,
     required List<String> productIds,
   }) async {
-    if (_tasks.containsKey(gameId)) {
+    if (state.tasks.containsKey(gameId)) {
       return;
     }
     final task = ActivityTask(
@@ -86,8 +103,8 @@ class DownloadsState extends ChangeNotifier {
       buildName: buildName,
       productIds: productIds,
     );
-    _tasks[gameId] = task;
-    notifyListeners();
+    state.tasks[gameId] = task;
+    _emit();
 
     final stream = await _gogState.verifyGameFiles(
       gameId,
@@ -97,7 +114,7 @@ class DownloadsState extends ChangeNotifier {
     );
     if (stream == null) {
       task.status = TaskStatus.failed;
-      notifyListeners();
+      _emit();
       return;
     }
 
@@ -106,7 +123,7 @@ class DownloadsState extends ChangeNotifier {
         task.totalChunks = event.totalChunks.toInt();
         task.verifiedChunks = event.verifiedChunks.toInt();
         task.errorChunks = event.errorChunks;
-        notifyListeners();
+        _emit();
       },
       onDone: () {
         if (task.errorChunks.isNotEmpty) {
@@ -114,17 +131,17 @@ class DownloadsState extends ChangeNotifier {
         } else {
           task.status = TaskStatus.completed;
           if (task.path != null) {
-            _gamesState.markInstalled(gameId, task.path!);
+            _gamesNotifier.markInstalled(gameId, task.path!);
           }
         }
-        notifyListeners();
+        _emit();
       },
       onError: (Object error) {
         if (kDebugMode) {
           print(error);
         }
         task.status = TaskStatus.failed;
-        notifyListeners();
+        _emit();
       },
     );
   }
@@ -135,7 +152,7 @@ class DownloadsState extends ChangeNotifier {
     required String buildName,
     required List<String> productIds,
   }) async {
-    if (_tasks.containsKey(gameId)) {
+    if (state.tasks.containsKey(gameId)) {
       return;
     }
     final task = ActivityTask(
@@ -145,8 +162,9 @@ class DownloadsState extends ChangeNotifier {
       buildName: buildName,
       productIds: productIds,
     );
-    _tasks[gameId] = task;
-    notifyListeners();
+    state.tasks[gameId] = task;
+    _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
+    _emit();
 
     final stream = await _gogState.downloadGameFiles(
       gameId,
@@ -156,7 +174,8 @@ class DownloadsState extends ChangeNotifier {
     );
     if (stream == null) {
       task.status = TaskStatus.failed;
-      notifyListeners();
+      _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
+      _emit();
       return;
     }
 
@@ -166,25 +185,27 @@ class DownloadsState extends ChangeNotifier {
         task.downloadedBytes = event.downloadedBytes.toInt();
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
-        notifyListeners();
+        _emit();
       },
       onDone: () {
         if (task.errorChunks.isNotEmpty) {
           task.status = TaskStatus.failed;
+          _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
         } else {
           task.status = TaskStatus.completed;
           if (task.path != null) {
-            _gamesState.markInstalled(gameId, task.path!);
+            _gamesNotifier.markInstalled(gameId, task.path!);
           }
         }
-        notifyListeners();
+        _emit();
       },
       onError: (Object error) {
         if (kDebugMode) {
           print(error);
         }
         task.status = TaskStatus.failed;
-        notifyListeners();
+        _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
+        _emit();
       },
     );
   }
@@ -192,7 +213,7 @@ class DownloadsState extends ChangeNotifier {
   /// Dequeues a failed verification task and starts repairing the same game,
   /// tracked as a [TaskKind.repair] task in the Downloads section.
   Future<void> startRepair(int gameId) async {
-    final failedTask = _tasks[gameId];
+    final failedTask = state.tasks[gameId];
     if (failedTask == null ||
         failedTask.path == null ||
         failedTask.buildName == null) {
@@ -212,8 +233,8 @@ class DownloadsState extends ChangeNotifier {
       buildName: buildName,
       productIds: productIds,
     );
-    _tasks[gameId] = task;
-    notifyListeners();
+    state.tasks[gameId] = task;
+    _emit();
 
     final stream = await _gogState.repairGameFiles(
       gameId,
@@ -223,7 +244,7 @@ class DownloadsState extends ChangeNotifier {
     );
     if (stream == null) {
       task.status = TaskStatus.failed;
-      notifyListeners();
+      _emit();
       return;
     }
 
@@ -233,7 +254,7 @@ class DownloadsState extends ChangeNotifier {
         task.downloadedBytes = event.downloadedBytes.toInt();
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
-        notifyListeners();
+        _emit();
       },
       onDone: () {
         if (task.errorChunks.isNotEmpty) {
@@ -241,22 +262,24 @@ class DownloadsState extends ChangeNotifier {
         } else {
           task.status = TaskStatus.completed;
           if (task.path != null) {
-            _gamesState.markInstalled(gameId, task.path!);
+            _gamesNotifier.markInstalled(gameId, task.path!);
           }
         }
-        notifyListeners();
+        _emit();
       },
       onError: (Object error) {
         if (kDebugMode) {
           print(error);
         }
         task.status = TaskStatus.failed;
-        notifyListeners();
+        _emit();
       },
     );
   }
 }
 
-final downloadsStateProvider = ChangeNotifierProvider<DownloadsState>((ref) {
-  return DownloadsState(ref.watch(gogStateProvider), ref.watch(gamesStateProvider));
-}, name: 'downloadsStateProvider');
+final downloadsStateProvider =
+    NotifierProvider<DownloadsNotifier, DownloadsState>(
+      DownloadsNotifier.new,
+      name: 'downloadsStateProvider',
+    );

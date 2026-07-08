@@ -158,6 +158,20 @@ class _FakeGogState extends GogState {
   }
 }
 
+/// Provides a fixed initial [GamesState] synchronously, skipping the real
+/// [GamesNotifier]'s async SharedPreferences load — that avoids a race
+/// between the load and GameHeader's post-frame preload in tests. Mutators
+/// (setSelectedBuild, addProductId, ...) are inherited from the real
+/// notifier unchanged and operate on top of the fixed initial state.
+class _FakeGamesNotifier extends GamesNotifier {
+  _FakeGamesNotifier(this._initial);
+
+  final GamesState _initial;
+
+  @override
+  GamesState build() => _initial;
+}
+
 bool _isButtonEnabled(WidgetTester tester, Finder buttonFinder) {
   final button = tester.widget<PrimaryButton>(buttonFinder);
   return button.enabled;
@@ -170,20 +184,29 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<void> pumpHeader(
+  Future<ProviderContainer> pumpHeader(
     WidgetTester tester,
     GogState gogState,
-    GamesState gamesState,
+    GamesState initialGamesState,
   ) async {
+    final container = ProviderContainer(
+      overrides: [
+        gogStateProvider.overrideWithValue(gogState),
+        gamesStateProvider.overrideWith(
+          () => _FakeGamesNotifier(initialGamesState),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          gogStateProvider.overrideWithValue(gogState),
-          gamesStateProvider.overrideWith((ref) => gamesState),
-        ],
-        child: const MaterialApp(home: Scaffold(body: GameHeader(gameId: gameId))),
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(body: GameHeader(gameId: gameId)),
+        ),
       ),
     );
+    return container;
   }
 
   testWidgets(
@@ -204,9 +227,12 @@ void main() {
         _FakeProduct('dlc2', 'DLC Two', 'DLC'),
       ];
       final gogState = _FakeGogState(builds: builds, products: products);
-      final gamesState = GamesState();
 
-      await pumpHeader(tester, gogState, gamesState);
+      final container = await pumpHeader(
+        tester,
+        gogState,
+        const GamesState.empty(),
+      );
 
       // Before the preload's async work resolves, both buttons are disabled.
       final installButton = find.byWidgetPredicate(
@@ -221,11 +247,9 @@ void main() {
       // Let the post-frame callback and the awaited fetches complete.
       await tester.pumpAndSettle();
 
+      final gamesState = container.read(gamesStateProvider);
       expect(gamesState.getSelectedBuild(gameId), 'v2.0');
-      expect(
-        gamesState.getProductIds(gameId),
-        {'base', 'dlc1', 'dlc2'},
-      );
+      expect(gamesState.getProductIds(gameId), {'base', 'dlc1', 'dlc2'});
       expect(_isButtonEnabled(tester, installButton), isTrue);
       expect(_isButtonEnabled(tester, importButton), isTrue);
     },
@@ -234,20 +258,25 @@ void main() {
   testWidgets('keeps a previously saved build and product selection', (
     tester,
   ) async {
-    final gamesState = GamesState();
-    gamesState.setSelectedBuild(gameId, 'v1.0');
-    gamesState.setProductIds(gameId, {'base'});
+    final initialGamesState = GamesState({
+      gameId: GameConfig(
+        status: GameStatus.notInstalled,
+        selectedBuild: 'v1.0',
+        productIds: {'base'},
+      ),
+    });
 
     final gogState = _FakeGogState(
       builds: <GameBuild>[_FakeGameBuild('v2.0', 9999)],
       products: <DownloadableProduct>[_FakeProduct('dlc1', 'DLC One', 'DLC')],
     );
 
-    await pumpHeader(tester, gogState, gamesState);
+    final container = await pumpHeader(tester, gogState, initialGamesState);
     await tester.pumpAndSettle();
 
     // The saved build/products win; preload must not have re-fetched
     // products for a build that was already selected.
+    final gamesState = container.read(gamesStateProvider);
     expect(gamesState.getSelectedBuild(gameId), 'v1.0');
     expect(gamesState.getProductIds(gameId), {'base'});
     expect(gogState.requestedProductBuilds, isEmpty);

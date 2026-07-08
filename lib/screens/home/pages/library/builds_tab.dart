@@ -49,7 +49,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-    GamesState gamesState = ref.read(gamesStateProvider);
+    GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -75,7 +75,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                             setState(() {
                               selectedBuild = index;
                             });
-                            gamesState.setSelectedBuild(
+                            gamesNotifier.setSelectedBuild(
                               widget.gameId,
                               gameBuild.versionName,
                             );

@@ -66,7 +66,7 @@ class SettingsPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    await ref.read(gamesStateProvider).clear();
+    await ref.read(gamesStateProvider.notifier).clear();
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,

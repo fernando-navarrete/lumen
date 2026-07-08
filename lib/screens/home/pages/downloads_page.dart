@@ -118,10 +118,9 @@ class _VerificationTaskCard extends ConsumerWidget {
                   icon: Icons.build,
                   label: "Repair",
                   glowing: false,
-                  onTap: () =>
-                      ref.read(downloadsStateProvider).startRepair(
-                        task.gameId,
-                      ),
+                  onTap: () => ref
+                      .read(downloadsStateProvider.notifier)
+                      .startRepair(task.gameId),
                 ),
             ],
           ),

@@ -29,8 +29,10 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       GogState gogState = ref.read(gogStateProvider);
-      GamesState gamesState = ref.read(gamesStateProvider);
-      String? selectedVersionName = gamesState.getSelectedBuild(widget.gameId);
+      GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
+      String? selectedVersionName = ref
+          .read(gamesStateProvider)
+          .getSelectedBuild(widget.gameId);
 
       if (selectedVersionName != null) {
         _products = await gogState.getProducts(
@@ -39,12 +41,14 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         );
         for (final product in _products ?? const <DownloadableProduct>[]) {
           if (product.productType == "GAME") {
-            gamesState.addProductId(widget.gameId, product.id);
+            gamesNotifier.addProductId(widget.gameId, product.id);
           }
         }
       }
 
-      _selectedProductIds = gamesState.getProductIds(widget.gameId);
+      _selectedProductIds = ref
+          .read(gamesStateProvider)
+          .getProductIds(widget.gameId);
       setState(() {});
     });
     super.initState();
@@ -53,7 +57,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-    GamesState gamesState = ref.read(gamesStateProvider);
+    GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
     final dlcProducts = _products
         ?.where((product) => product.productType != "GAME")
         .toList();
@@ -92,7 +96,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                                       _selectedProductIds.add(product.id);
                                     }
                                   });
-                                  gamesState.toggleProductId(
+                                  gamesNotifier.toggleProductId(
                                     widget.gameId,
                                     product.id,
                                   );
