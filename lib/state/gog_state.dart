@@ -10,6 +10,7 @@ class GogState {
   final Gog _gog;
   final HashMap<int, Stream<VerificationStream>> _verificationStreams =
       HashMap();
+  final HashMap<int, Stream<RepairStream>> _repairStreams = HashMap();
 
   GogState(this._gog);
 
@@ -191,6 +192,38 @@ class GogState {
         selectedProducts: productIds,
       );
       _verificationStreams[gameId] = stream;
+      return stream;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  /// Drops the cached verification stream for [gameId] so the game can be
+  /// re-verified (e.g. after a repair completes).
+  void clearVerificationStream(int gameId) {
+    _verificationStreams.remove(gameId);
+  }
+
+  Future<Stream<RepairStream>?> repairGameFiles(
+    int gameId,
+    String path,
+    String buildName,
+    List<String> productIds,
+  ) async {
+    try {
+      if (_repairStreams.containsKey(gameId)) {
+        return _repairStreams[gameId];
+      }
+      var stream = _gog.repairDownload(
+        gameId: gameId,
+        path: path,
+        buildName: buildName,
+        selectedProducts: productIds,
+      );
+      _repairStreams[gameId] = stream;
       return stream;
     } catch (e) {
       if (kDebugMode) {

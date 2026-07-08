@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
+import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
@@ -21,7 +22,16 @@ class DownloadsPage extends ConsumerWidget {
         children: [
           Text("Downloads", style: AppText.sectionLabel),
           const SizedBox(height: AppSpacing.sm),
-          _EmptyState(message: "No active downloads"),
+          if (downloadsState.repairTasks.isEmpty)
+            _EmptyState(message: "No active downloads")
+          else
+            Column(
+              spacing: AppSpacing.sm,
+              children: [
+                for (final task in downloadsState.repairTasks)
+                  _RepairTaskCard(task: task),
+              ],
+            ),
           const SizedBox(height: AppSpacing.xl),
           Text("Verifications", style: AppText.sectionLabel),
           const SizedBox(height: AppSpacing.sm),
@@ -82,18 +92,35 @@ class _VerificationTaskCard extends ConsumerWidget {
               ),
             ),
           ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.control),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 6,
-              backgroundColor: AppColors.border08,
-              valueColor: AlwaysStoppedAnimation(
-                task.status == TaskStatus.failed
-                    ? AppColors.error
-                    : AppColors.primary,
+          Row(
+            spacing: AppSpacing.sm,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.control),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.border08,
+                    valueColor: AlwaysStoppedAnimation(
+                      task.status == TaskStatus.failed
+                          ? AppColors.error
+                          : AppColors.primary,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              if (task.status == TaskStatus.failed)
+                PrimaryButton.icon(
+                  icon: Icons.build,
+                  label: "Repair",
+                  glowing: false,
+                  onTap: () =>
+                      ref.read(downloadsStateProvider).startRepair(
+                        task.gameId,
+                      ),
+                ),
+            ],
           ),
           Text(
             _statusText(task),
@@ -124,4 +151,100 @@ class _VerificationTaskCard extends ConsumerWidget {
     }
     return AppColors.textSecondary;
   }
+}
+
+class _RepairTaskCard extends ConsumerWidget {
+  const _RepairTaskCard({required this.task});
+
+  final ActivityTask task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gogState = ref.watch(gogStateProvider);
+    final double? progress = task.totalBytes > 0
+        ? task.downloadedBytes / task.totalBytes
+        : null;
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: AppSpacing.xs,
+        children: [
+          FutureBuilder<String?>(
+            future: gogState.getGameName(task.gameId),
+            builder: (context, snapshot) => Text(
+              snapshot.data ?? "Loading...",
+              style: AppText.bodyMedium(
+                color: Colors.white,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.border08,
+              valueColor: AlwaysStoppedAnimation(
+                task.status == TaskStatus.failed
+                    ? AppColors.error
+                    : AppColors.primary,
+              ),
+            ),
+          ),
+          Text(
+            _statusText(task),
+            style: AppText.caption(color: _statusColor(task)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _statusText(ActivityTask task) {
+    switch (task.status) {
+      case TaskStatus.running:
+        switch (task.stage) {
+          case "fetchingFiles":
+            return "Fetching files…";
+          case "verifyingFiles":
+            return "Verifying files…";
+          case "allocating":
+            return "Allocating disk space…";
+          case "verifyingChunks":
+            return "Verifying chunks…";
+          case "downloading":
+            return "Downloading… ${_formatBytes(task.downloadedBytes)}"
+                "/${_formatBytes(task.totalBytes)}";
+          default:
+            return "Repairing…";
+        }
+      case TaskStatus.completed:
+        return task.errorChunks.isEmpty
+            ? "Repaired"
+            : "Repaired — ${task.errorChunks.length} file(s) still failing";
+      case TaskStatus.failed:
+        return "Repair failed";
+    }
+  }
+
+  Color _statusColor(ActivityTask task) {
+    if (task.status == TaskStatus.failed ||
+        (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty)) {
+      return AppColors.error;
+    }
+    return AppColors.textSecondary;
+  }
+}
+
+String _formatBytes(int bytes) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  double value = bytes.toDouble();
+  int unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex++;
+  }
+  return "${value.toStringAsFixed(unitIndex == 0 ? 0 : 1)} ${units[unitIndex]}";
 }
