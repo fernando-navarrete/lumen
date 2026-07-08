@@ -42,7 +42,7 @@ void main() {
       ProviderScope(
         overrides: [
           gogStateProvider.overrideWithValue(gogState),
-          gamesStateProvider.overrideWithValue(gamesState),
+          gamesStateProvider.overrideWith((ref) => gamesState),
         ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ),

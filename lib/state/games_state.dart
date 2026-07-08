@@ -1,7 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum GameStatus { downloading, downloaded, notInstalled }
@@ -10,11 +10,13 @@ class GameConfig {
   final GameStatus status;
   final String selectedBuild;
   final Set<String> productIds;
+  final String? installPath;
 
   GameConfig({
     required this.status,
     required this.selectedBuild,
     Set<String>? productIds,
+    this.installPath,
   }) : productIds = productIds != null
            ? Set<String>.from(productIds)
            : <String>{};
@@ -23,16 +25,18 @@ class GameConfig {
     GameStatus? status,
     String? selectedBuild,
     Set<String>? productIds,
+    String? installPath,
   }) {
     return GameConfig(
       status: status ?? this.status,
       selectedBuild: selectedBuild ?? this.selectedBuild,
       productIds: productIds ?? this.productIds,
+      installPath: installPath ?? this.installPath,
     );
   }
 }
 
-class GamesState {
+class GamesState extends ChangeNotifier {
   final HashMap<int, GameConfig> _games = HashMap<int, GameConfig>();
 
   String? getSelectedBuild(int gameId) {
@@ -49,6 +53,7 @@ class GamesState {
       selectedBuild: buildName,
     );
     persist();
+    notifyListeners();
   }
 
   GameStatus getGameStatus(int gameId) {
@@ -62,6 +67,30 @@ class GamesState {
     }
     _games[gameId] = existing.copyWith(status: status);
     persist();
+    notifyListeners();
+  }
+
+  String? getInstallPath(int gameId) {
+    return _games[gameId]?.installPath;
+  }
+
+  /// Marks [gameId] as installed at [installPath], e.g. after a download,
+  /// repair, or import completes successfully. Preserves the game's
+  /// existing selected build and product ids.
+  void markInstalled(int gameId, String installPath) {
+    final existing = _games[gameId];
+    _games[gameId] = existing != null
+        ? existing.copyWith(
+            status: GameStatus.downloaded,
+            installPath: installPath,
+          )
+        : GameConfig(
+            status: GameStatus.downloaded,
+            selectedBuild: '',
+            installPath: installPath,
+          );
+    persist();
+    notifyListeners();
   }
 
   Set<String> getProductIds(int gameId) {
@@ -75,6 +104,7 @@ class GamesState {
     }
     _games[gameId] = existing.copyWith(productIds: productIds);
     persist();
+    notifyListeners();
   }
 
   void addProductId(int gameId, String productId) {
@@ -88,6 +118,7 @@ class GamesState {
     final updated = Set<String>.from(existing.productIds)..add(productId);
     _games[gameId] = existing.copyWith(productIds: updated);
     persist();
+    notifyListeners();
   }
 
   void toggleProductId(int gameId, String productId) {
@@ -101,6 +132,7 @@ class GamesState {
     }
     _games[gameId] = existing.copyWith(productIds: updated);
     persist();
+    notifyListeners();
   }
 
   String _encodeGames(HashMap<int, GameConfig> map) {
@@ -109,6 +141,7 @@ class GamesState {
         'status': config.status.name,
         'selectedBuild': config.selectedBuild,
         'productIds': config.productIds.toList(),
+        'installPath': config.installPath,
       }),
     );
     return jsonEncode(stringKeyed);
@@ -127,6 +160,7 @@ class GamesState {
             status: GameStatus.values.byName(entry['status'] as String),
             selectedBuild: entry['selectedBuild'] as String,
             productIds: productIds?.map((id) => id as String).toSet(),
+            installPath: entry['installPath'] as String?,
           ),
         );
       }),
@@ -157,6 +191,7 @@ class GamesState {
           }
           _games.clear();
         }
+        notifyListeners();
       }
     });
   }
@@ -167,10 +202,11 @@ class GamesState {
     _games.clear();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    notifyListeners();
   }
 }
 
-final gamesStateProvider = Provider<GamesState>((ref) {
+final gamesStateProvider = ChangeNotifierProvider<GamesState>((ref) {
   final instance = GamesState();
   instance.load();
   return instance;

@@ -88,6 +88,8 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
     var size = MediaQuery.of(context).size;
     var gogState = ref.watch(gogStateProvider);
     var gamesState = ref.watch(gamesStateProvider);
+    final bool installed =
+        gamesState.getGameStatus(gameId) == GameStatus.downloaded;
     return Container(
       height: 316,
       decoration: AppDecorations.card(blurRadius: 18, spreadRadius: 8),
@@ -148,7 +150,7 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
                   Row(
                     children: [
                       Text(
-                        "Not installed",
+                        installed ? "Installed" : "Not installed",
                         style: AppText.onest(
                           color: Colors.white.withAlpha(196),
                           size: 12,
@@ -160,104 +162,141 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
                   SizedBox(height: 8),
                   Row(
                     spacing: 12,
-                    children: [
-                      PrimaryButton(
-                        enabled: _ready,
-                        onTap: () async {
-                          final PickedLocation? location =
-                              await DirPicker.pick();
-                          if (location == null) {
-                            return;
-                          }
-
-                          final String path = location.uri!.toFilePath();
-                          final List<String> productIds = gamesState
-                              .getProductIds(gameId)
-                              .toList();
-                          final String buildName =
-                              gamesState.getSelectedBuild(gameId) ?? "";
-                          if (productIds.isEmpty) {
-                            return;
-                          }
-
-                          await ref
-                              .read(downloadsStateProvider)
-                              .startDownload(
-                                gameId,
-                                path: path,
-                                buildName: buildName,
-                                productIds: productIds,
-                              );
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Downloading — check the Downloads tab for progress",
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                        glowing: true,
-                        child: Row(
-                          spacing: 8,
-                          children: [
-                            Icon(Icons.arrow_downward, color: Colors.black),
-                            Text(
-                              "Install",
-                              style: AppText.onest(
-                                color: Colors.black,
-                                size: 16,
-                                weight: FontWeight.w600,
+                    children: installed
+                        ? [
+                            PrimaryButton(
+                              enabled: true,
+                              onTap: () {
+                                ScaffoldMessenger.of(
+                                  context,
+                                ).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      "Play is not implemented yet",
+                                    ),
+                                  ),
+                                );
+                              },
+                              glowing: true,
+                              child: Row(
+                                spacing: 8,
+                                children: [
+                                  Icon(Icons.play_arrow, color: Colors.black),
+                                  Text(
+                                    "Play",
+                                    style: AppText.onest(
+                                      color: Colors.black,
+                                      size: 16,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      PrimaryButton.icon(
-                        icon: Icons.folder_open,
-                        label: "Import",
-                        glowing: false,
-                        enabled: _ready,
-                        onTap: () async {
-                          final PickedLocation? location =
-                              await DirPicker.pick();
-                          if (location == null) {
-                            return;
-                          }
+                          ]
+                        : [
+                            PrimaryButton(
+                              enabled: _ready,
+                              onTap: () async {
+                                final PickedLocation? location =
+                                    await DirPicker.pick();
+                                if (location == null) {
+                                  return;
+                                }
 
-                          final String path = location.uri!.toFilePath();
-                          final List<String> productIds = gamesState
-                              .getProductIds(gameId)
-                              .toList();
-                          final String buildName =
-                              gamesState.getSelectedBuild(gameId) ?? "";
-                          if (productIds.isEmpty) {
-                            return;
-                          }
+                                final String path = location.uri!
+                                    .toFilePath();
+                                final List<String> productIds = gamesState
+                                    .getProductIds(gameId)
+                                    .toList();
+                                final String buildName =
+                                    gamesState.getSelectedBuild(gameId) ?? "";
+                                if (productIds.isEmpty) {
+                                  return;
+                                }
 
-                          await ref
-                              .read(downloadsStateProvider)
-                              .startVerification(
-                                gameId,
-                                path: path,
-                                buildName: buildName,
-                                productIds: productIds,
-                              );
+                                await ref
+                                    .read(downloadsStateProvider)
+                                    .startDownload(
+                                      gameId,
+                                      path: path,
+                                      buildName: buildName,
+                                      productIds: productIds,
+                                    );
 
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Verifying files — check the Downloads tab for progress",
-                                ),
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Downloading — check the Downloads tab for progress",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              glowing: true,
+                              child: Row(
+                                spacing: 8,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_downward,
+                                    color: Colors.black,
+                                  ),
+                                  Text(
+                                    "Install",
+                                    style: AppText.onest(
+                                      color: Colors.black,
+                                      size: 16,
+                                      weight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            );
-                          }
-                        },
-                      ),
-                    ],
+                            ),
+                            PrimaryButton.icon(
+                              icon: Icons.folder_open,
+                              label: "Import",
+                              glowing: false,
+                              enabled: _ready,
+                              onTap: () async {
+                                final PickedLocation? location =
+                                    await DirPicker.pick();
+                                if (location == null) {
+                                  return;
+                                }
+
+                                final String path = location.uri!
+                                    .toFilePath();
+                                final List<String> productIds = gamesState
+                                    .getProductIds(gameId)
+                                    .toList();
+                                final String buildName =
+                                    gamesState.getSelectedBuild(gameId) ?? "";
+                                if (productIds.isEmpty) {
+                                  return;
+                                }
+
+                                await ref
+                                    .read(downloadsStateProvider)
+                                    .startVerification(
+                                      gameId,
+                                      path: path,
+                                      buildName: buildName,
+                                      productIds: productIds,
+                                    );
+
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        "Verifying files — check the Downloads tab for progress",
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
                   ),
                 ],
               ),

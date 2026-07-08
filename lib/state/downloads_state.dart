@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 
 enum TaskKind { download, verification, repair }
@@ -47,9 +48,10 @@ class ActivityTask {
 /// any UI that needs progress reads it from here instead of the raw stream.
 class DownloadsState extends ChangeNotifier {
   final GogState _gogState;
+  final GamesState _gamesState;
   final Map<int, ActivityTask> _tasks = {};
 
-  DownloadsState(this._gogState);
+  DownloadsState(this._gogState, this._gamesState);
 
   List<ActivityTask> get verificationTasks => _tasks.values
       .where((task) => task.kind == TaskKind.verification)
@@ -111,6 +113,9 @@ class DownloadsState extends ChangeNotifier {
           task.status = TaskStatus.failed;
         } else {
           task.status = TaskStatus.completed;
+          if (task.path != null) {
+            _gamesState.markInstalled(gameId, task.path!);
+          }
         }
         notifyListeners();
       },
@@ -168,6 +173,9 @@ class DownloadsState extends ChangeNotifier {
           task.status = TaskStatus.failed;
         } else {
           task.status = TaskStatus.completed;
+          if (task.path != null) {
+            _gamesState.markInstalled(gameId, task.path!);
+          }
         }
         notifyListeners();
       },
@@ -232,6 +240,9 @@ class DownloadsState extends ChangeNotifier {
           task.status = TaskStatus.failed;
         } else {
           task.status = TaskStatus.completed;
+          if (task.path != null) {
+            _gamesState.markInstalled(gameId, task.path!);
+          }
         }
         notifyListeners();
       },
@@ -247,5 +258,5 @@ class DownloadsState extends ChangeNotifier {
 }
 
 final downloadsStateProvider = ChangeNotifierProvider<DownloadsState>((ref) {
-  return DownloadsState(ref.watch(gogStateProvider));
+  return DownloadsState(ref.watch(gogStateProvider), ref.watch(gamesStateProvider));
 }, name: 'downloadsStateProvider');
