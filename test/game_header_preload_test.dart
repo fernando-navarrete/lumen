@@ -64,6 +64,14 @@ class _FakeGog implements Gog {
   Future<void> restoreAuthFromString({required String token}) async {}
 
   @override
+  Stream<DownloadStream> downloadGame({
+    required String path,
+    required String buildName,
+    required List<String> selectedProducts,
+    required int gameId,
+  }) => const Stream.empty();
+
+  @override
   Stream<RepairStream> repairDownload({
     required String path,
     required String buildName,

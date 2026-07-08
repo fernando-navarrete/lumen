@@ -166,23 +166,37 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
                         onTap: () async {
                           final PickedLocation? location =
                               await DirPicker.pick();
+                          if (location == null) {
+                            return;
+                          }
 
-                          if (location != null) {
-                            String path = location.uri!.toFilePath();
-                            List<String> productIds = gamesState
-                                .getProductIds(gameId)
-                                .toList();
-                            String buildName =
-                                gamesState.getSelectedBuild(gameId) ?? "";
-                            if (productIds.isNotEmpty) {
-                              var stream = await gogState.verifyGameFiles(
+                          final String path = location.uri!.toFilePath();
+                          final List<String> productIds = gamesState
+                              .getProductIds(gameId)
+                              .toList();
+                          final String buildName =
+                              gamesState.getSelectedBuild(gameId) ?? "";
+                          if (productIds.isEmpty) {
+                            return;
+                          }
+
+                          await ref
+                              .read(downloadsStateProvider)
+                              .startDownload(
                                 gameId,
-                                path,
-                                buildName,
-                                productIds,
+                                path: path,
+                                buildName: buildName,
+                                productIds: productIds,
                               );
-                              if (stream != null) {}
-                            }
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  "Downloading — check the Downloads tab for progress",
+                                ),
+                              ),
+                            );
                           }
                         },
                         glowing: true,

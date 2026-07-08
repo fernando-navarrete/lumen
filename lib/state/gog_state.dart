@@ -11,6 +11,7 @@ class GogState {
   final HashMap<int, Stream<VerificationStream>> _verificationStreams =
       HashMap();
   final HashMap<int, Stream<RepairStream>> _repairStreams = HashMap();
+  final HashMap<int, Stream<DownloadStream>> _downloadStreams = HashMap();
 
   GogState(this._gog);
 
@@ -224,6 +225,32 @@ class GogState {
         selectedProducts: productIds,
       );
       _repairStreams[gameId] = stream;
+      return stream;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<Stream<DownloadStream>?> downloadGameFiles(
+    int gameId,
+    String path,
+    String buildName,
+    List<String> productIds,
+  ) async {
+    try {
+      if (_downloadStreams.containsKey(gameId)) {
+        return _downloadStreams[gameId];
+      }
+      var stream = _gog.downloadGame(
+        gameId: gameId,
+        path: path,
+        buildName: buildName,
+        selectedProducts: productIds,
+      );
+      _downloadStreams[gameId] = stream;
       return stream;
     } catch (e) {
       if (kDebugMode) {

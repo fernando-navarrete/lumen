@@ -124,6 +124,63 @@ class DownloadsState extends ChangeNotifier {
     );
   }
 
+  Future<void> startDownload(
+    int gameId, {
+    required String path,
+    required String buildName,
+    required List<String> productIds,
+  }) async {
+    if (_tasks.containsKey(gameId)) {
+      return;
+    }
+    final task = ActivityTask(
+      gameId: gameId,
+      kind: TaskKind.download,
+      path: path,
+      buildName: buildName,
+      productIds: productIds,
+    );
+    _tasks[gameId] = task;
+    notifyListeners();
+
+    final stream = await _gogState.downloadGameFiles(
+      gameId,
+      path,
+      buildName,
+      productIds,
+    );
+    if (stream == null) {
+      task.status = TaskStatus.failed;
+      notifyListeners();
+      return;
+    }
+
+    stream.listen(
+      (event) {
+        task.totalBytes = event.totalBytes.toInt();
+        task.downloadedBytes = event.downloadedBytes.toInt();
+        task.errorChunks = event.errorFiles;
+        task.stage = event.status.name();
+        notifyListeners();
+      },
+      onDone: () {
+        if (task.errorChunks.isNotEmpty) {
+          task.status = TaskStatus.failed;
+        } else {
+          task.status = TaskStatus.completed;
+        }
+        notifyListeners();
+      },
+      onError: (Object error) {
+        if (kDebugMode) {
+          print(error);
+        }
+        task.status = TaskStatus.failed;
+        notifyListeners();
+      },
+    );
+  }
+
   /// Dequeues a failed verification task and starts repairing the same game,
   /// tracked as a [TaskKind.repair] task in the Downloads section.
   Future<void> startRepair(int gameId) async {

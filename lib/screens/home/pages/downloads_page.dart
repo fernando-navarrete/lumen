@@ -22,12 +22,15 @@ class DownloadsPage extends ConsumerWidget {
         children: [
           Text("Downloads", style: AppText.sectionLabel),
           const SizedBox(height: AppSpacing.sm),
-          if (downloadsState.repairTasks.isEmpty)
+          if (downloadsState.downloadTasks.isEmpty &&
+              downloadsState.repairTasks.isEmpty)
             _EmptyState(message: "No active downloads")
           else
             Column(
               spacing: AppSpacing.sm,
               children: [
+                for (final task in downloadsState.downloadTasks)
+                  _DownloadTaskCard(task: task),
                 for (final task in downloadsState.repairTasks)
                   _RepairTaskCard(task: task),
               ],
@@ -141,6 +144,87 @@ class _VerificationTaskCard extends ConsumerWidget {
             : "Completed — ${task.errorChunks.length} chunk(s) failed checksum";
       case TaskStatus.failed:
         return "Verification failed";
+    }
+  }
+
+  Color _statusColor(ActivityTask task) {
+    if (task.status == TaskStatus.failed ||
+        (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty)) {
+      return AppColors.error;
+    }
+    return AppColors.textSecondary;
+  }
+}
+
+class _DownloadTaskCard extends ConsumerWidget {
+  const _DownloadTaskCard({required this.task});
+
+  final ActivityTask task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gogState = ref.watch(gogStateProvider);
+    final double? progress = task.totalBytes > 0
+        ? task.downloadedBytes / task.totalBytes
+        : null;
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: AppSpacing.xs,
+        children: [
+          FutureBuilder<String?>(
+            future: gogState.getGameName(task.gameId),
+            builder: (context, snapshot) => Text(
+              snapshot.data ?? "Loading...",
+              style: AppText.bodyMedium(
+                color: Colors.white,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.border08,
+              valueColor: AlwaysStoppedAnimation(
+                task.status == TaskStatus.failed
+                    ? AppColors.error
+                    : AppColors.primary,
+              ),
+            ),
+          ),
+          Text(
+            _statusText(task),
+            style: AppText.caption(color: _statusColor(task)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _statusText(ActivityTask task) {
+    switch (task.status) {
+      case TaskStatus.running:
+        switch (task.stage) {
+          case "fetchingFiles":
+            return "Fetching files…";
+          case "allocating":
+            return "Allocating disk space…";
+          case "downloading":
+            return "Downloading… ${_formatBytes(task.downloadedBytes)}"
+                "/${_formatBytes(task.totalBytes)}";
+          default:
+            return "Downloading…";
+        }
+      case TaskStatus.completed:
+        return task.errorChunks.isEmpty
+            ? "Downloaded"
+            : "Downloaded — ${task.errorChunks.length} file(s) failed";
+      case TaskStatus.failed:
+        return "Download failed";
     }
   }
 
