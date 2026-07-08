@@ -83,8 +83,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// Removes a task from the registry, e.g. to dequeue a failed verification
   /// before starting a repair for the same game.
   void removeTask(int gameId) {
-    state.tasks.remove(gameId);
-    _emit();
+    state = DownloadsState({...state.tasks}..remove(gameId));
   }
 
   Future<void> startVerification(
@@ -103,8 +102,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    state.tasks[gameId] = task;
-    _emit();
+    state = DownloadsState({...state.tasks, gameId: task});
 
     final stream = await _gogState.verifyGameFiles(
       gameId,
@@ -162,9 +160,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    state.tasks[gameId] = task;
+    state = DownloadsState({...state.tasks, gameId: task});
     _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
-    _emit();
 
     final stream = await _gogState.downloadGameFiles(
       gameId,
@@ -233,8 +230,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    state.tasks[gameId] = task;
-    _emit();
+    state = DownloadsState({...state.tasks, gameId: task});
 
     final stream = await _gogState.repairGameFiles(
       gameId,
