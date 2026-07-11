@@ -114,6 +114,8 @@ class LaunchNotifier extends Notifier<LaunchState> {
         includeParentEnvironment: true,
       );
       debugPrint('[DIAG] process started pid=${process.pid}');
+      process.stdout.listen(stdout.add);
+      process.stderr.listen(stderr.add);
 
       game.status = LaunchStatus.running;
       _emit();
