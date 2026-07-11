@@ -70,12 +70,14 @@ class LaunchNotifier extends Notifier<LaunchState> {
     List<String> launchArgs = const [],
     Map<String, String> envVars = const {},
   }) async {
+    debugPrint('[DIAG] launchGame called: gameId=$gameId isActive=${state.isActive(gameId)}');
     if (state.isActive(gameId)) {
       return;
     }
 
     final game = RunningGame(gameId: gameId, status: LaunchStatus.launching);
     state = LaunchState({...state.games, gameId: game});
+    debugPrint('[DIAG] set status=launching, emitted');
 
     try {
       final compatClientDir = steamCompatClientDir();
@@ -86,19 +88,23 @@ class LaunchNotifier extends Notifier<LaunchState> {
         'STEAM_COMPAT_CLIENT_INSTALL_PATH': compatClientDir,
         'STEAM_COMPAT_DATA_PATH': prefixPath,
       };
+      debugPrint('[DIAG] protonBinary=$protonBinary compatEnv=$compatEnv');
 
       // Proton creates <prefix>/pfx the first time it runs in a prefix, so
       // its absence signals this prefix hasn't been initialized yet.
       if (!Directory('$prefixPath/pfx').existsSync()) {
+        debugPrint('[DIAG] running wineboot init...');
         await Process.run(
           protonBinary,
           ['run', 'wineboot'],
           environment: compatEnv,
         );
+        debugPrint('[DIAG] wineboot init returned without throwing');
       }
 
       final fullExe = '$installPath/$executable';
       final cwd = File(fullExe).parent.path;
+      debugPrint('[DIAG] starting process: $protonBinary run $fullExe cwd=$cwd');
 
       final process = await Process.start(
         protonBinary,
@@ -107,6 +113,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
         environment: {...envVars, ...compatEnv},
         includeParentEnvironment: true,
       );
+      debugPrint('[DIAG] process started pid=${process.pid}');
 
       game.status = LaunchStatus.running;
       _emit();
@@ -122,6 +129,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
         _emit();
       });
     } catch (e) {
+      debugPrint('[DIAG] CAUGHT EXCEPTION: $e');
       if (kDebugMode) {
         print(e);
       }
