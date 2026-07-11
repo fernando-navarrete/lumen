@@ -2,6 +2,7 @@
 // fake Gog, since the real one requires the native bridge library.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gogdl2_flutter/common/app_paths.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter/state/proton_state.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
@@ -125,6 +126,26 @@ void main() {
     expect(state.isInstalled('GE-Proton9-1'), isTrue);
     expect(state.pathFor('GE-Proton9-1'), '/tmp/proton/GE-Proton9-1');
     expect(state.defaultVersion, 'GE-Proton9-1');
+  });
+
+  test('downloadRelease defaults to protonInstallDir() when no targetDir is '
+      'given', () async {
+    final events = Stream<ProtonDownloadStream>.fromIterable([
+      _FakeProtonDownloadStream(
+        status: _FakeProtonDownloadStatus('downloaded'),
+        transferred: BigInt.from(100),
+        total: BigInt.from(100),
+      ),
+    ]);
+    final container = buildContainer(_FakeGog(downloadStream: events));
+    final release = _FakeProtonRelease('GE-Proton9-2');
+
+    await container.read(protonStateProvider.notifier).downloadRelease(release);
+
+    await Future<void>.delayed(Duration.zero);
+
+    final state = container.read(protonStateProvider);
+    expect(state.pathFor('GE-Proton9-2'), '${protonInstallDir()}/GE-Proton9-2');
   });
 
   test('setDefault only accepts an installed tag', () async {

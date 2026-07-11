@@ -29,8 +29,9 @@ class _FakeGogState extends GogState {
     clearAuthCalled = true;
   }
 
-  // The Settings page's ProtonManagerSection fetches releases on mount;
-  // stub it so that doesn't fall through to _FakeGog's noSuchMethod throw.
+  // Stubbed defensively in case a test opens the "Manage / install
+  // versions…" dialog, so that doesn't fall through to _FakeGog's
+  // noSuchMethod throw.
   @override
   Future<List<ProtonRelease>?> getProtonReleases(int page) async => const [];
 }

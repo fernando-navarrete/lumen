@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/app_paths.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart' show TaskStatus;
 import 'package:gogdl2_flutter/state/gog_state.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
@@ -35,7 +37,7 @@ class ProtonTask {
 /// [ProtonNotifier] via `protonStateProvider.notifier`.
 class ProtonState {
   /// Installed versions, tag name -> the directory Proton-GE was extracted
-  /// into (i.e. `<pickedDir>/<tag>`).
+  /// into (i.e. `<protonInstallDir()>/<tag>`).
   final Map<String, String> installed;
   final String? defaultVersion;
   final Map<String, ProtonTask> tasks;
@@ -89,13 +91,14 @@ class ProtonNotifier extends Notifier<ProtonState> {
     return _gogState.getProtonReleases(page);
   }
 
-  /// Downloads and extracts [release] into [targetDir], tracking progress in
-  /// [ProtonState.tasks] under the release's tag name. On success, registers
-  /// the extracted install directory and — if no default is set yet — makes
-  /// this release the default. Safe to call again for a previously failed
-  /// download (e.g. a "Retry" tap); a running or already-installed release
-  /// is left alone.
-  Future<void> downloadRelease(ProtonRelease release, String targetDir) async {
+  /// Downloads and extracts [release] into [targetDir] (defaulting to
+  /// [protonInstallDir], the Lumen-owned Proton directory, when omitted),
+  /// tracking progress in [ProtonState.tasks] under the release's tag name.
+  /// On success, registers the extracted install directory and — if no
+  /// default is set yet — makes this release the default. Safe to call
+  /// again for a previously failed download (e.g. a "Retry" tap); a running
+  /// or already-installed release is left alone.
+  Future<void> downloadRelease(ProtonRelease release, [String? targetDir]) async {
     final tag = release.tagName();
     if (state.installed.containsKey(tag)) {
       return;
@@ -109,6 +112,8 @@ class ProtonNotifier extends Notifier<ProtonState> {
       // stream can't be re-listened to — drop the cache before retrying.
       _gogState.clearProtonDownloadStream(tag);
     }
+    final dir = targetDir ?? protonInstallDir();
+    Directory(dir).createSync(recursive: true);
     final task = ProtonTask(tag: tag);
     state = ProtonState(
       installed: state.installed,
@@ -116,7 +121,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
       tasks: {...state.tasks, tag: task},
     );
 
-    final stream = await _gogState.downloadProtonRelease(release, targetDir);
+    final stream = await _gogState.downloadProtonRelease(release, dir);
     if (stream == null) {
       task.status = TaskStatus.failed;
       _emit();
@@ -132,7 +137,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
       },
       onDone: () {
         task.status = TaskStatus.completed;
-        _install(tag, '$targetDir/$tag');
+        _install(tag, '$dir/$tag');
         _emit();
       },
       onError: (Object error) {

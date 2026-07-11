@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/clickable_container.dart';
+import 'package:gogdl2_flutter/components/app_dropdown.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/proton_state.dart';
@@ -29,27 +29,21 @@ class GameSettingsTab extends ConsumerWidget {
         children: [
           Text("Proton version", style: AppText.sectionLabel),
           const SizedBox(height: AppSpacing.sm),
-          Column(
-            spacing: AppSpacing.xs,
-            children: [
-              _VersionRow(
+          AppDropdown<String?>(
+            value: selectedTag,
+            entries: [
+              AppDropdownEntry(
+                value: null,
                 label: protonState.defaultVersion != null
                     ? "Use global default (${protonState.defaultVersion})"
                     : "Use global default (none set)",
-                isSelected: selectedTag == null,
-                onTap: () => ref
-                    .read(gamesStateProvider.notifier)
-                    .setProtonVersion(gameId, null),
               ),
               for (final tag in protonState.installedTags)
-                _VersionRow(
-                  label: tag,
-                  isSelected: selectedTag == tag,
-                  onTap: () => ref
-                      .read(gamesStateProvider.notifier)
-                      .setProtonVersion(gameId, tag),
-                ),
+                AppDropdownEntry(value: tag, label: tag),
             ],
+            onChanged: (tag) => ref
+                .read(gamesStateProvider.notifier)
+                .setProtonVersion(gameId, tag),
           ),
           const SizedBox(height: AppSpacing.lg),
           Text("Proton prefix", style: AppText.sectionLabel),
@@ -64,28 +58,4 @@ class GameSettingsTab extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _VersionRow extends StatelessWidget {
-  const _VersionRow({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => ClickableContainer(
-    onTap: onTap,
-    child: Panel(
-      selected: isSelected,
-      child: Text(
-        label,
-        style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
-      ),
-    ),
-  );
 }

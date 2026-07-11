@@ -1,8 +1,7 @@
-import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/clickable_container.dart';
 import 'package:gogdl2_flutter/common/format.dart';
+import 'package:gogdl2_flutter/components/app_dropdown.dart';
 import 'package:gogdl2_flutter/components/centered_loader.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
@@ -14,17 +13,62 @@ import 'package:gogdl2_flutter/theme/text_styles.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 /// Settings section for managing Proton-GE: choose the app-wide default
-/// version, and browse/install releases from GloriousEggroll's GitHub repo.
-/// Per-game overrides live on that game's own Settings tab.
-class ProtonManagerSection extends ConsumerStatefulWidget {
+/// version from a dropdown of installed versions, and open a dialog to
+/// browse/install releases from GloriousEggroll's GitHub repo. Per-game
+/// overrides live on that game's own Settings tab.
+class ProtonManagerSection extends ConsumerWidget {
   const ProtonManagerSection({super.key});
 
   @override
-  ConsumerState<ProtonManagerSection> createState() =>
-      _ProtonManagerSectionState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final protonState = ref.watch(protonStateProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Proton", style: AppText.sectionLabel),
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          "Default version",
+          style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        AppDropdown<String>(
+          value: protonState.defaultVersion,
+          placeholder: "No versions installed — install one below.",
+          entries: [
+            for (final tag in protonState.installedTags)
+              AppDropdownEntry(value: tag, label: tag),
+          ],
+          onChanged: protonState.installedTags.isEmpty
+              ? null
+              : (tag) => ref.read(protonStateProvider.notifier).setDefault(tag!),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        PrimaryButton.icon(
+          icon: Icons.download,
+          label: "Manage / install versions…",
+          glowing: false,
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (_) => const _ProtonManagerDialog(),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-class _ProtonManagerSectionState extends ConsumerState<ProtonManagerSection> {
+/// Dialog listing installable Proton-GE releases (paginated from GitHub)
+/// alongside install progress/status. Opened from [ProtonManagerSection].
+class _ProtonManagerDialog extends ConsumerStatefulWidget {
+  const _ProtonManagerDialog();
+
+  @override
+  ConsumerState<_ProtonManagerDialog> createState() => _ProtonManagerDialogState();
+}
+
+class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
   final List<ProtonRelease> _releases = [];
   int _nextPage = 1;
   bool _loading = false;
@@ -61,99 +105,72 @@ class _ProtonManagerSectionState extends ConsumerState<ProtonManagerSection> {
   Widget build(BuildContext context) {
     final protonState = ref.watch(protonStateProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Proton", style: AppText.sectionLabel),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          "Default version",
-          style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        _InstalledVersionsPanel(protonState: protonState),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          "Available versions",
-          style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        if (_releases.isEmpty)
-          _loading
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                  child: CenteredLoader(),
-                )
-              : Panel(
-                  child: Text(
-                    "No releases loaded",
-                    style: AppText.bodyMedium(color: AppColors.textSecondary),
-                  ),
-                )
-        else
-          Column(
-            spacing: AppSpacing.sm,
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.card)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final release in _releases)
-                _ReleaseRow(release: release, protonState: protonState),
-            ],
-          ),
-        const SizedBox(height: AppSpacing.sm),
-        if (_loadedOnce)
-          PrimaryButton(
-            enabled: !_loading,
-            onTap: _loadMore,
-            child: Text(
-              _loading ? "Loading…" : "Load more",
-              style: AppText.button(color: Colors.white),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _InstalledVersionsPanel extends ConsumerWidget {
-  const _InstalledVersionsPanel({required this.protonState});
-
-  final ProtonState protonState;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (protonState.installedTags.isEmpty) {
-      return Panel(
-        child: Text(
-          "No Proton-GE versions installed yet. Install one below.",
-          style: AppText.bodyMedium(color: AppColors.textSecondary),
-        ),
-      );
-    }
-    return Column(
-      spacing: AppSpacing.xs,
-      children: [
-        for (final tag in protonState.installedTags)
-          ClickableContainer(
-            onTap: () => ref.read(protonStateProvider.notifier).setDefault(tag),
-            child: Panel(
-              selected: protonState.defaultVersion == tag,
-              child: Row(
+              Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      tag,
-                      style: AppText.bodyMedium(
-                        color: Colors.white,
-                        weight: FontWeight.w600,
-                      ),
-                    ),
+                    child: Text("Install Proton-GE versions", style: AppText.sectionLabel),
                   ),
-                  if (protonState.defaultVersion == tag)
-                    Text("Default", style: AppText.caption(color: AppColors.primary)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: AppSpacing.sm),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_releases.isEmpty)
+                        _loading
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                                child: CenteredLoader(),
+                              )
+                            : Panel(
+                                child: Text(
+                                  "No releases loaded",
+                                  style: AppText.bodyMedium(color: AppColors.textSecondary),
+                                ),
+                              )
+                      else
+                        Column(
+                          spacing: AppSpacing.sm,
+                          children: [
+                            for (final release in _releases)
+                              _ReleaseRow(release: release, protonState: protonState),
+                          ],
+                        ),
+                      const SizedBox(height: AppSpacing.sm),
+                      if (_loadedOnce)
+                        PrimaryButton(
+                          enabled: !_loading,
+                          onTap: _loadMore,
+                          child: Text(
+                            _loading ? "Loading…" : "Load more",
+                            style: AppText.button(color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -204,21 +221,12 @@ class _ReleaseRow extends ConsumerWidget {
                 icon: Icons.download,
                 label: task?.status == TaskStatus.failed ? "Retry" : "Install",
                 glowing: false,
-                onTap: () => _install(ref),
+                onTap: () => ref.read(protonStateProvider.notifier).downloadRelease(release),
               ),
             ),
         ],
       ),
     );
-  }
-
-  Future<void> _install(WidgetRef ref) async {
-    final PickedLocation? location = await DirPicker.pick();
-    if (location == null) {
-      return;
-    }
-    final path = location.uri!.toFilePath();
-    await ref.read(protonStateProvider.notifier).downloadRelease(release, path);
   }
 }
 

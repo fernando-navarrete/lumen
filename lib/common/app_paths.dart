@@ -15,3 +15,7 @@ String lumenDataDir() {
 
 /// The Proton prefix directory for [gameId], created on first launch.
 String protonPrefixDir(int gameId) => '${lumenDataDir()}/prefixes/$gameId';
+
+/// Default directory Proton-GE versions are installed into (each release
+/// extracted to `<protonInstallDir()>/<tag>`).
+String protonInstallDir() => '${lumenDataDir()}/proton';
