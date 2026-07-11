@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/app_paths.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum GameStatus { downloading, downloaded, notInstalled }
@@ -11,11 +13,20 @@ class GameConfig {
   final Set<String> productIds;
   final String? installPath;
 
+  /// Per-game Proton-GE tag override; null means "use the global default
+  /// selected in Settings".
+  final String? protonVersion;
+
+  /// The Proton prefix directory for this game, created on first launch.
+  final String? protonPrefixPath;
+
   GameConfig({
     required this.status,
     required this.selectedBuild,
     Set<String>? productIds,
     this.installPath,
+    this.protonVersion,
+    this.protonPrefixPath,
   }) : productIds = productIds != null
            ? Set<String>.from(productIds)
            : <String>{};
@@ -25,12 +36,16 @@ class GameConfig {
     String? selectedBuild,
     Set<String>? productIds,
     String? installPath,
+    String? protonVersion,
+    String? protonPrefixPath,
   }) {
     return GameConfig(
       status: status ?? this.status,
       selectedBuild: selectedBuild ?? this.selectedBuild,
       productIds: productIds ?? this.productIds,
       installPath: installPath ?? this.installPath,
+      protonVersion: protonVersion ?? this.protonVersion,
+      protonPrefixPath: protonPrefixPath ?? this.protonPrefixPath,
     );
   }
 }
@@ -54,6 +69,14 @@ class GamesState {
 
   String? getInstallPath(int gameId) {
     return games[gameId]?.installPath;
+  }
+
+  String? getProtonVersion(int gameId) {
+    return games[gameId]?.protonVersion;
+  }
+
+  String? getProtonPrefixPath(int gameId) {
+    return games[gameId]?.protonPrefixPath;
   }
 
   Set<String> getProductIds(int gameId) {
@@ -137,6 +160,52 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, existing.copyWith(productIds: updated));
   }
 
+  /// Sets [gameId]'s Proton-GE override; pass null to fall back to the
+  /// global default selected in Settings.
+  void setProtonVersion(int gameId, String? tag) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    // copyWith can't null out a field (its `?? this.field` pattern only
+    // ever keeps or replaces), so build the config directly here.
+    _update(
+      gameId,
+      GameConfig(
+        status: existing.status,
+        selectedBuild: existing.selectedBuild,
+        productIds: existing.productIds,
+        installPath: existing.installPath,
+        protonVersion: tag,
+        protonPrefixPath: existing.protonPrefixPath,
+      ),
+    );
+  }
+
+  /// Returns [gameId]'s Proton prefix directory, creating it (and the
+  /// default `~/.local/share/lumen/prefixes/<gameId>` path, if none is set
+  /// yet) on first launch.
+  String ensureProtonPrefix(int gameId) {
+    final existing = state.games[gameId];
+    final existingPath = existing?.protonPrefixPath;
+    if (existingPath != null) {
+      return existingPath;
+    }
+
+    final path = protonPrefixDir(gameId);
+    Directory(path).createSync(recursive: true);
+
+    final updated = existing != null
+        ? existing.copyWith(protonPrefixPath: path)
+        : GameConfig(
+            status: GameStatus.notInstalled,
+            selectedBuild: '',
+            protonPrefixPath: path,
+          );
+    _update(gameId, updated);
+    return path;
+  }
+
   void _update(int gameId, GameConfig config) {
     state = GamesState({...state.games, gameId: config});
     _persist();
@@ -149,6 +218,8 @@ class GamesNotifier extends Notifier<GamesState> {
         'selectedBuild': config.selectedBuild,
         'productIds': config.productIds.toList(),
         'installPath': config.installPath,
+        'protonVersion': config.protonVersion,
+        'protonPrefixPath': config.protonPrefixPath,
       }),
     );
     return jsonEncode(stringKeyed);
@@ -172,6 +243,8 @@ class GamesNotifier extends Notifier<GamesState> {
           selectedBuild: entry['selectedBuild'] as String,
           productIds: productIds?.map((id) => id as String).toSet(),
           installPath: entry['installPath'] as String?,
+          protonVersion: entry['protonVersion'] as String?,
+          protonPrefixPath: entry['protonPrefixPath'] as String?,
         ),
       );
     });

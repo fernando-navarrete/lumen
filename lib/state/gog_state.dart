@@ -12,6 +12,8 @@ class GogState {
       HashMap();
   final HashMap<int, Stream<RepairStream>> _repairStreams = HashMap();
   final HashMap<int, Stream<DownloadStream>> _downloadStreams = HashMap();
+  final HashMap<String, Stream<ProtonDownloadStream>> _protonDownloadStreams =
+      HashMap();
 
   GogState(this._gog);
 
@@ -258,6 +260,43 @@ class GogState {
       }
       return null;
     }
+  }
+
+  Future<List<ProtonRelease>?> getProtonReleases(int page) async {
+    try {
+      return await _gog.getProtonReleases(page: page);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<Stream<ProtonDownloadStream>?> downloadProtonRelease(
+    ProtonRelease release,
+    String path,
+  ) async {
+    try {
+      final tag = release.tagName();
+      if (_protonDownloadStreams.containsKey(tag)) {
+        return _protonDownloadStreams[tag];
+      }
+      var stream = _gog.downloadProtonRelease(release: release, path: path);
+      _protonDownloadStreams[tag] = stream;
+      return stream;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  /// Drops the cached download stream for [tag] so the same release can be
+  /// downloaded again, e.g. after a failed attempt.
+  void clearProtonDownloadStream(String tag) {
+    _protonDownloadStreams.remove(tag);
   }
 }
 

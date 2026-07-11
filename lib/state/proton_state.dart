@@ -1,0 +1,230 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/state/downloads_state.dart' show TaskStatus;
+import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// In-flight/finished progress for one Proton-GE release download, keyed by
+/// tag name in [ProtonState.tasks]. Mirrors [ActivityTask] in
+/// downloads_state.dart, but byte-only (no chunk/file bookkeeping) since
+/// the bridge's Proton stream only ever reports transferred/total bytes.
+class ProtonTask {
+  final String tag;
+  TaskStatus status;
+  int transferred;
+  int total;
+
+  /// e.g. "downloading", "extracting", "downloaded" — see
+  /// `ProtonDownloadStatus.name()` in the bridge.
+  String? stage;
+
+  ProtonTask({
+    required this.tag,
+    this.status = TaskStatus.running,
+    this.transferred = 0,
+    this.total = 0,
+    this.stage,
+  });
+}
+
+/// Immutable snapshot of installed Proton-GE versions, the chosen global
+/// default, and any in-flight downloads. Read-only — mutations go through
+/// [ProtonNotifier] via `protonStateProvider.notifier`.
+class ProtonState {
+  /// Installed versions, tag name -> the directory Proton-GE was extracted
+  /// into (i.e. `<pickedDir>/<tag>`).
+  final Map<String, String> installed;
+  final String? defaultVersion;
+  final Map<String, ProtonTask> tasks;
+
+  const ProtonState({
+    required this.installed,
+    required this.defaultVersion,
+    required this.tasks,
+  });
+
+  const ProtonState.empty()
+    : installed = const {},
+      defaultVersion = null,
+      tasks = const {};
+
+  List<String> get installedTags => installed.keys.toList();
+
+  bool isInstalled(String tag) => installed.containsKey(tag);
+
+  String? pathFor(String tag) => installed[tag];
+
+  ProtonTask? taskFor(String tag) => tasks[tag];
+}
+
+/// Manages Proton-GE releases: fetching the list from GitHub, downloading
+/// and extracting a chosen release (tracked the same way as game
+/// downloads/repairs — see [DownloadsNotifier]), and persisting the set of
+/// installed versions plus the app-wide default to SharedPreferences.
+class ProtonNotifier extends Notifier<ProtonState> {
+  late final GogState _gogState;
+
+  static const _installedKey = 'protonInstalled';
+  static const _defaultKey = 'protonDefault';
+
+  @override
+  ProtonState build() {
+    _gogState = ref.read(gogStateProvider);
+    _load();
+    return const ProtonState.empty();
+  }
+
+  void _emit() {
+    state = ProtonState(
+      installed: state.installed,
+      defaultVersion: state.defaultVersion,
+      tasks: {...state.tasks},
+    );
+  }
+
+  Future<List<ProtonRelease>?> fetchReleases(int page) {
+    return _gogState.getProtonReleases(page);
+  }
+
+  /// Downloads and extracts [release] into [targetDir], tracking progress in
+  /// [ProtonState.tasks] under the release's tag name. On success, registers
+  /// the extracted install directory and — if no default is set yet — makes
+  /// this release the default. Safe to call again for a previously failed
+  /// download (e.g. a "Retry" tap); a running or already-installed release
+  /// is left alone.
+  Future<void> downloadRelease(ProtonRelease release, String targetDir) async {
+    final tag = release.tagName();
+    if (state.installed.containsKey(tag)) {
+      return;
+    }
+    final existingTask = state.tasks[tag];
+    if (existingTask != null && existingTask.status != TaskStatus.failed) {
+      return;
+    }
+    if (existingTask != null) {
+      // Bridge streams are single-subscription, so a failed attempt's
+      // stream can't be re-listened to — drop the cache before retrying.
+      _gogState.clearProtonDownloadStream(tag);
+    }
+    final task = ProtonTask(tag: tag);
+    state = ProtonState(
+      installed: state.installed,
+      defaultVersion: state.defaultVersion,
+      tasks: {...state.tasks, tag: task},
+    );
+
+    final stream = await _gogState.downloadProtonRelease(release, targetDir);
+    if (stream == null) {
+      task.status = TaskStatus.failed;
+      _emit();
+      return;
+    }
+
+    stream.listen(
+      (event) {
+        task.transferred = event.transferred.toInt();
+        task.total = event.total.toInt();
+        task.stage = event.status.name();
+        _emit();
+      },
+      onDone: () {
+        task.status = TaskStatus.completed;
+        _install(tag, '$targetDir/$tag');
+        _emit();
+      },
+      onError: (Object error) {
+        if (kDebugMode) {
+          print(error);
+        }
+        task.status = TaskStatus.failed;
+        _emit();
+      },
+    );
+  }
+
+  void _install(String tag, String path) {
+    final installed = {...state.installed, tag: path};
+    final defaultVersion = state.defaultVersion ?? tag;
+    state = ProtonState(
+      installed: installed,
+      defaultVersion: defaultVersion,
+      tasks: state.tasks,
+    );
+    _persist();
+  }
+
+  void setDefault(String tag) {
+    if (!state.installed.containsKey(tag)) {
+      return;
+    }
+    state = ProtonState(
+      installed: state.installed,
+      defaultVersion: tag,
+      tasks: state.tasks,
+    );
+    _persist();
+  }
+
+  /// Drops [tag] from the installed registry (does not delete the files on
+  /// disk — the user picked that location and may want to keep it).
+  void removeVersion(String tag) {
+    final installed = {...state.installed}..remove(tag);
+    final defaultVersion = state.defaultVersion == tag
+        ? null
+        : state.defaultVersion;
+    state = ProtonState(
+      installed: installed,
+      defaultVersion: defaultVersion,
+      tasks: state.tasks,
+    );
+    _persist();
+  }
+
+  void _persist() {
+    SharedPreferences.getInstance().then((prefs) {
+      try {
+        prefs.setString(_installedKey, jsonEncode(state.installed));
+        if (state.defaultVersion != null) {
+          prefs.setString(_defaultKey, state.defaultVersion!);
+        } else {
+          prefs.remove(_defaultKey);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print(e);
+        }
+      }
+    });
+  }
+
+  void _load() {
+    SharedPreferences.getInstance().then((prefs) {
+      try {
+        final installedJson = prefs.getString(_installedKey);
+        final installed = installedJson != null
+            ? (jsonDecode(installedJson) as Map<String, dynamic>).map(
+                (tag, path) => MapEntry(tag, path as String),
+              )
+            : <String, String>{};
+        final defaultVersion = prefs.getString(_defaultKey);
+        state = ProtonState(
+          installed: installed,
+          defaultVersion: defaultVersion,
+          tasks: state.tasks,
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print(e);
+        }
+      }
+    });
+  }
+}
+
+final protonStateProvider = NotifierProvider<ProtonNotifier, ProtonState>(
+  ProtonNotifier.new,
+  name: 'protonStateProvider',
+);

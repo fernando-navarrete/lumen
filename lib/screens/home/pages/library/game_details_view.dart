@@ -3,6 +3,7 @@ import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/components/tab_button.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/builds_tab.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/game_header.dart';
+import 'package:gogdl2_flutter/screens/home/pages/library/game_settings_tab.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/overview_tab.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/products_tab.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
@@ -103,7 +104,7 @@ class _GameTabsState extends State<_GameTabs> {
           child: switch (_selectedTab) {
             SelectedTab.overview => OverviewTab(gameId: widget.gameId),
             SelectedTab.builds => BuildsTab(gameId: widget.gameId),
-            SelectedTab.settings => const Text('settings'),
+            SelectedTab.settings => GameSettingsTab(gameId: widget.gameId),
             SelectedTab.dlc => ProductsTab(gameId: widget.gameId),
           },
         ),

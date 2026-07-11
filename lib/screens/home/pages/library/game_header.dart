@@ -6,6 +6,7 @@ import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:gogdl2_flutter/state/proton_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
@@ -209,11 +210,24 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
     }
     if (installed) {
       return [
-        _stubActionButton(
-          context,
-          icon: Icons.play_arrow,
-          label: "Play",
-          message: "Play is not implemented yet",
+        PrimaryButton(
+          enabled: true,
+          onTap: () => _onPlay(context, gameId, gamesState),
+          glowing: true,
+          child: Row(
+            spacing: 8,
+            children: [
+              Icon(Icons.play_arrow, color: Colors.black),
+              Text(
+                "Play",
+                style: AppText.onest(
+                  color: Colors.black,
+                  size: 16,
+                  weight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ];
     }
@@ -311,6 +325,46 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
         },
       ),
     ];
+  }
+
+  /// Resolves the effective Proton-GE version (per-game override, else the
+  /// global default from Settings) and ensures this game's Proton prefix
+  /// directory exists, creating it on first launch. Actually launching the
+  /// game isn't implemented yet — the bridge has no run/launch API — so this
+  /// only lays the groundwork and reports what it resolved.
+  Future<void> _onPlay(
+    BuildContext context,
+    int gameId,
+    GamesState gamesState,
+  ) async {
+    final defaultVersion = ref.read(protonStateProvider).defaultVersion;
+    final protonVersion = gamesState.getProtonVersion(gameId) ?? defaultVersion;
+
+    if (protonVersion == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "No Proton-GE version installed — install one in Settings first",
+          ),
+        ),
+      );
+      return;
+    }
+
+    final prefixPath = ref
+        .read(gamesStateProvider.notifier)
+        .ensureProtonPrefix(gameId);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Would launch with $protonVersion — prefix at $prefixPath "
+            "(launching isn't implemented yet)",
+          ),
+        ),
+      );
+    }
   }
 
   Widget _stubActionButton(

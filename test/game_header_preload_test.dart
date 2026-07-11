@@ -86,6 +86,53 @@ class _FakeGog implements Gog {
     required List<String> selectedProducts,
     required int gameId,
   }) => const Stream.empty();
+
+  @override
+  Future<void> deleteSave({
+    required CloudSaveFile saveFile,
+    required String clientId,
+    required String clientSecret,
+  }) async {}
+
+  @override
+  Stream<SaveDownloadStream> downloadSave({
+    required CloudSaveFile saveFile,
+    required String clientId,
+    required String clientSecret,
+    required String path,
+  }) => const Stream.empty();
+
+  @override
+  Stream<SaveUploadStream> uploadSave({
+    required String clientId,
+    required String clientSecret,
+    required String path,
+    required String urlPath,
+  }) => const Stream.empty();
+
+  @override
+  Future<SaveAuthIds> getSaveAuthIds({required int gameId}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CloudSaveFile>> getSaveFileList({
+    required String clientId,
+    required String clientSecret,
+  }) async => [];
+
+  @override
+  Future<CloudSaveConfig> getSaveRemoteConfig({required String clientId}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<ProtonRelease>> getProtonReleases({required int page}) async =>
+      [];
+
+  @override
+  Stream<ProtonDownloadStream> downloadProtonRelease({
+    required ProtonRelease release,
+    required String path,
+  }) => const Stream.empty();
 }
 
 class _FakeGameBuild implements GameBuild {

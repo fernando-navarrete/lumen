@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/format.dart';
 import 'package:gogdl2_flutter/components/panel.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart';
@@ -213,8 +214,8 @@ class _DownloadTaskCard extends ConsumerWidget {
           case "allocating":
             return "Allocating disk space…";
           case "downloading":
-            return "Downloading… ${_formatBytes(task.downloadedBytes)}"
-                "/${_formatBytes(task.totalBytes)}";
+            return "Downloading… ${formatBytes(task.downloadedBytes)}"
+                "/${formatBytes(task.totalBytes)}";
           default:
             return "Downloading…";
         }
@@ -298,8 +299,8 @@ class _RepairTaskCard extends ConsumerWidget {
           case "verifyingChunks":
             return "Verifying chunks…";
           case "downloading":
-            return "Downloading… ${_formatBytes(task.downloadedBytes)}"
-                "/${_formatBytes(task.totalBytes)}";
+            return "Downloading… ${formatBytes(task.downloadedBytes)}"
+                "/${formatBytes(task.totalBytes)}";
           default:
             return "Repairing…";
         }
@@ -319,15 +320,4 @@ class _RepairTaskCard extends ConsumerWidget {
     }
     return AppColors.textSecondary;
   }
-}
-
-String _formatBytes(int bytes) {
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  double value = bytes.toDouble();
-  int unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-  return "${value.toStringAsFixed(unitIndex == 0 ? 0 : 1)} ${units[unitIndex]}";
 }

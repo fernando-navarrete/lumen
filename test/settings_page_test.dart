@@ -28,6 +28,11 @@ class _FakeGogState extends GogState {
   Future<void> clearAuth() async {
     clearAuthCalled = true;
   }
+
+  // The Settings page's ProtonManagerSection fetches releases on mount;
+  // stub it so that doesn't fall through to _FakeGog's noSuchMethod throw.
+  @override
+  Future<List<ProtonRelease>?> getProtonReleases(int page) async => const [];
 }
 
 /// Provides a fixed initial [GamesState] synchronously, skipping the real
