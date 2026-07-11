@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/components/primary_button.dart';
-import 'package:gogdl2_flutter/components/tab_button.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/builds_tab.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/game_header.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/game_settings_tab.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/overview_tab.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/products_tab.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/saves_tab.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/components/tab_button.dart';
+import 'package:lumen/screens/home/pages/library/builds_tab.dart';
+import 'package:lumen/screens/home/pages/library/game_header.dart';
+import 'package:lumen/screens/home/pages/library/game_settings_tab.dart';
+import 'package:lumen/screens/home/pages/library/overview_tab.dart';
+import 'package:lumen/screens/home/pages/library/products_tab.dart';
+import 'package:lumen/screens/home/pages/library/saves_tab.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
 
 enum SelectedTab { overview, builds, settings, dlc, saves }
 

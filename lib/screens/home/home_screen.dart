@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/components/gradient_background.dart';
-import 'package:gogdl2_flutter/components/nav_bar.dart';
-import 'package:gogdl2_flutter/screens/home/pages/downloads_page.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/library_page.dart';
-import 'package:gogdl2_flutter/screens/home/pages/settings_page.dart';
-import 'package:gogdl2_flutter/state/home_state.dart';
+import 'package:lumen/components/gradient_background.dart';
+import 'package:lumen/components/nav_bar.dart';
+import 'package:lumen/screens/home/pages/downloads_page.dart';
+import 'package:lumen/screens/home/pages/library/library_page.dart';
+import 'package:lumen/screens/home/pages/settings_page.dart';
+import 'package:lumen/state/home_state.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});

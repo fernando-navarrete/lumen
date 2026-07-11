@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// Circular step number that turns into a check mark once completed.
 class StepIndicator extends StatelessWidget {

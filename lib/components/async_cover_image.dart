@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/components/centered_loader.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/components/centered_loader.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
 
 /// Resolves [imageUrl] and renders it filling its bounds, clipped to
 /// [borderRadius]. Shows a spinner while pending and a subtle fill on error.

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/components/centered_loader.dart';
-import 'package:gogdl2_flutter/components/game_card.dart';
-import 'package:gogdl2_flutter/screens/home/pages/library/game_details_view.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/components/centered_loader.dart';
+import 'package:lumen/components/game_card.dart';
+import 'package:lumen/screens/home/pages/library/game_details_view.dart';
+import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/theme/app_dimens.dart';
 
 /// Switches between the owned-games grid and the details of a selected game.
 class LibraryPage extends StatefulWidget {

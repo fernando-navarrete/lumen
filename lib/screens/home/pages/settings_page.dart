@@ -1,14 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/components/panel.dart';
-import 'package:gogdl2_flutter/components/primary_button.dart';
-import 'package:gogdl2_flutter/screens/home/pages/settings/proton_manager.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/components/panel.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/screens/home/pages/settings/proton_manager.dart';
+import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});

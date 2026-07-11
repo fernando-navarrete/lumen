@@ -3,9 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/app_paths.dart';
-import 'package:gogdl2_flutter/state/downloads_state.dart' show TaskStatus;
-import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/state/gog_state.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

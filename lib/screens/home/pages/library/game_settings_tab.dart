@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/executable_finder.dart';
-import 'package:gogdl2_flutter/components/app_dropdown.dart';
-import 'package:gogdl2_flutter/components/executable_picker_dialog.dart';
-import 'package:gogdl2_flutter/components/panel.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
-import 'package:gogdl2_flutter/state/proton_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_decorations.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/common/executable_finder.dart';
+import 'package:lumen/components/app_dropdown.dart';
+import 'package:lumen/components/executable_picker_dialog.dart';
+import 'package:lumen/components/panel.dart';
+import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/proton_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_decorations.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// One editable KEY=VALUE row's controllers, kept alive across rebuilds.
 class _EnvVarRow {

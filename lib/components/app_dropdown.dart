@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_decorations.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_decorations.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// One selectable option in an [AppDropdown].
 class AppDropdownEntry<T> {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:lumen/theme/app_colors.dart';
 
 class AppText {
   static TextStyle onest({

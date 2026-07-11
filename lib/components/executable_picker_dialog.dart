@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/components/primary_button.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// Shows a modal list of executable paths (relative to a game's install
 /// directory, as returned by `findExecutables`) and lets the user pick

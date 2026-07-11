@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/common/clickable_container.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/common/clickable_container.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 enum TabButtonStyle {
   /// Filled rounded pill when selected (nav bar).

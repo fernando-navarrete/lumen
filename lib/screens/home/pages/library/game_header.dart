@@ -1,18 +1,18 @@
 import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/executable_finder.dart';
-import 'package:gogdl2_flutter/components/async_cover_image.dart';
-import 'package:gogdl2_flutter/components/executable_picker_dialog.dart';
-import 'package:gogdl2_flutter/components/primary_button.dart';
-import 'package:gogdl2_flutter/state/downloads_state.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
-import 'package:gogdl2_flutter/state/launch_state.dart';
-import 'package:gogdl2_flutter/state/proton_state.dart';
-import 'package:gogdl2_flutter/theme/app_decorations.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/common/executable_finder.dart';
+import 'package:lumen/components/async_cover_image.dart';
+import 'package:lumen/components/executable_picker_dialog.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/state/downloads_state.dart';
+import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/launch_state.dart';
+import 'package:lumen/state/proton_state.dart';
+import 'package:lumen/theme/app_decorations.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 /// Wide banner with the game's background art and its title over a scrim.

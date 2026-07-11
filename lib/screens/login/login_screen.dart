@@ -1,14 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/components/gradient_background.dart';
-import 'package:gogdl2_flutter/screens/home/home_screen.dart';
-import 'package:gogdl2_flutter/screens/login/widgets/branding_panel.dart';
-import 'package:gogdl2_flutter/screens/login/widgets/sign_in_panel.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_decorations.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/components/gradient_background.dart';
+import 'package:lumen/screens/home/home_screen.dart';
+import 'package:lumen/screens/login/widgets/branding_panel.dart';
+import 'package:lumen/screens/login/widgets/sign_in_panel.dart';
+import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_decorations.dart';
+import 'package:lumen/theme/app_dimens.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {

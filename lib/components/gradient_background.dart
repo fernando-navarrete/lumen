@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:lumen/theme/app_colors.dart';
 import 'package:vector_math/vector_math_64.dart' show Vector3;
 
 class GradientBackground extends StatelessWidget {

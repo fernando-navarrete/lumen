@@ -2,13 +2,13 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/components/async_cover_image.dart';
-import 'package:gogdl2_flutter/components/centered_loader.dart';
-import 'package:gogdl2_flutter/components/panel.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/components/async_cover_image.dart';
+import 'package:lumen/components/centered_loader.dart';
+import 'package:lumen/components/panel.dart';
+import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// Game summary, screenshots grid and the details side panel.
 class OverviewTab extends ConsumerStatefulWidget {

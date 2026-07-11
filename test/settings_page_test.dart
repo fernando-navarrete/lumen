@@ -4,9 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:gogdl2_flutter/screens/home/pages/settings_page.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:lumen/screens/home/pages/settings_page.dart';
+import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_state.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/components/brand_lockup.dart';
-import 'package:gogdl2_flutter/components/glowing_square.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/components/brand_lockup.dart';
+import 'package:lumen/components/glowing_square.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 
 /// Left half of the login card: brand mark, glowing logo and tagline.
 class BrandingPanel extends StatelessWidget {

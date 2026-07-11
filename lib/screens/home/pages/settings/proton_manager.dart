@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/common/format.dart';
-import 'package:gogdl2_flutter/components/app_dropdown.dart';
-import 'package:gogdl2_flutter/components/centered_loader.dart';
-import 'package:gogdl2_flutter/components/panel.dart';
-import 'package:gogdl2_flutter/components/primary_button.dart';
-import 'package:gogdl2_flutter/state/downloads_state.dart' show TaskStatus;
-import 'package:gogdl2_flutter/state/proton_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
-import 'package:gogdl2_flutter/theme/text_styles.dart';
+import 'package:lumen/common/format.dart';
+import 'package:lumen/components/app_dropdown.dart';
+import 'package:lumen/components/centered_loader.dart';
+import 'package:lumen/components/panel.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/state/proton_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
+import 'package:lumen/theme/text_styles.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 /// Settings section for managing Proton-GE: choose the app-wide default

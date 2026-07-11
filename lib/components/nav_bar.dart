@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/components/brand_lockup.dart';
-import 'package:gogdl2_flutter/components/tab_button.dart';
-import 'package:gogdl2_flutter/state/home_state.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/components/brand_lockup.dart';
+import 'package:lumen/components/tab_button.dart';
+import 'package:lumen/state/home_state.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
 
 class NavBar extends StatefulWidget {
   const NavBar({super.key, required this.onItemSelected});

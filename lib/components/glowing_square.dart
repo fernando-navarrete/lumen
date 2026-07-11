@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:lumen/theme/app_colors.dart';
 
 class GlowingSquare extends StatelessWidget {
   const GlowingSquare({super.key, required this.width});

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
-import 'package:gogdl2_flutter/theme/app_dimens.dart';
+import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_dimens.dart';
 
 class AppDecorations {
   /// The elevated-card look shared by the login panel, the game header and

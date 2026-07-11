@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:gogdl2_flutter/app.dart';
-import 'package:gogdl2_flutter/theme/app_colors.dart';
+import 'package:lumen/app.dart';
+import 'package:lumen/theme/app_colors.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 
 void main() async {

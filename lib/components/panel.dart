@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:gogdl2_flutter/theme/app_decorations.dart';
+import 'package:lumen/theme/app_decorations.dart';
 
 /// Flat bordered surface used for detail cards and list rows.
 class Panel extends StatelessWidget {

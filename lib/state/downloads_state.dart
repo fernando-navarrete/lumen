@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl2_flutter/state/games_state.dart';
-import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_state.dart';
 
 enum TaskKind { download, verification, repair }
 
