@@ -32,8 +32,8 @@ class GogState {
     } catch (e) {
       if (kDebugMode) {
         print(e);
-        throw Exception(e);
       }
+      rethrow;
     }
   }
 
@@ -97,8 +97,8 @@ class GogState {
     } catch (e) {
       if (kDebugMode) {
         print(e);
-        throw Exception(e);
       }
+      rethrow;
     }
   }
 
@@ -114,8 +114,8 @@ class GogState {
     } catch (e) {
       if (kDebugMode) {
         print(e);
-        throw Exception(e);
       }
+      rethrow;
     }
   }
 
