@@ -298,6 +298,78 @@ class GogState {
   void clearProtonDownloadStream(String tag) {
     _protonDownloadStreams.remove(tag);
   }
+
+  Future<SaveAuthIds?> getSaveAuthIds(int gameId) async {
+    try {
+      return await _gog.getSaveAuthIds(gameId: gameId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<CloudSaveConfig?> getSaveRemoteConfig(String clientId) async {
+    try {
+      return await _gog.getSaveRemoteConfig(clientId: clientId);
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  Future<List<CloudSaveFile>?> getSaveFileList(
+    String clientId,
+    String clientSecret,
+  ) async {
+    try {
+      return await _gog.getSaveFileList(
+        clientId: clientId,
+        clientSecret: clientSecret,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
+  }
+
+  /// Streams the download of a single cloud save file to [path]. Unlike the
+  /// download/repair/Proton streams, this isn't cached — save syncs consume
+  /// each per-file stream once, sequentially, from [SavesNotifier].
+  Stream<SaveDownloadStream> downloadSaveFile({
+    required CloudSaveFile saveFile,
+    required String clientId,
+    required String clientSecret,
+    required String path,
+  }) {
+    return _gog.downloadSave(
+      saveFile: saveFile,
+      clientId: clientId,
+      clientSecret: clientSecret,
+      path: path,
+    );
+  }
+
+  /// Streams the upload of a single local file at [path] to [urlPath] in
+  /// cloud storage. Not cached — see [downloadSaveFile].
+  Stream<SaveUploadStream> uploadSaveFile({
+    required String clientId,
+    required String clientSecret,
+    required String path,
+    required String urlPath,
+  }) {
+    return _gog.uploadSave(
+      clientId: clientId,
+      clientSecret: clientSecret,
+      path: path,
+      urlPath: urlPath,
+    );
+  }
 }
 
 final gogStateProvider = Provider<GogState>((ref) {

@@ -6,16 +6,18 @@ import 'package:gogdl2_flutter/screens/home/pages/library/game_header.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/game_settings_tab.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/overview_tab.dart';
 import 'package:gogdl2_flutter/screens/home/pages/library/products_tab.dart';
+import 'package:gogdl2_flutter/screens/home/pages/library/saves_tab.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
 
-enum SelectedTab { overview, builds, settings, dlc }
+enum SelectedTab { overview, builds, settings, dlc, saves }
 
 extension SelectedTabLabel on SelectedTab {
   String get label => switch (this) {
     SelectedTab.overview => 'Overview',
     SelectedTab.builds => 'Builds',
     SelectedTab.dlc => 'DLC',
+    SelectedTab.saves => 'Saves',
     SelectedTab.settings => 'Settings',
   };
 }
@@ -106,6 +108,7 @@ class _GameTabsState extends State<_GameTabs> {
             SelectedTab.builds => BuildsTab(gameId: widget.gameId),
             SelectedTab.settings => GameSettingsTab(gameId: widget.gameId),
             SelectedTab.dlc => ProductsTab(gameId: widget.gameId),
+            SelectedTab.saves => SavesTab(gameId: widget.gameId),
           },
         ),
       ],

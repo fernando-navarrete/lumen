@@ -5,6 +5,7 @@ import 'package:gogdl2_flutter/components/panel.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:gogdl2_flutter/state/saves_state.dart';
 import 'package:gogdl2_flutter/theme/app_colors.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
 import 'package:gogdl2_flutter/theme/text_styles.dart';
@@ -15,6 +16,8 @@ class DownloadsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadsState = ref.watch(downloadsStateProvider);
+    final savesState = ref.watch(savesStateProvider);
+    final saveTasks = savesState.tasks.values.toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -47,6 +50,18 @@ class DownloadsPage extends ConsumerWidget {
               children: [
                 for (final task in downloadsState.verificationTasks)
                   _VerificationTaskCard(task: task),
+              ],
+            ),
+          const SizedBox(height: AppSpacing.xl),
+          Text("Cloud Saves", style: AppText.sectionLabel),
+          const SizedBox(height: AppSpacing.sm),
+          if (saveTasks.isEmpty)
+            _EmptyState(message: "No active save syncs")
+          else
+            Column(
+              spacing: AppSpacing.sm,
+              children: [
+                for (final task in saveTasks) _SaveTaskCard(task: task),
               ],
             ),
         ],
@@ -316,6 +331,86 @@ class _RepairTaskCard extends ConsumerWidget {
   Color _statusColor(ActivityTask task) {
     if (task.status == TaskStatus.failed ||
         (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty)) {
+      return AppColors.error;
+    }
+    return AppColors.textSecondary;
+  }
+}
+
+class _SaveTaskCard extends ConsumerWidget {
+  const _SaveTaskCard({required this.task});
+
+  final SaveTask task;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final gogState = ref.watch(gogStateProvider);
+    final double? progress = task.filesTotal > 0
+        ? task.filesProcessed / task.filesTotal
+        : null;
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: AppSpacing.xs,
+        children: [
+          FutureBuilder<String?>(
+            future: gogState.getGameName(task.gameId),
+            builder: (context, snapshot) => Text(
+              snapshot.data ?? "Loading...",
+              style: AppText.bodyMedium(
+                color: Colors.white,
+                weight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.border08,
+              valueColor: AlwaysStoppedAnimation(
+                task.status == TaskStatus.failed
+                    ? AppColors.error
+                    : AppColors.primary,
+              ),
+            ),
+          ),
+          Text(
+            _statusText(task),
+            style: AppText.caption(color: _statusColor(task)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _statusText(SaveTask task) {
+    final verb = task.direction == SaveDirection.download
+        ? "Downloading"
+        : "Uploading";
+    final doneVerb = task.direction == SaveDirection.download
+        ? "downloaded"
+        : "uploaded";
+    switch (task.status) {
+      case TaskStatus.running:
+        return "$verb saves… ${task.filesProcessed}/${task.filesTotal} files"
+            " (${formatBytes(task.transferred)}/${formatBytes(task.total)})";
+      case TaskStatus.completed:
+        return task.errorFiles.isEmpty
+            ? "Saves $doneVerb"
+            : "Saves $doneVerb — ${task.errorFiles.length} file(s) failed";
+      case TaskStatus.failed:
+        return task.direction == SaveDirection.download
+            ? "Save download failed"
+            : "Save upload failed";
+    }
+  }
+
+  Color _statusColor(SaveTask task) {
+    if (task.status == TaskStatus.failed ||
+        (task.status == TaskStatus.completed && task.errorFiles.isNotEmpty)) {
       return AppColors.error;
     }
     return AppColors.textSecondary;
