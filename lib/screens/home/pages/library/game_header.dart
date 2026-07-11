@@ -1,11 +1,14 @@
 import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl2_flutter/common/executable_finder.dart';
 import 'package:gogdl2_flutter/components/async_cover_image.dart';
+import 'package:gogdl2_flutter/components/executable_picker_dialog.dart';
 import 'package:gogdl2_flutter/components/primary_button.dart';
 import 'package:gogdl2_flutter/state/downloads_state.dart';
 import 'package:gogdl2_flutter/state/games_state.dart';
 import 'package:gogdl2_flutter/state/gog_state.dart';
+import 'package:gogdl2_flutter/state/launch_state.dart';
 import 'package:gogdl2_flutter/state/proton_state.dart';
 import 'package:gogdl2_flutter/theme/app_decorations.dart';
 import 'package:gogdl2_flutter/theme/app_dimens.dart';
@@ -95,6 +98,21 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
     final GameStatus status = gamesState.getGameStatus(gameId);
     final bool installing = status == GameStatus.downloading;
     final bool installed = status == GameStatus.downloaded;
+    final bool running = ref.watch(
+      launchStateProvider.select((state) => state.isActive(gameId)),
+    );
+
+    ref.listen<LaunchState>(launchStateProvider, (previous, next) {
+      final prevStatus = previous?.gameFor(gameId)?.status;
+      final game = next.gameFor(gameId);
+      if (game?.status == LaunchStatus.failed &&
+          prevStatus != LaunchStatus.failed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(game?.error ?? "Failed to launch game")),
+        );
+      }
+    });
+
     return Container(
       height: 316,
       decoration: AppDecorations.card(blurRadius: 18, spreadRadius: 8),
@@ -177,6 +195,7 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
                       gamesState,
                       installing: installing,
                       installed: installed,
+                      running: running,
                     ),
                   ),
                 ],
@@ -189,14 +208,15 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
   }
 
   /// Builds the header's primary action row based on the game's status:
-  /// Pause (stub) while installing, Play (stub) once installed, otherwise
-  /// the Install/Import pair.
+  /// Pause (stub) while installing, Play (or "Running…" while launched) once
+  /// installed, otherwise the Install/Import pair.
   List<Widget> _buildActionButtons(
     BuildContext context,
     int gameId,
     GamesState gamesState, {
     required bool installing,
     required bool installed,
+    required bool running,
   }) {
     if (installing) {
       return [
@@ -211,15 +231,18 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
     if (installed) {
       return [
         PrimaryButton(
-          enabled: true,
+          enabled: !running,
           onTap: () => _onPlay(context, gameId, gamesState),
           glowing: true,
           child: Row(
             spacing: 8,
             children: [
-              Icon(Icons.play_arrow, color: Colors.black),
+              Icon(
+                running ? Icons.hourglass_top : Icons.play_arrow,
+                color: Colors.black,
+              ),
               Text(
-                "Play",
+                running ? "Running…" : "Play",
                 style: AppText.onest(
                   color: Colors.black,
                   size: 16,
@@ -328,26 +351,52 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
   }
 
   /// Resolves the effective Proton-GE version (per-game override, else the
-  /// global default from Settings) and ensures this game's Proton prefix
-  /// directory exists, creating it on first launch. Actually launching the
-  /// game isn't implemented yet — the bridge has no run/launch API — so this
-  /// only lays the groundwork and reports what it resolved.
+  /// global default from Settings), the game's executable, and its Proton
+  /// prefix directory (created on first launch), then hands off to
+  /// [LaunchNotifier] to actually spawn the game via Proton.
   Future<void> _onPlay(
     BuildContext context,
     int gameId,
     GamesState gamesState,
   ) async {
+    void showMessage(String message) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+
     final defaultVersion = ref.read(protonStateProvider).defaultVersion;
     final protonVersion = gamesState.getProtonVersion(gameId) ?? defaultVersion;
-
     if (protonVersion == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "No Proton-GE version installed — install one in Settings first",
-          ),
-        ),
+      showMessage(
+        "No Proton-GE version installed — install one in Settings first",
       );
+      return;
+    }
+
+    final protonPath = ref.read(protonStateProvider).pathFor(protonVersion);
+    if (protonPath == null) {
+      showMessage(
+        'Proton-GE version "$protonVersion" is no longer installed',
+      );
+      return;
+    }
+
+    final installPath = gamesState.getInstallPath(gameId);
+    if (installPath == null) {
+      showMessage("This game has no install path recorded");
+      return;
+    }
+
+    final executable = await _resolveExecutable(
+      context,
+      gameId,
+      installPath,
+      gamesState,
+    );
+    if (executable == null) {
       return;
     }
 
@@ -355,16 +404,66 @@ class _GameHeaderState extends ConsumerState<GameHeader> {
         .read(gamesStateProvider.notifier)
         .ensureProtonPrefix(gameId);
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Would launch with $protonVersion — prefix at $prefixPath "
-            "(launching isn't implemented yet)",
-          ),
-        ),
-      );
+    await ref
+        .read(launchStateProvider.notifier)
+        .launchGame(
+          gameId,
+          protonPath: protonPath,
+          installPath: installPath,
+          executable: executable,
+          prefixPath: prefixPath,
+          launchArgs: gamesState.getLaunchArgs(gameId),
+          envVars: gamesState.getEnvVars(gameId),
+        );
+  }
+
+  /// Resolves [gameId]'s launch executable: returns the stored override if
+  /// set, otherwise scans [installPath] for candidates, auto-picking a lone
+  /// match or prompting via [showExecutablePicker] when there's more than
+  /// one, and persists the resolved choice. Returns null (after showing a
+  /// snackbar) if nothing usable was found or the user canceled the picker.
+  Future<String?> _resolveExecutable(
+    BuildContext context,
+    int gameId,
+    String installPath,
+    GamesState gamesState,
+  ) async {
+    final existing = gamesState.getExecutable(gameId);
+    if (existing != null) {
+      return existing;
     }
+
+    final candidates = findExecutables(installPath);
+    if (candidates.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("No launchable .exe found in $installPath"),
+          ),
+        );
+      }
+      return null;
+    }
+
+    String? chosen;
+    if (candidates.length == 1) {
+      chosen = candidates.first;
+    } else {
+      if (!context.mounted) {
+        return null;
+      }
+      chosen = await showExecutablePicker(
+        context,
+        candidates: candidates,
+        confirmLabel: "Launch",
+      );
+      if (chosen == null) {
+        return null;
+      }
+    }
+
+    ref.read(gamesStateProvider.notifier).setExecutable(gameId, chosen);
+    return chosen;
   }
 
   Widget _stubActionButton(

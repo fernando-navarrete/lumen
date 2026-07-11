@@ -20,6 +20,16 @@ class GameConfig {
   /// The Proton prefix directory for this game, created on first launch.
   final String? protonPrefixPath;
 
+  /// Path to the game's executable, relative to [installPath]. Null means
+  /// "not resolved yet" — the Play flow scans [installPath] for candidates.
+  final String? executable;
+
+  /// Extra arguments appended after the executable path at launch.
+  final List<String> launchArgs;
+
+  /// Extra environment variables set on the launched game process.
+  final Map<String, String> envVars;
+
   GameConfig({
     required this.status,
     required this.selectedBuild,
@@ -27,9 +37,18 @@ class GameConfig {
     this.installPath,
     this.protonVersion,
     this.protonPrefixPath,
+    this.executable,
+    List<String>? launchArgs,
+    Map<String, String>? envVars,
   }) : productIds = productIds != null
            ? Set<String>.from(productIds)
-           : <String>{};
+           : <String>{},
+       launchArgs = launchArgs != null
+           ? List<String>.from(launchArgs)
+           : const [],
+       envVars = envVars != null
+           ? Map<String, String>.from(envVars)
+           : const {};
 
   GameConfig copyWith({
     GameStatus? status,
@@ -38,6 +57,9 @@ class GameConfig {
     String? installPath,
     String? protonVersion,
     String? protonPrefixPath,
+    String? executable,
+    List<String>? launchArgs,
+    Map<String, String>? envVars,
   }) {
     return GameConfig(
       status: status ?? this.status,
@@ -46,6 +68,9 @@ class GameConfig {
       installPath: installPath ?? this.installPath,
       protonVersion: protonVersion ?? this.protonVersion,
       protonPrefixPath: protonPrefixPath ?? this.protonPrefixPath,
+      executable: executable ?? this.executable,
+      launchArgs: launchArgs ?? this.launchArgs,
+      envVars: envVars ?? this.envVars,
     );
   }
 }
@@ -81,6 +106,20 @@ class GamesState {
 
   Set<String> getProductIds(int gameId) {
     return Set<String>.from(games[gameId]?.productIds ?? <String>{});
+  }
+
+  String? getExecutable(int gameId) {
+    return games[gameId]?.executable;
+  }
+
+  List<String> getLaunchArgs(int gameId) {
+    return List<String>.from(games[gameId]?.launchArgs ?? const <String>[]);
+  }
+
+  Map<String, String> getEnvVars(int gameId) {
+    return Map<String, String>.from(
+      games[gameId]?.envVars ?? const <String, String>{},
+    );
   }
 }
 
@@ -182,6 +221,48 @@ class GamesNotifier extends Notifier<GamesState> {
     );
   }
 
+  /// Sets [gameId]'s launch executable, relative to its install path; pass
+  /// null to clear it back to "not resolved yet" (the Play flow will
+  /// re-scan the install directory).
+  void setExecutable(int gameId, String? executable) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    // copyWith can't null out a field (its `?? this.field` pattern only
+    // ever keeps or replaces), so build the config directly here.
+    _update(
+      gameId,
+      GameConfig(
+        status: existing.status,
+        selectedBuild: existing.selectedBuild,
+        productIds: existing.productIds,
+        installPath: existing.installPath,
+        protonVersion: existing.protonVersion,
+        protonPrefixPath: existing.protonPrefixPath,
+        executable: executable,
+        launchArgs: existing.launchArgs,
+        envVars: existing.envVars,
+      ),
+    );
+  }
+
+  void setLaunchArgs(int gameId, List<String> launchArgs) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _update(gameId, existing.copyWith(launchArgs: launchArgs));
+  }
+
+  void setEnvVars(int gameId, Map<String, String> envVars) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _update(gameId, existing.copyWith(envVars: envVars));
+  }
+
   /// Returns [gameId]'s Proton prefix directory, creating it (and the
   /// default `~/.local/share/lumen/prefixes/<gameId>` path, if none is set
   /// yet) on first launch.
@@ -220,6 +301,9 @@ class GamesNotifier extends Notifier<GamesState> {
         'installPath': config.installPath,
         'protonVersion': config.protonVersion,
         'protonPrefixPath': config.protonPrefixPath,
+        'executable': config.executable,
+        'launchArgs': config.launchArgs,
+        'envVars': config.envVars,
       }),
     );
     return jsonEncode(stringKeyed);
@@ -230,6 +314,8 @@ class GamesNotifier extends Notifier<GamesState> {
     return decoded.map((gameId, value) {
       final entry = value as Map<String, dynamic>;
       final productIds = entry['productIds'] as List<dynamic>?;
+      final launchArgs = entry['launchArgs'] as List<dynamic>?;
+      final envVars = entry['envVars'] as Map<String, dynamic>?;
       // A game left mid-download when the app was killed can't resume, so
       // it's coerced back to notInstalled rather than staying stuck showing
       // "Installing…"/Pause forever.
@@ -245,6 +331,9 @@ class GamesNotifier extends Notifier<GamesState> {
           installPath: entry['installPath'] as String?,
           protonVersion: entry['protonVersion'] as String?,
           protonPrefixPath: entry['protonPrefixPath'] as String?,
+          executable: entry['executable'] as String?,
+          launchArgs: launchArgs?.map((arg) => arg as String).toList(),
+          envVars: envVars?.map((key, value) => MapEntry(key, value as String)),
         ),
       );
     });

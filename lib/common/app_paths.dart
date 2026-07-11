@@ -19,3 +19,9 @@ String protonPrefixDir(int gameId) => '${lumenDataDir()}/prefixes/$gameId';
 /// Default directory Proton-GE versions are installed into (each release
 /// extracted to `<protonInstallDir()>/<tag>`).
 String protonInstallDir() => '${lumenDataDir()}/proton';
+
+/// Shared Steam compat client directory passed to every launched game as
+/// `STEAM_COMPAT_CLIENT_INSTALL_PATH`. Proton only needs *a* writable
+/// directory here, not a real Steam install — mirrors how gogdl-cli and
+/// other non-Steam Proton launchers (Lutris, Heroic) configure this.
+String steamCompatClientDir() => '${lumenDataDir()}/steam';
