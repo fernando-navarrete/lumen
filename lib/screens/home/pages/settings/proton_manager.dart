@@ -5,6 +5,7 @@ import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/components/section_card.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -23,38 +24,37 @@ class ProtonManagerSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final protonState = ref.watch(protonStateProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Proton", style: AppText.sectionLabel),
-        const SizedBox(height: AppSpacing.sm),
-        Text(
-          "Default version",
-          style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        AppDropdown<String>(
-          value: protonState.defaultVersion,
-          placeholder: "No versions installed — install one below.",
-          entries: [
-            for (final tag in protonState.installedTags)
-              AppDropdownEntry(value: tag, label: tag),
-          ],
-          onChanged: protonState.installedTags.isEmpty
-              ? null
-              : (tag) => ref.read(protonStateProvider.notifier).setDefault(tag!),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        PrimaryButton.icon(
-          icon: Icons.download,
-          label: "Manage / install versions…",
-          glowing: false,
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => const _ProtonManagerDialog(),
+    return SectionCard(
+      title: "Default compatibility layer",
+      description:
+          "Proton-GE version used for any game set to “Default”.",
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppDropdown<String>(
+            value: protonState.defaultVersion,
+            placeholder: "No versions installed — install one below.",
+            entries: [
+              for (final tag in protonState.installedTags)
+                AppDropdownEntry(value: tag, label: tag),
+            ],
+            onChanged: protonState.installedTags.isEmpty
+                ? null
+                : (tag) =>
+                      ref.read(protonStateProvider.notifier).setDefault(tag!),
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.md),
+          PrimaryButton.icon(
+            icon: Icons.download,
+            label: "Manage / install versions…",
+            glowing: false,
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (_) => const _ProtonManagerDialog(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -119,7 +119,10 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
               Row(
                 children: [
                   Expanded(
-                    child: Text("Install Proton-GE versions", style: AppText.sectionLabel),
+                    child: Text(
+                      "Install Proton-GE versions",
+                      style: AppText.cardTitle(),
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.close, color: AppColors.textSecondary),

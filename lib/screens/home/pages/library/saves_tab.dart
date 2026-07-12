@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/save_paths.dart';
 import 'package:lumen/components/centered_loader.dart';
-import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/components/section_card.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
@@ -125,59 +125,61 @@ class _SavesTabState extends ConsumerState<SavesTab> {
     }
 
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: AppSpacing.md,
-        children: [
-          Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: AppSpacing.xs,
-              children: [
-                Text("Cloud saves", style: AppText.sectionLabel),
-                Text(
-                  _error ??
-                      (_supported
-                          ? "Supported"
-                          : "This game doesn't support GOG cloud saves"),
-                  style: AppText.bodyMedium(
-                    color: _error != null
-                        ? AppColors.error
-                        : Colors.white,
-                    weight: FontWeight.w600,
-                  ),
-                ),
-                if (_supported)
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: AppSpacing.md,
+          children: [
+            SectionCard(
+              title: "Cloud saves",
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: AppSpacing.xs,
+                children: [
                   Text(
-                    !installed
-                        ? "Install the game to resolve its local save path"
-                        : _localPath ?? "Unable to resolve the local save path",
-                    style: AppText.caption(color: AppColors.textSecondary),
+                    _error ??
+                        (_supported
+                            ? "Supported"
+                            : "This game doesn't support GOG cloud saves"),
+                    style: AppText.bodyMedium(
+                      color: _error != null ? AppColors.error : Colors.white,
+                      weight: FontWeight.w600,
+                    ),
                   ),
-              ],
+                  if (_supported)
+                    Text(
+                      !installed
+                          ? "Install the game to resolve its local save path"
+                          : _localPath ??
+                                "Unable to resolve the local save path",
+                      style: AppText.cardDesc(),
+                    ),
+                ],
+              ),
             ),
-          ),
-          if (_supported)
-            Row(
-              spacing: AppSpacing.sm,
-              children: [
-                PrimaryButton.icon(
-                  icon: Icons.cloud_download,
-                  label: "Download",
-                  glowing: true,
-                  enabled: installed && !syncing,
-                  onTap: () => _start(context, download: true),
-                ),
-                PrimaryButton.icon(
-                  icon: Icons.cloud_upload,
-                  label: "Upload",
-                  glowing: false,
-                  enabled: installed && !syncing,
-                  onTap: () => _start(context, download: false),
-                ),
-              ],
-            ),
-        ],
+            if (_supported)
+              Row(
+                spacing: AppSpacing.sm,
+                children: [
+                  PrimaryButton.icon(
+                    icon: Icons.cloud_download,
+                    label: "Download",
+                    glowing: true,
+                    enabled: installed && !syncing,
+                    onTap: () => _start(context, download: true),
+                  ),
+                  PrimaryButton.icon(
+                    icon: Icons.cloud_upload,
+                    label: "Upload",
+                    glowing: false,
+                    enabled: installed && !syncing,
+                    onTap: () => _start(context, download: false),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

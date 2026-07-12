@@ -20,12 +20,16 @@ class TabButton extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.style = TabButtonStyle.pill,
+    this.badge,
   });
 
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   final TabButtonStyle style;
+
+  /// Optional trailing badge (e.g. active download count on Downloads).
+  final Widget? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -36,21 +40,27 @@ class TabButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: isSelected
               ? BoxDecoration(
-                  color: AppColors.border12,
-                  borderRadius: BorderRadius.circular(AppRadii.control),
+                  color: AppColors.border08,
+                  borderRadius: BorderRadius.circular(AppRadii.chip),
                 )
               : null,
-          child: Text(
-            label,
-            style: AppText.onest(
-              size: 13,
-              weight: isSelected ? FontWeight.w600 : FontWeight.w400,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: AppSpacing.xs,
+            children: [
+              Text(
+                label,
+                style: AppText.navPill(
+                  weight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                ),
+              ),
+              ?badge,
+            ],
           ),
         ),
         TabButtonStyle.underline => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
             border: isSelected
                 ? const Border(
@@ -61,7 +71,7 @@ class TabButton extends StatelessWidget {
           child: Text(
             label,
             style: AppText.bodyMedium(
-              weight: isSelected ? FontWeight.w500 : FontWeight.w400,
+              weight: FontWeight.w600,
               color: isSelected ? Colors.white : AppColors.textSecondary,
             ),
           ),

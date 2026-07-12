@@ -43,7 +43,7 @@ class AppDropdown<T> extends StatelessWidget {
     final content = Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: AppDecorations.panel(),
+      decoration: AppDecorations.input,
       child: entries.isEmpty
           ? Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -59,7 +59,7 @@ class AppDropdown<T> extends StatelessWidget {
                 icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
                 dropdownColor: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.control),
-                style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
+                style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w500),
                 onChanged: enabled ? onChanged : null,
                 items: [
                   for (final entry in entries)
@@ -67,7 +67,7 @@ class AppDropdown<T> extends StatelessWidget {
                       value: entry.value,
                       child: Text(
                         entry.label,
-                        style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w600),
+                        style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w500),
                       ),
                     ),
                 ],

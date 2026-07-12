@@ -1,6 +1,6 @@
-// Exercises GameHeader's preload behavior end-to-end through the real
-// widget tree: builds/products are fetched, a default build+products are
-// selected when nothing was saved, and the Install/Import buttons stay
+// Exercises GameActionButtons' preload behavior end-to-end through the
+// real widget tree: builds/products are fetched, a default build+products
+// are selected when nothing was saved, and the Install/Import buttons stay
 // disabled until that preload completes.
 import 'dart:async';
 import 'dart:typed_data';
@@ -8,8 +8,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/components/game_action_buttons.dart';
 import 'package:lumen/components/primary_button.dart';
-import 'package:lumen/screens/home/pages/library/game_header.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
@@ -133,6 +133,13 @@ class _FakeGog implements Gog {
     required ProtonRelease release,
     required String path,
   }) => const Stream.empty();
+
+  @override
+  Future<void> setDownloadConfig({
+    required BigInt minConcurrency,
+    required BigInt maxConcurrency,
+    required BigInt idleTimeout,
+  }) async {}
 }
 
 class _FakeGameBuild implements GameBuild {
@@ -176,9 +183,8 @@ class _FakeProduct implements DownloadableProduct {
   bool get isDisposed => false;
 }
 
-/// Stubs the two network calls GameHeader's preload makes; everything else
-/// (getGameName/getGameBackgroundLink used by the always-on header UI)
-/// falls back to the harmless empty-string defaults from _FakeGog.
+/// Stubs the two network calls GameActionButtons' preload makes; everything
+/// else falls back to the harmless empty-string defaults from _FakeGog.
 class _FakeGogState extends GogState {
   _FakeGogState({this.builds, this.products}) : super(_FakeGog());
 
@@ -207,7 +213,7 @@ class _FakeGogState extends GogState {
 
 /// Provides a fixed initial [GamesState] synchronously, skipping the real
 /// [GamesNotifier]'s async SharedPreferences load — that avoids a race
-/// between the load and GameHeader's post-frame preload in tests. Mutators
+/// between the load and the post-frame preload in tests. Mutators
 /// (setSelectedBuild, addProductId, ...) are inherited from the real
 /// notifier unchanged and operate on top of the fixed initial state.
 class _FakeGamesNotifier extends GamesNotifier {
@@ -249,7 +255,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: const MaterialApp(
-          home: Scaffold(body: GameHeader(gameId: gameId)),
+          home: Scaffold(body: GameActionButtons(gameId: gameId)),
         ),
       ),
     );

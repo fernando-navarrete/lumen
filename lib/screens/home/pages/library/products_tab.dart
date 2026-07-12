@@ -140,23 +140,28 @@ class _BuildListItem extends StatelessWidget {
     return ClickableContainer(
       onTap: () => onTap(product),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: Panel(
           selected: isSelected,
-          child: Column(
-            spacing: AppSpacing.xs,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            spacing: AppSpacing.md,
             children: [
-              Text(
-                product.name,
-                style: AppText.bodyMedium(
-                  color: Colors.white,
-                  weight: FontWeight.w600,
+              Expanded(
+                child: Column(
+                  spacing: 3,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(product.name, style: AppText.cardTitle()),
+                    Text(product.productType, style: AppText.cardDesc()),
+                  ],
                 ),
               ),
-              Text(
-                product.productType,
-                style: AppText.caption(color: AppColors.textSecondary),
+              Icon(
+                isSelected
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                size: 18,
+                color: isSelected ? AppColors.primary : AppColors.textMuted,
               ),
             ],
           ),

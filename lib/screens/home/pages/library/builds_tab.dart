@@ -28,22 +28,27 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      GogState gogState = ref.read(gogStateProvider);
-      _builds = await gogState.getBuilds(widget.gameId);
-      setState(() {});
-
-      GamesState gamesState = ref.read(gamesStateProvider);
-      String? selectedName = gamesState.getSelectedBuild(widget.gameId);
-      if (selectedName == null) {
-        selectedBuild = -1;
-      } else {
-        int index = _builds!.indexWhere((b) => b.versionName == selectedName);
-        selectedBuild = index;
-      }
-      setState(() {});
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBuilds());
     super.initState();
+  }
+
+  Future<void> _loadBuilds() async {
+    setState(() {
+      _builds = null;
+    });
+    GogState gogState = ref.read(gogStateProvider);
+    _builds = await gogState.getBuilds(widget.gameId);
+    setState(() {});
+
+    GamesState gamesState = ref.read(gamesStateProvider);
+    String? selectedName = gamesState.getSelectedBuild(widget.gameId);
+    if (selectedName == null) {
+      selectedBuild = -1;
+    } else {
+      int index = _builds!.indexWhere((b) => b.versionName == selectedName);
+      selectedBuild = index;
+    }
+    setState(() {});
   }
 
   @override
@@ -58,9 +63,17 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Select which build to install. Switching re-downloads the changed files.',
-                  style: AppText.caption(color: AppColors.textSecondary),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Select which build to install. Switching re-downloads the changed files.',
+                        style: AppText.meta(color: AppColors.textSecondary),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _RefreshChip(onTap: _loadBuilds),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.md),
                 (_builds != null)
@@ -100,6 +113,43 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   }
 }
 
+/// Quiet "↻ Refresh" chip re-fetching the build list.
+class _RefreshChip extends StatelessWidget {
+  const _RefreshChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClickableContainer(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.fill06,
+          border: Border.all(color: AppColors.border10),
+          borderRadius: BorderRadius.circular(AppRadii.chip),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            const Icon(Icons.refresh, size: 14, color: AppColors.text80),
+            Text(
+              'Refresh',
+              style: AppText.onest(
+                size: 12.5,
+                weight: FontWeight.w600,
+                color: AppColors.text80,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BuildListItem extends StatelessWidget {
   const _BuildListItem({
     required this.gameBuild,
@@ -117,28 +167,92 @@ class _BuildListItem extends StatelessWidget {
     return ClickableContainer(
       onTap: () => onTap(gameBuild),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 5),
         child: Panel(
           selected: isSelected,
-          child: Column(
-            spacing: AppSpacing.xs,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            spacing: AppSpacing.md,
             children: [
-              Text(
-                gameBuild.versionName,
-                style: AppText.bodyMedium(
-                  color: Colors.white,
-                  weight: FontWeight.w600,
+              _RadioDot(selected: isSelected),
+              Expanded(
+                child: Column(
+                  spacing: 3,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(gameBuild.versionName, style: AppText.cardTitle()),
+                    Text(
+                      releaseDate,
+                      style: AppText.cardDesc(),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                releaseDate,
-                style: AppText.caption(color: AppColors.textSecondary),
-              ),
+              isSelected
+                  ? Text(
+                      'Active',
+                      style: AppText.onest(
+                        size: 12.5,
+                        weight: FontWeight.w600,
+                        color: AppColors.primaryLight,
+                      ),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.border08,
+                        border: Border.all(color: AppColors.border14),
+                        borderRadius: BorderRadius.circular(AppRadii.chip),
+                      ),
+                      child: Text(
+                        'Switch',
+                        style: AppText.onest(
+                          size: 12.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 18px radio circle: teal ring and dot when selected.
+class _RadioDot extends StatelessWidget {
+  const _RadioDot({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 18,
+      height: 18,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          width: 2,
+          color: selected ? AppColors.primary : AppColors.textMuted,
+        ),
+      ),
+      child: selected
+          ? Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primary,
+              ),
+            )
+          : null,
     );
   }
 }

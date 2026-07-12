@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/common/executable_finder.dart';
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
-import 'package:lumen/components/panel.dart';
+import 'package:lumen/components/section_card.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -125,6 +126,23 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     }
   }
 
+  /// "ENV=VAL … ./game.exe -args" preview assembled from the saved config.
+  String _resolvedCommand(GamesState gamesState) {
+    final envVars = gamesState.getEnvVars(widget.gameId);
+    final executable = gamesState.getExecutable(widget.gameId);
+    final args = gamesState.getLaunchArgs(widget.gameId);
+
+    final envStr = envVars.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(' ');
+    final exeName = executable?.split(RegExp(r'[/\\]')).last;
+    return [
+      if (envStr.isNotEmpty) envStr,
+      './${exeName ?? '<game>'}',
+      ...args,
+    ].join(' ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final gameId = widget.gameId;
@@ -136,178 +154,153 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     final executable = gamesState.getExecutable(gameId);
 
     return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Proton version", style: AppText.sectionLabel),
-          const SizedBox(height: AppSpacing.sm),
-          AppDropdown<String?>(
-            value: selectedTag,
-            entries: [
-              AppDropdownEntry(
-                value: null,
-                label: protonState.defaultVersion != null
-                    ? "Use global default (${protonState.defaultVersion})"
-                    : "Use global default (none set)",
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 18,
+          children: [
+            SectionCard(
+              title: "Compatibility layer",
+              description:
+                  "Proton / Wine version used to run this game. Overrides the global default.",
+              child: AppDropdown<String?>(
+                value: selectedTag,
+                entries: [
+                  AppDropdownEntry(
+                    value: null,
+                    label: protonState.defaultVersion != null
+                        ? "Use global default (${protonState.defaultVersion})"
+                        : "Use global default (none set)",
+                  ),
+                  for (final tag in protonState.installedTags)
+                    AppDropdownEntry(value: tag, label: tag),
+                ],
+                onChanged: (tag) => ref
+                    .read(gamesStateProvider.notifier)
+                    .setProtonVersion(gameId, tag),
               ),
-              for (final tag in protonState.installedTags)
-                AppDropdownEntry(value: tag, label: tag),
-            ],
-            onChanged: (tag) => ref
-                .read(gamesStateProvider.notifier)
-                .setProtonVersion(gameId, tag),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text("Executable", style: AppText.sectionLabel),
-          const SizedBox(height: AppSpacing.sm),
-          Panel(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    executable ??
-                        "Resolved automatically the first time you play.",
-                    style: AppText.bodyMedium(color: AppColors.textSecondary),
-                  ),
-                ),
-                if (installPath != null) ...[
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    onPressed: () => _changeExecutable(installPath),
+            ),
+            SectionCard(
+              title: "Executable",
+              description:
+                  "Resolved automatically the first time you play unless set here.",
+              child: Row(
+                children: [
+                  Expanded(
                     child: Text(
-                      "Change",
-                      style: AppText.button(color: AppColors.primary),
+                      executable ?? "Not set",
+                      style: executable != null
+                          ? AppText.code(color: Colors.white)
+                          : AppText.bodyMedium(
+                              color: AppColors.textSecondary,
+                            ),
                     ),
                   ),
-                  if (executable != null)
+                  if (installPath != null) ...[
                     TextButton(
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                       ),
-                      onPressed: () => ref
-                          .read(gamesStateProvider.notifier)
-                          .setExecutable(gameId, null),
+                      onPressed: () => _changeExecutable(installPath),
                       child: Text(
-                        "Clear",
-                        style: AppText.button(color: AppColors.textSecondary),
+                        "Change",
+                        style: AppText.button(color: AppColors.primary),
                       ),
                     ),
+                    if (executable != null)
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed: () => ref
+                            .read(gamesStateProvider.notifier)
+                            .setExecutable(gameId, null),
+                        child: Text(
+                          "Clear",
+                          style: AppText.button(color: AppColors.textSecondary),
+                        ),
+                      ),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Text("Launch arguments", style: AppText.sectionLabel),
-          const SizedBox(height: AppSpacing.sm),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: AppDecorations.codeBlock,
-            child: TextField(
-              controller: _launchArgsController,
-              onChanged: (_) => _persistLaunchArgs(),
-              style: AppText.code(color: Colors.white),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                hintText: "-skipintro -windowed",
-                hintStyle: AppText.code(color: AppColors.textMuted),
               ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "Environment variables",
-                  style: AppText.sectionLabel,
+            SectionCard(
+              title: "Launch arguments",
+              description: "Appended to the game's command line at launch.",
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: AppDecorations.monoInput(),
+                child: TextField(
+                  controller: _launchArgsController,
+                  onChanged: (_) => _persistLaunchArgs(),
+                  style: AppText.code(color: Colors.white),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    hintText: "-skipintro -windowed",
+                    hintStyle: AppText.code(color: AppColors.textMuted),
+                  ),
                 ),
               ),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                ),
-                onPressed: () => setState(() => _envRows.add(_EnvVarRow())),
-                child: Text(
-                  "+ Add",
-                  style: AppText.button(color: AppColors.primary),
-                ),
+            ),
+            SectionCard(
+              title: "Environment variables",
+              description:
+                  "Passed to the game process at launch, before the launch arguments.",
+              trailing: _AddVariableButton(
+                onTap: () => setState(() => _envRows.add(_EnvVarRow())),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          if (_envRows.isEmpty)
-            Panel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 9,
+                children: [
+                  if (_envRows.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        "No variables set. Add one above.",
+                        style: AppText.onest(
+                          size: 13,
+                          weight: FontWeight.w400,
+                          color: AppColors.textMuted,
+                        ).copyWith(fontStyle: FontStyle.italic),
+                      ),
+                    )
+                  else
+                    for (final row in _envRows) _buildEnvRow(row),
+                  const SizedBox(height: 7),
+                  _ResolvedCommandPreview(command: _resolvedCommand(gamesState)),
+                ],
+              ),
+            ),
+            SectionCard(
+              title: "Proton prefix",
+              description: "Per-game compatibility data directory.",
               child: Text(
-                "None set.",
-                style: AppText.bodyMedium(color: AppColors.textSecondary),
+                prefixPath ?? "Created automatically the first time you play.",
+                style: prefixPath != null
+                    ? AppText.code(color: Colors.white)
+                    : AppText.bodyMedium(color: AppColors.textSecondary),
               ),
-            )
-          else
-            Column(
-              spacing: AppSpacing.sm,
-              children: [for (final row in _envRows) _buildEnvRow(row)],
             ),
-          const SizedBox(height: AppSpacing.lg),
-          Text("Proton prefix", style: AppText.sectionLabel),
-          const SizedBox(height: AppSpacing.sm),
-          Panel(
-            child: Text(
-              prefixPath ?? "Created automatically the first time you play.",
-              style: AppText.bodyMedium(color: AppColors.textSecondary),
-            ),
-          ),
-        ],
+            const SizedBox(height: AppSpacing.lg),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEnvRow(_EnvVarRow row) {
     return Row(
-      spacing: AppSpacing.sm,
+      spacing: 9,
       children: [
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: AppDecorations.codeBlock,
-            child: TextField(
-              controller: row.key,
-              onChanged: (_) => _persistEnvVars(),
-              style: AppText.code(color: Colors.white),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                hintText: "KEY",
-                hintStyle: AppText.code(color: AppColors.textMuted),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: AppDecorations.codeBlock,
-            child: TextField(
-              controller: row.value,
-              onChanged: (_) => _persistEnvVars(),
-              style: AppText.code(color: Colors.white),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                hintText: "value",
-                hintStyle: AppText.code(color: AppColors.textMuted),
-              ),
-            ),
-          ),
-        ),
-        IconButton(
-          icon: const Icon(Icons.close, color: AppColors.textSecondary),
-          onPressed: () {
+        Expanded(child: _envField(row.key, hint: "VARIABLE")),
+        Text("=", style: AppText.code(color: AppColors.text40)),
+        Expanded(child: _envField(row.value, hint: "value")),
+        _RemoveButton(
+          onTap: () {
             setState(() {
               _envRows.remove(row);
             });
@@ -316,6 +309,111 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _envField(TextEditingController controller, {required String hint}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: AppDecorations.monoInput(borderRadius: AppRadii.chip),
+      child: TextField(
+        controller: controller,
+        onChanged: (_) => _persistEnvVars(),
+        style: AppText.code(color: Colors.white),
+        decoration: InputDecoration(
+          isDense: true,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          hintText: hint,
+          hintStyle: AppText.code(color: AppColors.textMuted),
+        ),
+      ),
+    );
+  }
+}
+
+/// Teal "+ Add variable" pill in the env-vars card header.
+class _AddVariableButton extends StatelessWidget {
+  const _AddVariableButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClickableContainer(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(AppRadii.chip),
+        ),
+        child: Text(
+          "+ Add variable",
+          style: AppText.onest(
+            size: 12.5,
+            weight: FontWeight.w600,
+            color: AppColors.onPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 36×36 quiet "×" button removing an env row.
+class _RemoveButton extends StatelessWidget {
+  const _RemoveButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClickableContainer(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.fill05,
+          border: Border.all(color: AppColors.border08),
+          borderRadius: BorderRadius.circular(AppRadii.chip),
+        ),
+        child: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+      ),
+    );
+  }
+}
+
+/// Mono preview of the assembled launch command.
+class _ResolvedCommandPreview extends StatelessWidget {
+  const _ResolvedCommandPreview({required this.command});
+
+  final String command;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      decoration: AppDecorations.previewBox,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 7,
+        children: [
+          Text(
+            "RESOLVED LAUNCH COMMAND",
+            style: AppText.monospace(
+              size: 9.5,
+              weight: FontWeight.w400,
+              color: AppColors.textMuted,
+              letterSpacing: 1.0,
+            ),
+          ),
+          Text(command, style: AppText.monoPreview),
+        ],
+      ),
     );
   }
 }

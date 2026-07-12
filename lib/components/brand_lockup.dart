@@ -8,8 +8,8 @@ class BrandLockup extends StatelessWidget {
   const BrandLockup({
     super.key,
     this.squareWidth = 27,
-    this.spacing = 12,
-    this.textSize = 18,
+    this.spacing = 10,
+    this.textSize = 17,
   });
 
   final double squareWidth;
@@ -27,8 +27,9 @@ class BrandLockup extends StatelessWidget {
           'Lumen',
           style: AppText.onest(
             size: textSize,
-            weight: FontWeight.w600,
+            weight: FontWeight.w800,
             color: Colors.white,
+            letterSpacing: textSize * -0.02,
           ),
         ),
       ],
