@@ -21,6 +21,25 @@ class GogState {
     return _gog.getLoginUrl();
   }
 
+  Future<void> configureDownload({
+    required int minConcurrency,
+    required int maxConcurrency,
+    required int timeout,
+  }) async {
+    try {
+      await _gog.setDownloadConfig(
+        minConcurrency: BigInt.from(minConcurrency),
+        maxConcurrency: BigInt.from(maxConcurrency),
+        idleTimeout: BigInt.from(timeout),
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      rethrow;
+    }
+  }
+
   Future<void> refreshAuthWithCallback() async {
     try {
       await _gog.refreshAuthWithCallback(

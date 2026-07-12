@@ -2,12 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lumen/app.dart';
+import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await RustLib.init();
-  runApp(const ProviderScope(child: MyApp()));
+  // Resolved up front (rather than left to each notifier's build() to fetch
+  // asynchronously) so ProtonNotifier/GamesNotifier can load their persisted
+  // state synchronously during build() — see sharedPreferencesProvider.
+  final prefs = await SharedPreferences.getInstance();
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

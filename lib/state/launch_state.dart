@@ -94,10 +94,14 @@ class LaunchNotifier extends Notifier<LaunchState> {
       // its absence signals this prefix hasn't been initialized yet.
       if (!Directory('$prefixPath/pfx').existsSync()) {
         debugPrint('[DIAG] running wineboot init...');
+        // Include the user's env vars here too (not just compatEnv) — some
+        // (e.g. Proton/DXVK feature toggles) only take effect when the
+        // prefix is first created, so omitting them here silently drops
+        // their effect until the prefix is wiped and recreated.
         await Process.run(
           protonBinary,
           ['run', 'wineboot'],
-          environment: compatEnv,
+          environment: {...envVars, ...compatEnv},
         );
         debugPrint('[DIAG] wineboot init returned without throwing');
       }

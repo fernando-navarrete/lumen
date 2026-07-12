@@ -3,9 +3,18 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum GameStatus { downloading, downloaded, notInstalled }
+
+/// Sentinel default for nullable [GameConfig.copyWith] parameters, so
+/// "argument omitted" (keep existing value) can be told apart from
+/// "argument explicitly passed as null" (clear the field) — Dart's normal
+/// `param ?? this.field` copyWith pattern can't express the latter, which
+/// previously forced hand-rebuilding [GameConfig] in a couple of setters and
+/// silently dropped whichever fields that rebuild forgot to carry over.
+const _unset = Object();
 
 class GameConfig {
   final GameStatus status;
@@ -50,14 +59,18 @@ class GameConfig {
            ? Map<String, String>.from(envVars)
            : const {};
 
+  /// Nullable fields (`installPath`, `protonVersion`, `protonPrefixPath`,
+  /// `executable`) default to the [_unset] sentinel rather than `null`, so
+  /// omitting them keeps the existing value while explicitly passing `null`
+  /// clears them — see [_unset].
   GameConfig copyWith({
     GameStatus? status,
     String? selectedBuild,
     Set<String>? productIds,
-    String? installPath,
-    String? protonVersion,
-    String? protonPrefixPath,
-    String? executable,
+    Object? installPath = _unset,
+    Object? protonVersion = _unset,
+    Object? protonPrefixPath = _unset,
+    Object? executable = _unset,
     List<String>? launchArgs,
     Map<String, String>? envVars,
   }) {
@@ -65,10 +78,18 @@ class GameConfig {
       status: status ?? this.status,
       selectedBuild: selectedBuild ?? this.selectedBuild,
       productIds: productIds ?? this.productIds,
-      installPath: installPath ?? this.installPath,
-      protonVersion: protonVersion ?? this.protonVersion,
-      protonPrefixPath: protonPrefixPath ?? this.protonPrefixPath,
-      executable: executable ?? this.executable,
+      installPath: identical(installPath, _unset)
+          ? this.installPath
+          : installPath as String?,
+      protonVersion: identical(protonVersion, _unset)
+          ? this.protonVersion
+          : protonVersion as String?,
+      protonPrefixPath: identical(protonPrefixPath, _unset)
+          ? this.protonPrefixPath
+          : protonPrefixPath as String?,
+      executable: identical(executable, _unset)
+          ? this.executable
+          : executable as String?,
       launchArgs: launchArgs ?? this.launchArgs,
       envVars: envVars ?? this.envVars,
     );
@@ -124,10 +145,12 @@ class GamesState {
 }
 
 class GamesNotifier extends Notifier<GamesState> {
+  late final SharedPreferences _prefs;
+
   @override
   GamesState build() {
-    _load();
-    return const GamesState.empty();
+    _prefs = ref.read(sharedPreferencesProvider);
+    return _load();
   }
 
   void setSelectedBuild(int gameId, String buildName) {
@@ -206,19 +229,7 @@ class GamesNotifier extends Notifier<GamesState> {
     if (existing == null) {
       return;
     }
-    // copyWith can't null out a field (its `?? this.field` pattern only
-    // ever keeps or replaces), so build the config directly here.
-    _update(
-      gameId,
-      GameConfig(
-        status: existing.status,
-        selectedBuild: existing.selectedBuild,
-        productIds: existing.productIds,
-        installPath: existing.installPath,
-        protonVersion: tag,
-        protonPrefixPath: existing.protonPrefixPath,
-      ),
-    );
+    _update(gameId, existing.copyWith(protonVersion: tag));
   }
 
   /// Sets [gameId]'s launch executable, relative to its install path; pass
@@ -229,22 +240,7 @@ class GamesNotifier extends Notifier<GamesState> {
     if (existing == null) {
       return;
     }
-    // copyWith can't null out a field (its `?? this.field` pattern only
-    // ever keeps or replaces), so build the config directly here.
-    _update(
-      gameId,
-      GameConfig(
-        status: existing.status,
-        selectedBuild: existing.selectedBuild,
-        productIds: existing.productIds,
-        installPath: existing.installPath,
-        protonVersion: existing.protonVersion,
-        protonPrefixPath: existing.protonPrefixPath,
-        executable: executable,
-        launchArgs: existing.launchArgs,
-        envVars: existing.envVars,
-      ),
-    );
+    _update(gameId, existing.copyWith(executable: executable));
   }
 
   void setLaunchArgs(int gameId, List<String> launchArgs) {
@@ -340,39 +336,39 @@ class GamesNotifier extends Notifier<GamesState> {
   }
 
   void _persist() {
-    SharedPreferences.getInstance().then((prefs) {
-      try {
-        prefs.setString('games', _encodeGames(state.games));
-      } catch (e) {
-        if (kDebugMode) {
-          print(e);
-        }
+    try {
+      _prefs.setString('games', _encodeGames(state.games));
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
       }
-    });
+    }
   }
 
-  void _load() {
-    SharedPreferences.getInstance().then((prefs) {
-      String? gamesJson = prefs.getString('games');
-      if (gamesJson != null) {
-        try {
-          state = GamesState(_decodeGames(gamesJson));
-        } catch (e) {
-          if (kDebugMode) {
-            print(e);
-          }
-          state = const GamesState.empty();
-        }
+  /// Loads persisted game config synchronously from the already-resolved
+  /// [_prefs] instance. Called from [build] so the notifier never emits an
+  /// empty state that a mutation (or a launch) could read/persist over,
+  /// clobbering real data — see [sharedPreferencesProvider].
+  GamesState _load() {
+    final gamesJson = _prefs.getString('games');
+    if (gamesJson == null) {
+      return const GamesState.empty();
+    }
+    try {
+      return GamesState(_decodeGames(gamesJson));
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
       }
-    });
+      return const GamesState.empty();
+    }
   }
 
   /// Wipes all SharedPreferences and the in-memory game config. Debug-only
   /// usage: see the Settings page's "Clear SharedPreferences" button.
   Future<void> clear() async {
     state = const GamesState.empty();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await _prefs.clear();
   }
 }
 

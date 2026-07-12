@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -68,6 +69,7 @@ class ProtonState {
 /// installed versions plus the app-wide default to SharedPreferences.
 class ProtonNotifier extends Notifier<ProtonState> {
   late final GogState _gogState;
+  late final SharedPreferences _prefs;
 
   static const _installedKey = 'protonInstalled';
   static const _defaultKey = 'protonDefault';
@@ -75,8 +77,8 @@ class ProtonNotifier extends Notifier<ProtonState> {
   @override
   ProtonState build() {
     _gogState = ref.read(gogStateProvider);
-    _load();
-    return const ProtonState.empty();
+    _prefs = ref.read(sharedPreferencesProvider);
+    return _load();
   }
 
   void _emit() {
@@ -188,44 +190,55 @@ class ProtonNotifier extends Notifier<ProtonState> {
     _persist();
   }
 
-  void _persist() {
-    SharedPreferences.getInstance().then((prefs) {
-      try {
-        prefs.setString(_installedKey, jsonEncode(state.installed));
-        if (state.defaultVersion != null) {
-          prefs.setString(_defaultKey, state.defaultVersion!);
-        } else {
-          prefs.remove(_defaultKey);
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print(e);
-        }
-      }
-    });
+  /// Resets in-memory state to empty without touching disk — call after
+  /// something else (e.g. the debug "Clear SharedPreferences" button) has
+  /// already wiped the underlying prefs, so this notifier's state doesn't
+  /// keep reporting versions as installed that were just cleared.
+  void resetToEmpty() {
+    state = const ProtonState.empty();
   }
 
-  void _load() {
-    SharedPreferences.getInstance().then((prefs) {
-      try {
-        final installedJson = prefs.getString(_installedKey);
-        final installed = installedJson != null
-            ? (jsonDecode(installedJson) as Map<String, dynamic>).map(
-                (tag, path) => MapEntry(tag, path as String),
-              )
-            : <String, String>{};
-        final defaultVersion = prefs.getString(_defaultKey);
-        state = ProtonState(
-          installed: installed,
-          defaultVersion: defaultVersion,
-          tasks: state.tasks,
-        );
-      } catch (e) {
-        if (kDebugMode) {
-          print(e);
-        }
+  void _persist() {
+    try {
+      _prefs.setString(_installedKey, jsonEncode(state.installed));
+      if (state.defaultVersion != null) {
+        _prefs.setString(_defaultKey, state.defaultVersion!);
+      } else {
+        _prefs.remove(_defaultKey);
       }
-    });
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+    }
+  }
+
+  /// Loads the installed-versions registry and default version synchronously
+  /// from the already-resolved [_prefs] instance. Called from [build] so the
+  /// notifier never briefly reports "no versions installed" while a real
+  /// async load is still in flight — that race previously caused spurious
+  /// "Proton-GE version is no longer installed" errors at launch when the UI
+  /// read state before the old fire-and-forget load had resolved.
+  ProtonState _load() {
+    try {
+      final installedJson = _prefs.getString(_installedKey);
+      final installed = installedJson != null
+          ? (jsonDecode(installedJson) as Map<String, dynamic>).map(
+              (tag, path) => MapEntry(tag, path as String),
+            )
+          : <String, String>{};
+      final defaultVersion = _prefs.getString(_defaultKey);
+      return ProtonState(
+        installed: installed,
+        defaultVersion: defaultVersion,
+        tasks: const {},
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return const ProtonState.empty();
+    }
   }
 }
 

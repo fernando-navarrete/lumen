@@ -6,6 +6,7 @@ import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/screens/home/pages/settings/proton_manager.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
@@ -68,6 +69,7 @@ class SettingsPage extends ConsumerWidget {
     WidgetRef ref,
   ) async {
     await ref.read(gamesStateProvider.notifier).clear();
+    ref.read(protonStateProvider.notifier).resetToEmpty();
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
