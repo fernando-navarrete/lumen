@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/screens/home/pages/settings_page.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Relies on Dart's noSuchMethod-based mocking: a concrete class implementing

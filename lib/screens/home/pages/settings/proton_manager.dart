@@ -11,7 +11,7 @@ import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 /// Settings section for managing Proton-GE: choose the app-wide default
 /// version from a dropdown of installed versions, and open a dialog to
@@ -26,8 +26,7 @@ class ProtonManagerSection extends ConsumerWidget {
 
     return SectionCard(
       title: "Default compatibility layer",
-      description:
-          "Proton-GE version used for any game set to “Default”.",
+      description: "Proton-GE version used for any game set to “Default”.",
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -65,7 +64,8 @@ class _ProtonManagerDialog extends ConsumerStatefulWidget {
   const _ProtonManagerDialog();
 
   @override
-  ConsumerState<_ProtonManagerDialog> createState() => _ProtonManagerDialogState();
+  ConsumerState<_ProtonManagerDialog> createState() =>
+      _ProtonManagerDialogState();
 }
 
 class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
@@ -107,7 +107,9 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
 
     return Dialog(
       backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadii.card)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
         child: Padding(
@@ -125,7 +127,10 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -139,13 +144,17 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                       if (_releases.isEmpty)
                         _loading
                             ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                                padding: EdgeInsets.symmetric(
+                                  vertical: AppSpacing.md,
+                                ),
                                 child: CenteredLoader(),
                               )
                             : Panel(
                                 child: Text(
                                   "No releases loaded",
-                                  style: AppText.bodyMedium(color: AppColors.textSecondary),
+                                  style: AppText.bodyMedium(
+                                    color: AppColors.textSecondary,
+                                  ),
                                 ),
                               )
                       else
@@ -153,7 +162,10 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                           spacing: AppSpacing.sm,
                           children: [
                             for (final release in _releases)
-                              _ReleaseRow(release: release, protonState: protonState),
+                              _ReleaseRow(
+                                release: release,
+                                protonState: protonState,
+                              ),
                           ],
                         ),
                       const SizedBox(height: AppSpacing.sm),
@@ -224,7 +236,9 @@ class _ReleaseRow extends ConsumerWidget {
                 icon: Icons.download,
                 label: task?.status == TaskStatus.failed ? "Retry" : "Install",
                 glowing: false,
-                onTap: () => ref.read(protonStateProvider.notifier).downloadRelease(release),
+                onTap: () => ref
+                    .read(protonStateProvider.notifier)
+                    .downloadRelease(release),
               ),
             ),
         ],
@@ -240,7 +254,9 @@ class _ProgressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double? progress = task.total > 0 ? task.transferred / task.total : null;
+    final double? progress = task.total > 0
+        ? task.transferred / task.total
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: AppSpacing.xs,
@@ -254,7 +270,10 @@ class _ProgressRow extends StatelessWidget {
             valueColor: const AlwaysStoppedAnimation(AppColors.primary),
           ),
         ),
-        Text(_statusText(), style: AppText.caption(color: AppColors.textSecondary)),
+        Text(
+          _statusText(),
+          style: AppText.caption(color: AppColors.textSecondary),
+        ),
       ],
     );
   }

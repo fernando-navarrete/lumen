@@ -7,7 +7,7 @@ import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-flight/finished progress for one Proton-GE release download, keyed by
@@ -100,7 +100,10 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// default is set yet — makes this release the default. Safe to call
   /// again for a previously failed download (e.g. a "Retry" tap); a running
   /// or already-installed release is left alone.
-  Future<void> downloadRelease(ProtonRelease release, [String? targetDir]) async {
+  Future<void> downloadRelease(
+    ProtonRelease release, [
+    String? targetDir,
+  ]) async {
     final tag = release.tagName();
     if (state.installed.containsKey(tag)) {
       return;

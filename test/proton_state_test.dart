@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/proton_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Relies on Dart's noSuchMethod-based mocking: only the methods
@@ -19,8 +19,9 @@ class _FakeGog implements Gog {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
   @override
-  Future<List<ProtonRelease>> getProtonReleases({required int page}) async =>
-      [_FakeProtonRelease('GE-Proton9-1')];
+  Future<List<ProtonRelease>> getProtonReleases({required int page}) async => [
+    _FakeProtonRelease('GE-Proton9-1'),
+  ];
 
   @override
   Stream<ProtonDownloadStream> downloadProtonRelease({

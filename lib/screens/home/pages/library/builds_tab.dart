@@ -10,7 +10,7 @@ import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 /// List of the game's available builds.
 class BuildsTab extends ConsumerStatefulWidget {
@@ -181,10 +181,7 @@ class _BuildListItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(gameBuild.versionName, style: AppText.cardTitle()),
-                    Text(
-                      releaseDate,
-                      style: AppText.cardDesc(),
-                    ),
+                    Text(releaseDate, style: AppText.cardDesc()),
                   ],
                 ),
               ),

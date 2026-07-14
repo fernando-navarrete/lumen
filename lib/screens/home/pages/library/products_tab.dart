@@ -10,7 +10,7 @@ import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 class ProductsTab extends ConsumerStatefulWidget {
   const ProductsTab({super.key, required this.gameId});
@@ -157,9 +157,7 @@ class _BuildListItem extends StatelessWidget {
                 ),
               ),
               Icon(
-                isSelected
-                    ? Icons.check_circle
-                    : Icons.radio_button_unchecked,
+                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
                 size: 18,
                 color: isSelected ? AppColors.primary : AppColors.textMuted,
               ),

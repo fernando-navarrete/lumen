@@ -9,7 +9,7 @@ import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/launch_state.dart';
 import 'package:lumen/state/proton_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 /// The status-driven action row for one game: Pause/Resume + Cancel while
 /// installing, Play once installed, otherwise Install/Import. Owns the
@@ -17,7 +17,11 @@ import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
 /// the full launch flow (Proton resolution, executable picking, prefix
 /// creation).
 class GameActionButtons extends ConsumerStatefulWidget {
-  const GameActionButtons({super.key, required this.gameId, this.large = false});
+  const GameActionButtons({
+    super.key,
+    required this.gameId,
+    this.large = false,
+  });
 
   final int gameId;
 

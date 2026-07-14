@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/gog_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Relies on Dart's noSuchMethod-based mocking: only the stream-returning
@@ -62,7 +62,12 @@ void main() {
 
       await container
           .read(downloadsStateProvider.notifier)
-          .startVerification(1, path: '/tmp/game', buildName: 'v1.0', productIds: ['base']);
+          .startVerification(
+            1,
+            path: '/tmp/game',
+            buildName: 'v1.0',
+            productIds: ['base'],
+          );
 
       expect(
         container.read(downloadsStateProvider).tasks.containsKey(1),
@@ -82,7 +87,12 @@ void main() {
 
       await container
           .read(downloadsStateProvider.notifier)
-          .startDownload(2, path: '/tmp/game2', buildName: 'v1.0', productIds: ['base']);
+          .startDownload(
+            2,
+            path: '/tmp/game2',
+            buildName: 'v1.0',
+            productIds: ['base'],
+          );
 
       expect(
         container.read(downloadsStateProvider).tasks.containsKey(2),

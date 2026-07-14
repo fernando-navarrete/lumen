@@ -6,7 +6,7 @@ import 'package:lumen/common/save_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 enum SaveDirection { download, upload }
 
@@ -81,7 +81,8 @@ class SavesNotifier extends Notifier<SavesState> {
     return existing == null || existing.status != TaskStatus.running;
   }
 
-  Future<void> downloadSaves(int gameId) => _sync(gameId, SaveDirection.download);
+  Future<void> downloadSaves(int gameId) =>
+      _sync(gameId, SaveDirection.download);
 
   Future<void> uploadSaves(int gameId) => _sync(gameId, SaveDirection.upload);
 
@@ -190,7 +191,11 @@ class SavesNotifier extends Notifier<SavesState> {
     _emit();
   }
 
-  Future<void> _uploadAll(SaveTask task, SaveAuthIds authIds, String root) async {
+  Future<void> _uploadAll(
+    SaveTask task,
+    SaveAuthIds authIds,
+    String root,
+  ) async {
     final relativePaths = listLocalSaveFiles(root);
     task.filesTotal = relativePaths.length;
     _emit();

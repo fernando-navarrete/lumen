@@ -12,7 +12,7 @@ import 'package:lumen/components/game_action_buttons.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
-import 'package:gogdl2_flutter_bridge/gogdl2_flutter_bridge.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeGog implements Gog {
