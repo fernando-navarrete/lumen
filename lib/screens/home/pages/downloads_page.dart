@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/components/async_cover_image.dart';
 import 'package:lumen/components/gradient_progress_bar.dart';
@@ -78,6 +79,20 @@ class DownloadsPage extends ConsumerWidget {
                             ? _downloadStatusText(task)
                             : _repairStatusText(task),
                         failed: _hasErrors(task),
+                        jobStatus: task.jobStatus,
+                        onPauseResume: () {
+                          final notifier = ref.read(
+                            downloadsStateProvider.notifier,
+                          );
+                          if (task.jobStatus == "paused") {
+                            notifier.resumeTask(task.gameId);
+                          } else {
+                            notifier.pauseTask(task.gameId);
+                          }
+                        },
+                        onCancel: () => ref
+                            .read(downloadsStateProvider.notifier)
+                            .cancelTask(task.gameId),
                       ),
                   ],
                 ),
@@ -162,9 +177,29 @@ bool _hasErrors(ActivityTask task) =>
     task.status == TaskStatus.failed ||
     (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty);
 
+/// Pause/cancel status text shared by download and repair tasks, checked
+/// before the stage-based text below. Returns null when the job is plainly
+/// "running" so the caller falls through to its own stage text.
+String? _jobStatusText(ActivityTask task) {
+  switch (task.jobStatus) {
+    case "pausing":
+      return "Pausing… (in-flight chunks are finishing)";
+    case "paused":
+      return "Paused";
+    case "cancelling":
+      return "Cancelling… (in-flight chunks are finishing)";
+    default:
+      return null;
+  }
+}
+
 String _downloadStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
+      final jobStatusText = _jobStatusText(task);
+      if (jobStatusText != null) {
+        return jobStatusText;
+      }
       switch (task.stage) {
         case "fetchingFiles":
           return "Fetching files…";
@@ -188,6 +223,10 @@ String _downloadStatusText(ActivityTask task) {
 String _repairStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
+      final jobStatusText = _jobStatusText(task);
+      if (jobStatusText != null) {
+        return jobStatusText;
+      }
       switch (task.stage) {
         case "fetchingFiles":
           return "Fetching files…";
@@ -284,6 +323,9 @@ class _ActiveTaskCard extends ConsumerWidget {
     required this.statusText,
     required this.failed,
     this.trailing,
+    this.jobStatus,
+    this.onPauseResume,
+    this.onCancel,
   });
 
   final int gameId;
@@ -291,6 +333,14 @@ class _ActiveTaskCard extends ConsumerWidget {
   final String statusText;
   final bool failed;
   final Widget? trailing;
+
+  /// Pause/resume/cancel state for this task (`"running"`, `"pausing"`,
+  /// `"paused"`, `"cancelling"`, `"cancelled"`, or null when not applicable).
+  /// Only passed for downloads/repairs — verification and save cards leave
+  /// this and the callbacks below null, so no controls render.
+  final String? jobStatus;
+  final VoidCallback? onPauseResume;
+  final VoidCallback? onCancel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -340,28 +390,58 @@ class _ActiveTaskCard extends ConsumerWidget {
                       ),
                   ],
                 ),
-                failed
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: LinearProgressIndicator(
-                          value: progress ?? 0,
-                          minHeight: 6,
-                          backgroundColor: AppColors.progressTrack,
-                          valueColor: const AlwaysStoppedAnimation(
-                            AppColors.error,
+                Builder(
+                  builder: (context) {
+                    final Widget bar = failed
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: LinearProgressIndicator(
+                              value: progress ?? 0,
+                              minHeight: 6,
+                              backgroundColor: AppColors.progressTrack,
+                              valueColor: const AlwaysStoppedAnimation(
+                                AppColors.error,
+                              ),
+                            ),
+                          )
+                        : progress != null
+                        ? GradientProgressBar(value: progress!)
+                        : ClipRRect(
+                            borderRadius: BorderRadius.circular(99),
+                            child: const LinearProgressIndicator(
+                              minHeight: 6,
+                              backgroundColor: AppColors.progressTrack,
+                              valueColor: AlwaysStoppedAnimation(
+                                AppColors.primary,
+                              ),
+                            ),
+                          );
+                    if (onPauseResume == null) {
+                      return bar;
+                    }
+                    final busy =
+                        jobStatus == "pausing" || jobStatus == "cancelling";
+                    return Row(
+                      spacing: AppSpacing.xs,
+                      children: [
+                        Expanded(child: bar),
+                        _IconControlButton(
+                          icon: jobStatus == "paused"
+                              ? Icons.play_arrow
+                              : Icons.pause,
+                          tooltip: jobStatus == "paused" ? "Resume" : "Pause",
+                          onTap: busy ? null : onPauseResume,
+                        ),
+                        if (onCancel != null)
+                          _IconControlButton(
+                            icon: Icons.close,
+                            tooltip: "Cancel",
+                            onTap: busy ? null : onCancel,
                           ),
-                        ),
-                      )
-                    : progress != null
-                    ? GradientProgressBar(value: progress!)
-                    : ClipRRect(
-                        borderRadius: BorderRadius.circular(99),
-                        child: const LinearProgressIndicator(
-                          minHeight: 6,
-                          backgroundColor: AppColors.progressTrack,
-                          valueColor: AlwaysStoppedAnimation(AppColors.primary),
-                        ),
-                      ),
+                      ],
+                    );
+                  },
+                ),
                 Text(
                   statusText,
                   style: AppText.caption(
@@ -374,6 +454,43 @@ class _ActiveTaskCard extends ConsumerWidget {
           ?trailing,
         ],
       ),
+    );
+  }
+}
+
+/// Small square glass icon button used for the inline pause/resume/cancel
+/// controls next to a task's progress bar. Mirrors [PrimaryButton]'s
+/// non-glowing styling at a more compact size.
+class _IconControlButton extends StatelessWidget {
+  const _IconControlButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = ClickableContainer(
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.fill10,
+          border: Border.all(color: AppColors.border14),
+          borderRadius: BorderRadius.circular(AppRadii.control),
+        ),
+        child: Icon(icon, size: 18, color: Colors.white),
+      ),
+    );
+    return Tooltip(
+      message: tooltip,
+      child: onTap == null ? Opacity(opacity: 0.5, child: button) : button,
     );
   }
 }

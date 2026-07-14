@@ -15,6 +15,11 @@ class GogState {
   final HashMap<String, Stream<ProtonDownloadStream>> _protonDownloadStreams =
       HashMap();
 
+  /// Pause/resume/cancel handles for in-flight download/repair jobs, keyed
+  /// by gameId. One job (download or repair) runs per game at a time, so a
+  /// single handle per gameId is safe.
+  final HashMap<int, DownloadControl> _downloadControls = HashMap();
+
   GogState(this._gog);
 
   String getLoginUrl() {
@@ -239,13 +244,16 @@ class GogState {
       if (_repairStreams.containsKey(gameId)) {
         return _repairStreams[gameId];
       }
+      final control = DownloadControl();
       var stream = _gog.repairDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
+        control: control,
       );
       _repairStreams[gameId] = stream;
+      _downloadControls[gameId] = control;
       return stream;
     } catch (e) {
       if (kDebugMode) {
@@ -253,6 +261,13 @@ class GogState {
       }
       return null;
     }
+  }
+
+  /// Drops the cached repair stream and pause/resume/cancel handle for
+  /// [gameId] so the game can be repaired again from scratch.
+  void clearRepairStream(int gameId) {
+    _repairStreams.remove(gameId);
+    _downloadControls.remove(gameId);
   }
 
   Future<Stream<DownloadStream>?> downloadGameFiles(
@@ -265,13 +280,16 @@ class GogState {
       if (_downloadStreams.containsKey(gameId)) {
         return _downloadStreams[gameId];
       }
+      final control = DownloadControl();
       var stream = _gog.downloadGame(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
+        control: control,
       );
       _downloadStreams[gameId] = stream;
+      _downloadControls[gameId] = control;
       return stream;
     } catch (e) {
       if (kDebugMode) {
@@ -280,6 +298,26 @@ class GogState {
       return null;
     }
   }
+
+  /// Drops the cached download stream and pause/resume/cancel handle for
+  /// [gameId] so the game can be re-downloaded from scratch.
+  void clearDownloadStream(int gameId) {
+    _downloadStreams.remove(gameId);
+    _downloadControls.remove(gameId);
+  }
+
+  /// Pauses the in-flight download/repair job for [gameId], if any. Chunks
+  /// already in flight finish and flush before the job settles into
+  /// `paused` — the stream's `jobStatus` reports `pausing` in the meantime.
+  void pauseJob(int gameId) => _downloadControls[gameId]?.pause();
+
+  /// Resumes a paused download/repair job for [gameId], if any.
+  void resumeJob(int gameId) => _downloadControls[gameId]?.resume();
+
+  /// Cancels the in-flight download/repair job for [gameId], if any. The
+  /// stream still closes normally (no thrown error) once it settles into
+  /// `cancelled`.
+  void cancelJob(int gameId) => _downloadControls[gameId]?.cancel();
 
   Future<List<ProtonRelease>?> getProtonReleases(int page) async {
     try {
