@@ -94,7 +94,8 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
     final protonState = ref.watch(protonStateProvider);
     final gameId = widget.gameId;
 
-    final String statusLabel = switch (gamesState.getGameStatus(gameId)) {
+    final GameStatus gameStatus = gamesState.getGameStatus(gameId);
+    final String statusLabel = switch (gameStatus) {
       GameStatus.downloading => 'Installing',
       GameStatus.downloaded => 'Installed',
       GameStatus.notInstalled => 'Not installed',
@@ -110,7 +111,9 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
 
     final facts = <(String, String)>[
       ('Status', statusLabel),
-      if (buildVersion != null && buildVersion.isNotEmpty)
+      if (gameStatus == GameStatus.downloaded &&
+          buildVersion != null &&
+          buildVersion.isNotEmpty)
         ('Installed version', buildVersion),
       if (compatibility != null) ('Compatibility', compatibility),
       if (installPath != null) ('Install path', installPath),
