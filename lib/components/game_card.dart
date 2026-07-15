@@ -24,8 +24,15 @@ class GameCard extends ConsumerWidget {
     final GameStatus status = ref.watch(
       gamesStateProvider.select((state) => state.getGameStatus(gameId!)),
     );
-    final ActivityTask? task = ref.watch(
-      downloadsStateProvider.select((state) => state.tasks[gameId!]),
+    // Select a value-type snapshot of the bytes rather than the ActivityTask
+    // instance itself: the notifier mutates that instance in place, so
+    // `select` would see the same reference across updates (no `==`
+    // override) and this card would never rebuild while downloading.
+    final (int, int)? progress = ref.watch(
+      downloadsStateProvider.select((state) {
+        final task = state.tasks[gameId!];
+        return task == null ? null : (task.downloadedBytes, task.totalBytes);
+      }),
     );
 
     Widget cover = AsyncCoverImage(
@@ -67,7 +74,7 @@ class GameCard extends ConsumerWidget {
                         weight: FontWeight.w600,
                       ),
                     ),
-                    _statusLine(status, task),
+                    _statusLine(status, progress),
                   ],
                 ),
               ),
@@ -80,11 +87,11 @@ class GameCard extends ConsumerWidget {
 
   /// Status pill per design; while installing, a tiny progress bar with an
   /// "Installing · NN%" row replaces the pill.
-  Widget _statusLine(GameStatus status, ActivityTask? task) {
+  Widget _statusLine(GameStatus status, (int, int)? progress) {
     if (status == GameStatus.downloading &&
-        task != null &&
-        task.totalBytes > 0) {
-      final double progress = task.downloadedBytes / task.totalBytes;
+        progress != null &&
+        progress.$2 > 0) {
+      final double fraction = progress.$1 / progress.$2;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 5,
@@ -101,7 +108,7 @@ class GameCard extends ConsumerWidget {
                 ),
               ),
               Text(
-                '${(progress * 100).round()}%',
+                '${(fraction * 100).round()}%',
                 style: AppText.onest(
                   size: 10,
                   weight: FontWeight.w600,
@@ -110,7 +117,7 @@ class GameCard extends ConsumerWidget {
               ),
             ],
           ),
-          GradientProgressBar(value: progress, height: 4),
+          GradientProgressBar(value: fraction, height: 4),
         ],
       );
     }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/state/games_state.dart';
@@ -80,11 +82,39 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   DownloadsState build() {
     _gogState = ref.read(gogStateProvider);
     _gamesNotifier = ref.read(gamesStateProvider.notifier);
+    ref.onDispose(() => _trailingTimer?.cancel());
     return const DownloadsState.empty();
   }
 
   void _emit() {
+    _trailingTimer?.cancel();
+    _trailingTimer = null;
     state = DownloadsState({...state.tasks});
+  }
+
+  // Byte-progress events can fire many times per second and each _emit()
+  // triggers a full rebuild of whatever's watching the provider (e.g. the
+  // Downloads page). Throttle those high-frequency progress updates to
+  // ~10Hz with a trailing flush so the UI stays smooth without ever
+  // dropping the final value. Terminal/status-transition emits (onDone,
+  // onError, pause/resume/cancel) still call _emit() directly so they land
+  // immediately.
+  static const _emitThrottle = Duration(milliseconds: 100);
+  DateTime _lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _trailingTimer;
+
+  void _emitThrottled() {
+    final elapsed = DateTime.now().difference(_lastEmit);
+    if (elapsed >= _emitThrottle) {
+      _lastEmit = DateTime.now();
+      _emit();
+    } else {
+      _trailingTimer ??= Timer(_emitThrottle - elapsed, () {
+        _trailingTimer = null;
+        _lastEmit = DateTime.now();
+        _emit();
+      });
+    }
   }
 
   /// Removes a task from the registry, e.g. to dequeue a failed verification
@@ -128,7 +158,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.totalChunks = event.totalChunks.toInt();
         task.verifiedChunks = event.verifiedChunks.toInt();
         task.errorChunks = event.errorChunks;
-        _emit();
+        _emitThrottled();
       },
       onDone: () {
         if (task.errorChunks.isNotEmpty) {
@@ -190,7 +220,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
         task.jobStatus = event.jobStatus.name();
-        _emit();
+        _emitThrottled();
       },
       onDone: () {
         if (task.jobStatus == "cancelled") {
@@ -296,7 +326,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
         task.jobStatus = event.jobStatus.name();
-        _emit();
+        _emitThrottled();
       },
       onDone: () {
         if (task.jobStatus == "cancelled") {

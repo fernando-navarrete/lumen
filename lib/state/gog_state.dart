@@ -20,6 +20,15 @@ class GogState {
   /// single handle per gameId is safe.
   final HashMap<int, DownloadControl> _downloadControls = HashMap();
 
+  /// Names and boxart links are static for a session, but callers (e.g. the
+  /// Downloads page task cards) call these getters on every rebuild —
+  /// several times a second while a download is in flight. Caching the
+  /// Future itself (not just its resolved value) means a FutureBuilder fed
+  /// the same Future instance across rebuilds stays in its "has data" state
+  /// instead of resetting to pending and re-issuing the bridge call.
+  final HashMap<int, Future<String?>> _gameNameCache = HashMap();
+  final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
+
   GogState(this._gog);
 
   String getLoginUrl() {
@@ -74,7 +83,10 @@ class GogState {
     }
   }
 
-  Future<String> getGameBoxartLink(int gameId) async {
+  Future<String> getGameBoxartLink(int gameId) =>
+      _boxartLinkCache.putIfAbsent(gameId, () => _fetchGameBoxartLink(gameId));
+
+  Future<String> _fetchGameBoxartLink(int gameId) async {
     try {
       String link = await _gog.getGameBoxartLink(gameId: gameId);
       return link;
@@ -172,7 +184,10 @@ class GogState {
     }
   }
 
-  Future<String?> getGameName(int gameId) async {
+  Future<String?> getGameName(int gameId) =>
+      _gameNameCache.putIfAbsent(gameId, () => _fetchGameName(gameId));
+
+  Future<String?> _fetchGameName(int gameId) async {
     try {
       return await _gog.getGameTitle(gameId: gameId);
     } catch (e) {
