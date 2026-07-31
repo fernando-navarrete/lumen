@@ -69,7 +69,6 @@ class _FakeGog implements Gog {
     required String buildName,
     required List<String> selectedProducts,
     required int gameId,
-    required DownloadControl control,
   }) => const Stream.empty();
 
   @override
@@ -78,7 +77,6 @@ class _FakeGog implements Gog {
     required String buildName,
     required List<String> selectedProducts,
     required int gameId,
-    required DownloadControl control,
   }) => const Stream.empty();
 
   @override

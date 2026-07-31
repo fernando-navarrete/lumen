@@ -11,11 +11,10 @@ import 'package:lumen/state/launch_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 
-/// The status-driven action row for one game: Pause/Resume + Cancel while
-/// installing, Play once installed, otherwise Install/Import. Owns the
-/// preload of the default build + products that gates Install/Import, and
-/// the full launch flow (Proton resolution, executable picking, prefix
-/// creation).
+/// The status-driven action row for one game: nothing while installing,
+/// Play once installed, otherwise Install/Import. Owns the preload of the
+/// default build + products that gates Install/Import, and the full launch
+/// flow (Proton resolution, executable picking, prefix creation).
 class GameActionButtons extends ConsumerStatefulWidget {
   const GameActionButtons({
     super.key,
@@ -106,10 +105,6 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     final bool running = ref.watch(
       launchStateProvider.select((state) => state.isActive(gameId)),
     );
-    final String? jobStatus = ref.watch(
-      downloadsStateProvider.select((state) => state.tasks[gameId]?.jobStatus),
-    );
-
     ref.listen<LaunchState>(launchStateProvider, (previous, next) {
       final prevStatus = previous?.gameFor(gameId)?.status;
       final game = next.gameFor(gameId);
@@ -131,13 +126,12 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         installing: installing,
         installed: installed,
         running: running,
-        jobStatus: jobStatus,
       ),
     );
   }
 
-  /// Builds the action row based on the game's status: Pause/Resume + Cancel
-  /// while installing, Play (or "Running…" while launched) once installed,
+  /// Builds the action row based on the game's status: nothing while
+  /// installing, Play (or "Running…" while launched) once installed,
   /// otherwise the Install/Import pair.
   List<Widget> _buildActionButtons(
     BuildContext context,
@@ -146,36 +140,9 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     required bool installing,
     required bool installed,
     required bool running,
-    required String? jobStatus,
   }) {
     if (installing) {
-      final notifier = ref.read(downloadsStateProvider.notifier);
-      final bool paused = jobStatus == "paused";
-      final bool busy = jobStatus == "pausing" || jobStatus == "cancelling";
-      return [
-        PrimaryButton.icon(
-          icon: paused ? Icons.play_arrow : Icons.pause,
-          label: paused
-              ? "Resume"
-              : jobStatus == "pausing"
-              ? "Pausing…"
-              : "Pause",
-          glowing: true,
-          large: widget.large,
-          enabled: !busy,
-          onTap: paused
-              ? () => notifier.resumeTask(gameId)
-              : () => notifier.pauseTask(gameId),
-        ),
-        PrimaryButton.icon(
-          icon: Icons.close,
-          label: jobStatus == "cancelling" ? "Cancelling…" : "Cancel",
-          glowing: false,
-          large: widget.large,
-          enabled: jobStatus != "cancelling",
-          onTap: () => notifier.cancelTask(gameId),
-        ),
-      ];
+      return const [];
     }
     if (installed) {
       return [

@@ -33,7 +33,7 @@ dependencies:
   gogdl_flutter:
     git:
       url: ssh://git@thinkcentre.home:2200/gogdl/gogdl_flutter.git
-      ref: v0.1.1
+      ref: v0.1.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

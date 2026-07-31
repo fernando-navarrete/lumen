@@ -22,12 +22,6 @@ class ActivityTask {
   int downloadedBytes;
   String? stage;
 
-  /// Pause/resume/cancel state from the bridge's `JobStatus`, e.g.
-  /// "running" | "pausing" | "paused" | "cancelling" | "cancelled". Only
-  /// download/repair tasks carry a `DownloadControl`; null means running
-  /// (or not applicable, e.g. verification tasks).
-  String? jobStatus;
-
   // Launch params, persisted so a repair can be started later from the card.
   String? path;
   String? buildName;
@@ -43,7 +37,6 @@ class ActivityTask {
     this.totalBytes = 0,
     this.downloadedBytes = 0,
     this.stage,
-    this.jobStatus,
     this.path,
     this.buildName,
     this.productIds = const [],
@@ -97,7 +90,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   // Downloads page). Throttle those high-frequency progress updates to
   // ~10Hz with a trailing flush so the UI stays smooth without ever
   // dropping the final value. Terminal/status-transition emits (onDone,
-  // onError, pause/resume/cancel) still call _emit() directly so they land
+  // onError) still call _emit() directly so they land
   // immediately.
   static const _emitThrottle = Duration(milliseconds: 100);
   DateTime _lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
@@ -219,16 +212,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.downloadedBytes = event.downloadedBytes.toInt();
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
-        task.jobStatus = event.jobStatus.name();
         _emitThrottled();
       },
       onDone: () {
-        if (task.jobStatus == "cancelled") {
-          _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
-          _gogState.clearDownloadStream(gameId);
-          removeTask(gameId);
-          return;
-        }
         if (task.errorChunks.isNotEmpty) {
           task.status = TaskStatus.failed;
           _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
@@ -249,37 +235,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emit();
       },
     );
-  }
-
-  /// Pauses the in-flight download/repair job for [gameId]. Optimistically
-  /// marks the task "pausing" so the UI reacts instantly; the stream then
-  /// reconciles to the settled "paused" jobStatus once in-flight chunks
-  /// finish.
-  void pauseTask(int gameId) {
-    _gogState.pauseJob(gameId);
-    _setJobStatus(gameId, "pausing");
-  }
-
-  /// Resumes a paused download/repair job for [gameId].
-  void resumeTask(int gameId) {
-    _gogState.resumeJob(gameId);
-    _setJobStatus(gameId, "running");
-  }
-
-  /// Cancels the in-flight download/repair job for [gameId]. The task is
-  /// removed once the stream settles (see the `onDone` handlers above).
-  void cancelTask(int gameId) {
-    _gogState.cancelJob(gameId);
-    _setJobStatus(gameId, "cancelling");
-  }
-
-  void _setJobStatus(int gameId, String jobStatus) {
-    final task = state.tasks[gameId];
-    if (task == null) {
-      return;
-    }
-    task.jobStatus = jobStatus;
-    _emit();
   }
 
   /// Dequeues a failed verification task and starts repairing the same game,
@@ -325,15 +280,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.downloadedBytes = event.downloadedBytes.toInt();
         task.errorChunks = event.errorFiles;
         task.stage = event.status.name();
-        task.jobStatus = event.jobStatus.name();
         _emitThrottled();
       },
       onDone: () {
-        if (task.jobStatus == "cancelled") {
-          _gogState.clearRepairStream(gameId);
-          removeTask(gameId);
-          return;
-        }
         if (task.errorChunks.isNotEmpty) {
           task.status = TaskStatus.failed;
         } else {
