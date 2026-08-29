@@ -93,7 +93,12 @@ class DownloadsPage extends ConsumerWidget {
                     for (final task in activeVerifications)
                       _ActiveTaskCard(
                         gameId: task.gameId,
-                        progress: task.totalChunks > 0
+                        // Bytes give a smoother bar than chunk count alone
+                        // (chunk sizes vary widely); fall back to chunks for
+                        // a stream snapshot that hasn't populated bytes yet.
+                        progress: task.totalBytes > 0
+                            ? task.downloadedBytes / task.totalBytes
+                            : task.totalChunks > 0
                             ? task.verifiedChunks / task.totalChunks
                             : null,
                         statusText: _verificationStatusText(task),
@@ -215,11 +220,18 @@ String _repairStatusText(ActivityTask task) {
 String _verificationStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
-      return "Verifying chunks… ${task.verifiedChunks}/${task.totalChunks}";
+      switch (task.stage) {
+        case "fetchingFiles":
+          return "Fetching file list…";
+        case "verifying":
+          return "Verifying chunks… ${task.verifiedChunks}/${task.totalChunks}";
+        default:
+          return "Verifying…";
+      }
     case TaskStatus.completed:
       return task.errorChunks.isEmpty
           ? "Completed"
-          : "Completed — ${task.errorChunks.length} chunk(s) failed checksum";
+          : "Completed — ${task.errorChunks.length} file(s) failed verification";
     case TaskStatus.failed:
       return "Verification failed";
   }
