@@ -154,6 +154,13 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
           icon: running ? Icons.hourglass_top : Icons.play_arrow,
           label: running ? "Running…" : "Play",
         ),
+        PrimaryButton.icon(
+          icon: Icons.fact_check,
+          label: "Verify",
+          glowing: false,
+          large: widget.large,
+          onTap: () => _onVerify(context, gameId, gamesState),
+        ),
       ];
     }
     return [
@@ -240,6 +247,45 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         },
       ),
     ];
+  }
+
+  /// Re-checks an installed game's files against the manifest, reusing its
+  /// already-persisted install path/build/products instead of prompting via
+  /// [DirPicker] the way the not-installed "Import" flow does.
+  Future<void> _onVerify(
+    BuildContext context,
+    int gameId,
+    GamesState gamesState,
+  ) async {
+    void showMessage(String message) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+
+    final String? path = gamesState.getInstallPath(gameId);
+    if (path == null) {
+      showMessage("This game has no install path recorded");
+      return;
+    }
+    final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
+    final List<String> productIds = gamesState.getProductIds(gameId).toList();
+    if (productIds.isEmpty) {
+      return;
+    }
+
+    await ref
+        .read(downloadsStateProvider.notifier)
+        .startVerificationForInstalled(
+          gameId,
+          path: path,
+          buildName: buildName,
+          productIds: productIds,
+        );
+
+    showMessage("Verifying files — check the Downloads tab for progress");
   }
 
   /// Resolves the effective Proton-GE version (per-game override, else the

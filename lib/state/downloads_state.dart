@@ -150,7 +150,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       (event) {
         task.totalChunks = event.totalChunks.toInt();
         task.verifiedChunks = event.verifiedChunks.toInt();
+        task.totalBytes = event.totalBytes.toInt();
+        task.downloadedBytes = event.verifiedBytes.toInt();
         task.errorChunks = event.errorChunks;
+        task.stage = event.status.name();
         _emitThrottled();
       },
       onDone: () {
@@ -171,6 +174,28 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.status = TaskStatus.failed;
         _emit();
       },
+    );
+  }
+
+  /// Verifies an already-installed game. Unlike [startVerification]'s
+  /// "Import" caller, this may target a gameId whose previous verification
+  /// task is still sitting in the registry and whose bridge stream was
+  /// already fully consumed (streams are single-subscription) — both would
+  /// otherwise make a re-verify silently no-op or replay a closed stream, so
+  /// clear them first, same trick [startRepair] uses.
+  Future<void> startVerificationForInstalled(
+    int gameId, {
+    required String path,
+    required String buildName,
+    required List<String> productIds,
+  }) async {
+    removeTask(gameId);
+    _gogState.clearVerificationStream(gameId);
+    await startVerification(
+      gameId,
+      path: path,
+      buildName: buildName,
+      productIds: productIds,
     );
   }
 
