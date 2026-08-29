@@ -292,11 +292,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "v0.0.1-restart"
-      resolved-ref: "360afbc3f95ec4f919a16c1acd7d06b7e546e39a"
+      ref: "v0.0.2-restart"
+      resolved-ref: "0af2a3354fced28ab2beaaa58120416bb5c25699"
       url: "ssh://git@thinkcentre.home:2200/gogdl/gogdl_flutter.git"
     source: git
-    version: "0.0.1"
+    version: "0.0.2"
   google_fonts:
     dependency: "direct main"
     description:
