@@ -1,6 +1,6 @@
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/downloadable_product.dart';
-import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/progress.dart';
 import 'package:lumen/models/proton_release.dart';
 

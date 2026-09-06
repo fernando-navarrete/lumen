@@ -7,7 +7,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/downloadable_product.dart';
-import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/progress.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
@@ -19,8 +18,8 @@ class GogState {
       HashMap();
   final HashMap<int, Stream<RepairProgress>> _repairStreams = HashMap();
   final HashMap<int, Stream<DownloadProgress>> _downloadStreams = HashMap();
-  final HashMap<String, Stream<ProtonDownloadProgress>>
-  _protonDownloadStreams = HashMap();
+  final HashMap<String, Stream<ProtonDownloadProgress>> _protonDownloadStreams =
+      HashMap();
 
   /// Names and boxart links are static for a session, but callers (e.g. the
   /// Downloads page task cards) call these getters on every rebuild —

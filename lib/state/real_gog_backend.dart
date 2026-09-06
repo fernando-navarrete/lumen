@@ -1,7 +1,6 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/downloadable_product.dart';
-import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/progress.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
@@ -69,7 +68,7 @@ class RealGogBackend implements GogBackend {
 
   @override
   Future<List<GameBuild>> getGameBuilds(int gameId) =>
-      _stub.getGameBuilds(gameId);
+      _api.getGameBuilds(gameId: gameId);
 
   @override
   Future<List<DownloadableProduct>> getDownloadableProducts({
