@@ -148,12 +148,12 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalChunks = event.totalChunks.toInt();
-        task.verifiedChunks = event.verifiedChunks.toInt();
-        task.totalBytes = event.totalBytes.toInt();
-        task.downloadedBytes = event.verifiedBytes.toInt();
+        task.totalChunks = event.totalChunks;
+        task.verifiedChunks = event.verifiedChunks;
+        task.totalBytes = event.totalBytes;
+        task.downloadedBytes = event.verifiedBytes;
         task.errorChunks = event.errorChunks;
-        task.stage = event.status.name();
+        task.stage = event.status;
         _emitThrottled();
       },
       onDone: () {
@@ -233,10 +233,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalBytes = event.totalBytes.toInt();
-        task.downloadedBytes = event.downloadedBytes.toInt();
+        task.totalBytes = event.totalBytes;
+        task.downloadedBytes = event.downloadedBytes;
         task.errorChunks = event.errorFiles;
-        task.stage = event.status.name();
+        task.stage = event.status;
         _emitThrottled();
       },
       onDone: () {
@@ -301,10 +301,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalBytes = event.totalBytes.toInt();
-        task.downloadedBytes = event.downloadedBytes.toInt();
+        task.totalBytes = event.totalBytes;
+        task.downloadedBytes = event.downloadedBytes;
         task.errorChunks = event.errorFiles;
-        task.stage = event.status.name();
+        task.stage = event.status;
         _emitThrottled();
       },
       onDone: () {

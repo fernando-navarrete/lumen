@@ -4,9 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/save_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 enum SaveDirection { download, upload }
 
@@ -25,7 +25,7 @@ class SaveTask {
   int total;
 
   /// e.g. "downloading"/"downloaded" or "uploading"/"uploaded" — see
-  /// `SaveDownloadStatus.name()`/`SaveUploadStatus.name()` in the bridge.
+  /// `SaveTransferProgress.status` in `lib/models/progress.dart`.
   String? stage;
   List<String> errorFiles;
 
@@ -110,15 +110,14 @@ class SavesNotifier extends Notifier<SavesState> {
         return;
       }
       final config = await _gogState.getSaveRemoteConfig(authIds.clientId);
-      if (config == null || !config.isSupported()) {
+      if (config == null || !config.isSupported) {
         task.status = TaskStatus.failed;
         _emit();
         return;
       }
-      final (knownFolder, relativePath) = config.localPath();
       final root = resolveSaveRoot(
-        knownFolder,
-        relativePath,
+        config.knownFolder,
+        config.relativePath,
         prefixPath: prefixPath,
         installPath: installPath,
       );
@@ -156,7 +155,7 @@ class SavesNotifier extends Notifier<SavesState> {
 
     final errorFiles = <String>[];
     for (final file in files) {
-      final path = '$root/${file.path()}';
+      final path = '$root/${file.path}';
       final completer = Completer<void>();
       _gogState
           .downloadSaveFile(
@@ -167,9 +166,9 @@ class SavesNotifier extends Notifier<SavesState> {
           )
           .listen(
             (event) {
-              task.transferred = event.transferred.toInt();
-              task.total = event.total.toInt();
-              task.stage = event.status.name();
+              task.transferred = event.transferred;
+              task.total = event.total;
+              task.stage = event.status;
               _emit();
             },
             onDone: () => completer.complete(),
@@ -177,7 +176,7 @@ class SavesNotifier extends Notifier<SavesState> {
               if (kDebugMode) {
                 print(error);
               }
-              errorFiles.add(file.path());
+              errorFiles.add(file.path);
               completer.complete();
             },
           );
@@ -213,9 +212,9 @@ class SavesNotifier extends Notifier<SavesState> {
           )
           .listen(
             (event) {
-              task.transferred = event.transferred.toInt();
-              task.total = event.total.toInt();
-              task.stage = event.status.name();
+              task.transferred = event.transferred;
+              task.total = event.total;
+              task.stage = event.status;
               _emit();
             },
             onDone: () => completer.complete(),

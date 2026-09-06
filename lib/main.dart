@@ -4,12 +4,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:lumen/app.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:lumen/theme/app_colors.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
   // Resolved up front (rather than left to each notifier's build() to fetch
   // asynchronously) so ProtonNotifier/GamesNotifier can load their persisted
   // state synchronously during build() — see sharedPreferencesProvider.

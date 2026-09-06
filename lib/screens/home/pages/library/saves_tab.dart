@@ -73,7 +73,7 @@ class _SavesTabState extends ConsumerState<SavesTab> {
     }
 
     final config = await gogState.getSaveRemoteConfig(authIds.clientId);
-    if (config == null || !config.isSupported()) {
+    if (config == null || !config.isSupported) {
       if (mounted) {
         setState(() {
           _loading = false;
@@ -89,10 +89,9 @@ class _SavesTabState extends ConsumerState<SavesTab> {
           .read(gamesStateProvider.notifier)
           .ensureProtonPrefix(gameId);
       try {
-        final (knownFolder, relativePath) = config.localPath();
         localPath = resolveSaveRoot(
-          knownFolder,
-          relativePath,
+          config.knownFolder,
+          config.relativePath,
           prefixPath: prefixPath,
           installPath: installPath,
         );

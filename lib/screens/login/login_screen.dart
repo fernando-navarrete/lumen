@@ -118,6 +118,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _step = LoginStep.openLoginUrl;
     });
     final loginUrl = gogState.getLoginUrl();
+    if (loginUrl.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No login URL available')),
+      );
+      return;
+    }
     if (!await launchUrlString(loginUrl)) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

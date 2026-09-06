@@ -6,12 +6,12 @@ import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/section_card.dart';
+import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 /// Settings section for managing Proton-GE: choose the app-wide default
 /// version from a dropdown of installed versions, and open a dialog to
@@ -198,7 +198,7 @@ class _ReleaseRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tag = release.tagName();
+    final tag = release.tagName;
     final installed = protonState.isInstalled(tag);
     final task = protonState.taskFor(tag);
     final showProgress = task != null && task.status != TaskStatus.failed;
@@ -220,7 +220,7 @@ class _ReleaseRow extends ConsumerWidget {
                 ),
               ),
               Text(
-                formatBytes(release.downloadSize().toInt()),
+                formatBytes(release.downloadSize),
                 style: AppText.caption(color: AppColors.textSecondary),
               ),
             ],

@@ -4,16 +4,22 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/models/cloud_save.dart';
+import 'package:lumen/models/downloadable_product.dart';
+import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/progress.dart';
+import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/state/gog_backend.dart';
+import 'package:lumen/state/unimplemented_backend.dart';
 
 class GogState {
-  final Gog _gog;
-  final HashMap<int, Stream<VerificationStream>> _verificationStreams =
+  final GogBackend _backend;
+  final HashMap<int, Stream<VerificationProgress>> _verificationStreams =
       HashMap();
-  final HashMap<int, Stream<RepairStream>> _repairStreams = HashMap();
-  final HashMap<int, Stream<DownloadStream>> _downloadStreams = HashMap();
-  final HashMap<String, Stream<ProtonDownloadStream>> _protonDownloadStreams =
-      HashMap();
+  final HashMap<int, Stream<RepairProgress>> _repairStreams = HashMap();
+  final HashMap<int, Stream<DownloadProgress>> _downloadStreams = HashMap();
+  final HashMap<String, Stream<ProtonDownloadProgress>>
+  _protonDownloadStreams = HashMap();
 
   /// Names and boxart links are static for a session, but callers (e.g. the
   /// Downloads page task cards) call these getters on every rebuild —
@@ -24,10 +30,17 @@ class GogState {
   final HashMap<int, Future<String?>> _gameNameCache = HashMap();
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
 
-  GogState(this._gog);
+  GogState(this._backend);
 
   String getLoginUrl() {
-    return _gog.getLoginUrl();
+    try {
+      return _backend.getLoginUrl();
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return '';
+    }
   }
 
   Future<void> configureDownload({
@@ -36,10 +49,10 @@ class GogState {
     required int timeout,
   }) async {
     try {
-      await _gog.setDownloadConfig(
-        minConcurrency: BigInt.from(minConcurrency),
-        maxConcurrency: BigInt.from(maxConcurrency),
-        idleTimeout: BigInt.from(timeout),
+      await _backend.configureDownload(
+        minConcurrency: minConcurrency,
+        maxConcurrency: maxConcurrency,
+        idleTimeout: timeout,
       );
     } catch (e) {
       if (kDebugMode) {
@@ -51,8 +64,8 @@ class GogState {
 
   Future<void> refreshAuthWithCallback() async {
     try {
-      await _gog.refreshAuthWithCallback(
-        callback: (auth) async {
+      await _backend.refreshAuth(
+        onAuth: (auth) async {
           final storage = FlutterSecureStorage();
           await storage.write(key: 'auth', value: auth);
         },
@@ -67,7 +80,7 @@ class GogState {
 
   Future<String> getGameBackgroundLink(int gameId) async {
     try {
-      String link = await _gog.getBackgroundImageLink(gameId: gameId);
+      String link = await _backend.getBackgroundImageLink(gameId);
       return link;
     } catch (e) {
       if (kDebugMode) {
@@ -83,7 +96,7 @@ class GogState {
 
   Future<String> _fetchGameBoxartLink(int gameId) async {
     try {
-      String link = await _gog.getGameBoxartLink(gameId: gameId);
+      String link = await _backend.getGameBoxartLink(gameId);
       return link;
     } catch (e) {
       if (kDebugMode) {
@@ -96,7 +109,7 @@ class GogState {
 
   Future<String> getGameSummary(int gameId) async {
     try {
-      String summary = await _gog.getGameSummary(gameId: gameId);
+      String summary = await _backend.getGameSummary(gameId);
       return summary;
     } catch (e) {
       if (kDebugMode) {
@@ -109,7 +122,7 @@ class GogState {
 
   Future<List<String>> getGameScreenshots(int gameId) async {
     try {
-      List<String> screenshots = await _gog.getGameScreenshots(gameId: gameId);
+      List<String> screenshots = await _backend.getGameScreenshots(gameId);
       return screenshots;
     } catch (e) {
       if (kDebugMode) {
@@ -122,7 +135,7 @@ class GogState {
 
   Future<void> loginWithCode(String code) async {
     try {
-      String auth = await _gog.loginWithCode(code: code);
+      String auth = await _backend.loginWithCode(code);
       final storage = FlutterSecureStorage();
       await storage.write(key: 'auth', value: auth);
     } catch (e) {
@@ -138,7 +151,7 @@ class GogState {
       final storage = FlutterSecureStorage();
       String? auth = await storage.read(key: 'auth');
       if (auth != null) {
-        await _gog.restoreAuthFromString(token: auth);
+        await _backend.restoreAuth(auth);
       } else {
         throw Exception('No auth token found in storage');
       }
@@ -159,7 +172,7 @@ class GogState {
 
   Future<List<int>?> getOwnedGames() async {
     try {
-      return await _gog.getOwnedGames();
+      return await _backend.getOwnedGames();
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -170,7 +183,7 @@ class GogState {
 
   Future<List<GameBuild>?> getBuilds(int gameId) async {
     try {
-      return await _gog.getGameBuilds(gameId: gameId);
+      return await _backend.getGameBuilds(gameId);
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -184,7 +197,7 @@ class GogState {
 
   Future<String?> _fetchGameName(int gameId) async {
     try {
-      return await _gog.getGameTitle(gameId: gameId);
+      return await _backend.getGameTitle(gameId);
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -198,9 +211,9 @@ class GogState {
     String buildName,
   ) async {
     try {
-      // Bridge param is named `buildId` but the Rust side takes the build's
-      // version name, not its id.
-      return await _gog.getDownloadableProducts(
+      // Backend param is named `buildId` but the Rust side takes the
+      // build's version name, not its id.
+      return await _backend.getDownloadableProducts(
         gameId: gameId,
         buildName: buildName,
       );
@@ -212,7 +225,7 @@ class GogState {
     }
   }
 
-  Future<Stream<VerificationStream>?> verifyGameFiles(
+  Future<Stream<VerificationProgress>?> verifyGameFiles(
     int gameId,
     String path,
     String buildName,
@@ -222,7 +235,7 @@ class GogState {
       if (_verificationStreams.containsKey(gameId)) {
         return _verificationStreams[gameId];
       }
-      var stream = _gog.verifyDownload(
+      var stream = _backend.verifyDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
@@ -244,7 +257,7 @@ class GogState {
     _verificationStreams.remove(gameId);
   }
 
-  Future<Stream<RepairStream>?> repairGameFiles(
+  Future<Stream<RepairProgress>?> repairGameFiles(
     int gameId,
     String path,
     String buildName,
@@ -254,7 +267,7 @@ class GogState {
       if (_repairStreams.containsKey(gameId)) {
         return _repairStreams[gameId];
       }
-      var stream = _gog.repairDownload(
+      var stream = _backend.repairDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
@@ -270,7 +283,7 @@ class GogState {
     }
   }
 
-  Future<Stream<DownloadStream>?> downloadGameFiles(
+  Future<Stream<DownloadProgress>?> downloadGameFiles(
     int gameId,
     String path,
     String buildName,
@@ -280,7 +293,7 @@ class GogState {
       if (_downloadStreams.containsKey(gameId)) {
         return _downloadStreams[gameId];
       }
-      var stream = _gog.downloadGame(
+      var stream = _backend.downloadGame(
         gameId: gameId,
         path: path,
         buildName: buildName,
@@ -298,7 +311,7 @@ class GogState {
 
   Future<List<ProtonRelease>?> getProtonReleases(int page) async {
     try {
-      return await _gog.getProtonReleases(page: page);
+      return await _backend.getProtonReleases(page);
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -307,16 +320,16 @@ class GogState {
     }
   }
 
-  Future<Stream<ProtonDownloadStream>?> downloadProtonRelease(
+  Future<Stream<ProtonDownloadProgress>?> downloadProtonRelease(
     ProtonRelease release,
     String path,
   ) async {
     try {
-      final tag = release.tagName();
+      final tag = release.tagName;
       if (_protonDownloadStreams.containsKey(tag)) {
         return _protonDownloadStreams[tag];
       }
-      var stream = _gog.downloadProtonRelease(release: release, path: path);
+      var stream = _backend.downloadProtonRelease(release: release, path: path);
       _protonDownloadStreams[tag] = stream;
       return stream;
     } catch (e) {
@@ -335,7 +348,7 @@ class GogState {
 
   Future<SaveAuthIds?> getSaveAuthIds(int gameId) async {
     try {
-      return await _gog.getSaveAuthIds(gameId: gameId);
+      return await _backend.getSaveAuthIds(gameId);
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -346,7 +359,7 @@ class GogState {
 
   Future<CloudSaveConfig?> getSaveRemoteConfig(String clientId) async {
     try {
-      return await _gog.getSaveRemoteConfig(clientId: clientId);
+      return await _backend.getSaveRemoteConfig(clientId);
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -360,7 +373,7 @@ class GogState {
     String clientSecret,
   ) async {
     try {
-      return await _gog.getSaveFileList(
+      return await _backend.getSaveFileList(
         clientId: clientId,
         clientSecret: clientSecret,
       );
@@ -375,13 +388,13 @@ class GogState {
   /// Streams the download of a single cloud save file to [path]. Unlike the
   /// download/repair/Proton streams, this isn't cached — save syncs consume
   /// each per-file stream once, sequentially, from [SavesNotifier].
-  Stream<SaveDownloadStream> downloadSaveFile({
+  Stream<SaveTransferProgress> downloadSaveFile({
     required CloudSaveFile saveFile,
     required String clientId,
     required String clientSecret,
     required String path,
   }) {
-    return _gog.downloadSave(
+    return _backend.downloadSave(
       saveFile: saveFile,
       clientId: clientId,
       clientSecret: clientSecret,
@@ -391,13 +404,13 @@ class GogState {
 
   /// Streams the upload of a single local file at [path] to [urlPath] in
   /// cloud storage. Not cached — see [downloadSaveFile].
-  Stream<SaveUploadStream> uploadSaveFile({
+  Stream<SaveTransferProgress> uploadSaveFile({
     required String clientId,
     required String clientSecret,
     required String path,
     required String urlPath,
   }) {
-    return _gog.uploadSave(
+    return _backend.uploadSave(
       clientId: clientId,
       clientSecret: clientSecret,
       path: path,
@@ -407,7 +420,7 @@ class GogState {
 }
 
 final gogStateProvider = Provider<GogState>((ref) {
-  final instance = GogState(Gog());
-  ref.onDispose(() => instance._gog.dispose());
+  final instance = GogState(UnimplementedBackend());
+  ref.onDispose(() => instance._backend.dispose());
   return instance;
 }, name: 'gogStateProvider');

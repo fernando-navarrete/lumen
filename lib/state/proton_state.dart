@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-flight/finished progress for one Proton-GE release download, keyed by
@@ -21,7 +21,7 @@ class ProtonTask {
   int total;
 
   /// e.g. "downloading", "extracting", "downloaded" — see
-  /// `ProtonDownloadStatus.name()` in the bridge.
+  /// `ProtonDownloadProgress.status` in `lib/models/progress.dart`.
   String? stage;
 
   ProtonTask({
@@ -104,7 +104,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
     ProtonRelease release, [
     String? targetDir,
   ]) async {
-    final tag = release.tagName();
+    final tag = release.tagName;
     if (state.installed.containsKey(tag)) {
       return;
     }
@@ -135,9 +135,9 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
     stream.listen(
       (event) {
-        task.transferred = event.transferred.toInt();
-        task.total = event.total.toInt();
-        task.stage = event.status.name();
+        task.transferred = event.transferred;
+        task.total = event.total;
+        task.stage = event.status;
         _emit();
       },
       onDone: () {
