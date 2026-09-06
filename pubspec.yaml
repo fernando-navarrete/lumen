@@ -41,6 +41,8 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   shared_preferences: ^2.5.5
   dir_picker: ^0.4.1
+  gogdl_flutter:
+    path: /home/fernando/repo/gogdl_flutter
 
 dev_dependencies:
   flutter_test:
