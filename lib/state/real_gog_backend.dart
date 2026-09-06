@@ -49,22 +49,23 @@ class RealGogBackend implements GogBackend {
   Future<List<int>> getOwnedGames() => _api.getOwnedGames();
 
   @override
-  Future<String> getGameTitle(int gameId) => _stub.getGameTitle(gameId);
+  Future<String> getGameTitle(int gameId) => _api.getGameTitle(gameId: gameId);
 
   @override
   Future<String> getBackgroundImageLink(int gameId) =>
-      _stub.getBackgroundImageLink(gameId);
+      _api.getBackgroundImageLink(gameId: gameId);
 
   @override
   Future<String> getGameBoxartLink(int gameId) =>
-      _stub.getGameBoxartLink(gameId);
+      _api.getGameBoxartLink(gameId: gameId);
 
   @override
-  Future<String> getGameSummary(int gameId) => _stub.getGameSummary(gameId);
+  Future<String> getGameSummary(int gameId) =>
+      _api.getGameSummary(gameId: gameId);
 
   @override
   Future<List<String>> getGameScreenshots(int gameId) =>
-      _stub.getGameScreenshots(gameId);
+      _api.getGameScreenshots(gameId: gameId);
 
   @override
   Future<List<GameBuild>> getGameBuilds(int gameId) =>
