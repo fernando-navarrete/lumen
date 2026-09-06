@@ -28,7 +28,7 @@ class RealGogBackend implements GogBackend {
   Future<String> loginWithCode(String code) => _stub.loginWithCode(code);
 
   @override
-  Future<void> restoreAuth(String token) => _stub.restoreAuth(token);
+  Future<void> restoreAuth(String token) => _api.restoreAuth(jsonStr: token);
 
   @override
   Future<void> refreshAuth({required Future<void> Function(String) onAuth}) =>

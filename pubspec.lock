@@ -284,8 +284,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "v0.0.2-restart"
-      resolved-ref: c6e54d695bdc29ad0e070b8d3e0f9306affea1a5
+      ref: "v0.0.3-restart"
+      resolved-ref: "2b03862cf8c62791aaad326d38357de2d8217e18"
       url: "ssh://git@thinkcentre.home:2200/gogdl/gogdl_flutter.git"
     source: git
     version: "0.0.1"
