@@ -29,12 +29,16 @@ class UnimplementedBackend implements GogBackend {
       throw _unavailable('loginWithCode');
 
   @override
-  Future<void> restoreAuth(String token) async {}
+  Future<void> restoreAuth(String token) async {
+    throw _unavailable('restoreAuth');
+  }
 
   @override
   Future<void> refreshAuth({
     required Future<void> Function(String) onAuth,
-  }) async {}
+  }) async {
+    throw _unavailable('refreshAuth');
+  }
 
   @override
   Future<void> configureDownload({
@@ -44,7 +48,8 @@ class UnimplementedBackend implements GogBackend {
   }) async {}
 
   @override
-  Future<List<int>> getOwnedGames() async => throw _unavailable('getOwnedGames');
+  Future<List<int>> getOwnedGames() async =>
+      throw _unavailable('getOwnedGames');
 
   @override
   Future<String> getGameTitle(int gameId) async =>

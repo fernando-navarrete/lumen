@@ -9,11 +9,11 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await RustLib.init();
   // Resolved up front (rather than left to each notifier's build() to fetch
   // asynchronously) so ProtonNotifier/GamesNotifier can load their persisted
   // state synchronously during build() — see sharedPreferencesProvider.
   final prefs = await SharedPreferences.getInstance();
-  await RustLib.init();
   runApp(
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],

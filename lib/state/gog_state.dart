@@ -4,13 +4,14 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/progress.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
-import 'package:lumen/state/unimplemented_backend.dart';
+import 'package:lumen/state/real_gog_backend.dart';
 
 class GogState {
   final GogBackend _backend;
@@ -420,7 +421,7 @@ class GogState {
 }
 
 final gogStateProvider = Provider<GogState>((ref) {
-  final instance = GogState(UnimplementedBackend());
+  final instance = GogState(RealGogBackend(GogdlApi()));
   ref.onDispose(() => instance._backend.dispose());
   return instance;
 }, name: 'gogStateProvider');
