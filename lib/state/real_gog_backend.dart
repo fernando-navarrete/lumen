@@ -129,9 +129,9 @@ class RealGogBackend implements GogBackend {
 
   @override
   Stream<ProtonDownloadProgress> downloadProtonRelease({
-    required ProtonRelease release,
+    required String tagName,
     required String path,
-  }) => _stub.downloadProtonRelease(release: release, path: path);
+  }) => _api.downloadProtonRelease(tagName: tagName, path: path);
 
   @override
   Future<SaveAuthIds> getSaveAuthIds(int gameId) =>

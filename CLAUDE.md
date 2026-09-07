@@ -24,9 +24,11 @@ GogBackend` that adapts the new bridge's API to this interface, and swap the con
 `gogStateProvider` (`lib/state/gog_state.dart`) from `UnimplementedBackend()` to it. No other file needs
 to change. Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `SaveAuthIds`,
 `CloudSaveConfig`, `CloudSaveFile`) and progress-stream payloads (`DownloadProgress`,
-`VerificationProgress`, `RepairProgress`, `ProtonDownloadProgress`, `SaveTransferProgress`) are now
-app-owned plain-Dart classes under `lib/models/`, not bridge-generated ones — a new backend adapts its
-own types into these, not the other way around.
+`VerificationProgress`, `RepairProgress`, `SaveTransferProgress`) are now app-owned plain-Dart classes
+under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into these, not the
+other way around. `ProtonDownloadProgress` is the one exception: it stays the bridge's own freezed
+union (`started`/`progress`/`extracted`), and `ProtonNotifier` (`lib/state/proton_state.dart`) adapts
+it directly rather than going through an app-owned model.
 
 ## Commands
 

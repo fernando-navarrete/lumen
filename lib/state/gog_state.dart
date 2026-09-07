@@ -319,16 +319,15 @@ class GogState {
   }
 
   Future<Stream<ProtonDownloadProgress>?> downloadProtonRelease(
-    ProtonRelease release,
+    String tagName,
     String path,
   ) async {
     try {
-      final tag = release.tagName;
-      if (_protonDownloadStreams.containsKey(tag)) {
-        return _protonDownloadStreams[tag];
+      if (_protonDownloadStreams.containsKey(tagName)) {
+        return _protonDownloadStreams[tagName];
       }
-      var stream = _backend.downloadProtonRelease(release: release, path: path);
-      _protonDownloadStreams[tag] = stream;
+      var stream = _backend.downloadProtonRelease(tagName: tagName, path: path);
+      _protonDownloadStreams[tagName] = stream;
       return stream;
     } catch (e) {
       if (kDebugMode) {

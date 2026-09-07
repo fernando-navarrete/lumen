@@ -282,8 +282,6 @@ class _ProgressRow extends StatelessWidget {
     switch (task.stage) {
       case "extracting":
         return "Extracting…";
-      case "downloaded":
-        return "Finishing…";
       case "downloading":
       default:
         return "Downloading… ${formatBytes(task.transferred)}"

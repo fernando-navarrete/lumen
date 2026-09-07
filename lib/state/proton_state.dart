@@ -12,16 +12,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// In-flight/finished progress for one Proton-GE release download, keyed by
 /// tag name in [ProtonState.tasks]. Mirrors [ActivityTask] in
-/// downloads_state.dart, but byte-only (no chunk/file bookkeeping) since
-/// the bridge's Proton stream only ever reports transferred/total bytes.
+/// downloads_state.dart, but byte-only (no chunk/file bookkeeping).
 class ProtonTask {
   final String tag;
   TaskStatus status;
   int transferred;
   int total;
 
-  /// e.g. "downloading", "extracting", "downloaded" — see
-  /// `ProtonDownloadProgress.status` in `lib/models/progress.dart`.
+  /// "downloading" or "extracting" — derived from [transferred]/[total],
+  /// not read directly off the bridge's `ProtonDownloadProgress` (see
+  /// [ProtonNotifier.downloadRelease]): extraction runs concurrently with
+  /// the download, so its `extracted` events interleave with `progress`
+  /// for the whole transfer rather than marking a distinct phase.
   String? stage;
 
   ProtonTask({
@@ -126,7 +128,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
       tasks: {...state.tasks, tag: task},
     );
 
-    final stream = await _gogState.downloadProtonRelease(release, dir);
+    final stream = await _gogState.downloadProtonRelease(tag, dir);
     if (stream == null) {
       task.status = TaskStatus.failed;
       _emit();
@@ -135,9 +137,21 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
     stream.listen(
       (event) {
-        task.transferred = event.transferred;
-        task.total = event.total;
-        task.stage = event.status;
+        switch (event) {
+          case ProtonDownloadProgress_Started(:final field0):
+            task.total = field0.toInt();
+            task.stage = 'downloading';
+          case ProtonDownloadProgress_Progress(:final field0):
+            task.transferred = field0.toInt();
+            task.stage = task.total > 0 && task.transferred >= task.total
+                ? 'extracting'
+                : 'downloading';
+          case ProtonDownloadProgress_Extracted():
+            // Entries are extracted as the tarball streams in, so these
+            // interleave with Progress for the whole transfer rather than
+            // marking a phase — the byte counters above decide the stage.
+            return;
+        }
         _emit();
       },
       onDone: () {

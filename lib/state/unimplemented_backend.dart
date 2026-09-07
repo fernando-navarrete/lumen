@@ -109,7 +109,7 @@ class UnimplementedBackend implements GogBackend {
 
   @override
   Stream<ProtonDownloadProgress> downloadProtonRelease({
-    required ProtonRelease release,
+    required String tagName,
     required String path,
   }) => Stream.error(_unavailable('downloadProtonRelease'));
 

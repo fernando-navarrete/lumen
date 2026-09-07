@@ -71,7 +71,7 @@ abstract class GogBackend {
   // Proton-GE
   Future<List<ProtonRelease>> getProtonReleases(int page);
   Stream<ProtonDownloadProgress> downloadProtonRelease({
-    required ProtonRelease release,
+    required String tagName,
     required String path,
   });
 
