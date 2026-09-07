@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/section_card.dart';
-import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -220,7 +220,7 @@ class _ReleaseRow extends ConsumerWidget {
                 ),
               ),
               Text(
-                formatBytes(release.downloadSize),
+                formatBytesBigint(release.downloadSize),
                 style: AppText.caption(color: AppColors.textSecondary),
               ),
             ],

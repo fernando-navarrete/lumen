@@ -1,7 +1,6 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/progress.dart';
-import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 
 /// Placeholder [GogBackend] for while `gogdl_flutter` is being rebuilt from

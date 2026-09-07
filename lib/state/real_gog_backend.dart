@@ -1,7 +1,6 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/progress.dart';
-import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/unimplemented_backend.dart';
 
@@ -116,7 +115,7 @@ class RealGogBackend implements GogBackend {
 
   @override
   Future<List<ProtonRelease>> getProtonReleases(int page) =>
-      _stub.getProtonReleases(page);
+      _api.getProtonReleases(page: page);
 
   @override
   Stream<ProtonDownloadProgress> downloadProtonRelease({

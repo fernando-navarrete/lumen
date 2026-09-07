@@ -1,7 +1,6 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/models/progress.dart';
-import 'package:lumen/models/proton_release.dart';
 
 /// Thrown by [GogBackend] methods that have no working implementation —
 /// currently everything, since `gogdl_flutter` is being rebuilt from
