@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/components/gradient_background.dart';
 import 'package:lumen/screens/home/home_screen.dart';
 import 'package:lumen/screens/login/widgets/branding_panel.dart';
@@ -45,9 +46,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
-      } catch (e) {
+      } on GogError catch (e) {
         if (kDebugMode) {
-          print(e);
+          print(e.message());
         }
       }
     });
@@ -100,7 +101,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       }
-    } catch (e) {
+    } on GogError catch (e) {
+      if (kDebugMode) {
+        print(e.message());
+      }
       setState(() {
         _loginError = true;
       });
@@ -120,9 +124,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final loginUrl = gogState.getLoginUrl();
     if (loginUrl.isEmpty) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No login URL available')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No login URL available')));
       return;
     }
     if (!await launchUrlString(loginUrl)) {

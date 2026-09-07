@@ -33,9 +33,9 @@ class GogState {
   String getLoginUrl() {
     try {
       return _backend.getLoginUrl();
-    } catch (e) {
+    } on GogError catch (e) {
       if (kDebugMode) {
-        print(e);
+        print(e.message());
       }
       return '';
     }
@@ -310,9 +310,9 @@ class GogState {
   Future<List<ProtonRelease>?> getProtonReleases(int page) async {
     try {
       return await _backend.getProtonReleases(page);
-    } catch (e) {
+    } on GogError catch (e) {
       if (kDebugMode) {
-        print(e);
+        print(e.message());
       }
       return null;
     }
