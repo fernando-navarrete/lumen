@@ -32,6 +32,14 @@ class UnimplementedBackend implements GogBackend {
   }
 
   @override
+  Future<void> setTokenRefreshCallback(
+    Future<void> Function(String auth) onAuth,
+  ) async {}
+
+  @override
+  Future<void> removeTokenRefreshCallback() async {}
+
+  @override
   Future<void> configureDownload({
     required int minConcurrency,
     required int maxConcurrency,

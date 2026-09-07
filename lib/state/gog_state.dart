@@ -28,6 +28,11 @@ class GogState {
   final HashMap<int, Future<String?>> _gameNameCache = HashMap();
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
 
+  /// Caches the in-flight/completed registration of the token-refresh
+  /// callback (see [_ensureTokenRefreshCallback]) so it's only registered
+  /// once per [GogState], no matter how many auth calls trigger it.
+  Future<void>? _tokenRefreshRegistration;
+
   GogState(this._backend);
 
   String getLoginUrl() {
@@ -117,6 +122,7 @@ class GogState {
 
   Future<void> loginWithCode(String code) async {
     try {
+      await _ensureTokenRefreshCallback();
       String auth = await _backend.loginWithCode(code);
       final storage = FlutterSecureStorage();
       await storage.write(key: 'auth', value: auth);
@@ -130,6 +136,7 @@ class GogState {
 
   Future<void> restoreAuthFromStorage() async {
     try {
+      await _ensureTokenRefreshCallback();
       final storage = FlutterSecureStorage();
       String? auth = await storage.read(key: 'auth');
       if (auth != null) {
@@ -145,9 +152,41 @@ class GogState {
     }
   }
 
+  /// Registers the backend's token-refresh callback exactly once for this
+  /// [GogState], persisting every refreshed auth JSON to the same storage
+  /// key used by [loginWithCode]/[restoreAuthFromStorage]. Without this, a
+  /// stored token goes stale the first time the backend rotates the refresh
+  /// token, since that rotation is only ever reported through this callback.
+  Future<void> _ensureTokenRefreshCallback() =>
+      _tokenRefreshRegistration ??= _registerTokenRefreshCallback();
+
+  Future<void> _registerTokenRefreshCallback() async {
+    try {
+      await _backend.setTokenRefreshCallback((auth) async {
+        final storage = FlutterSecureStorage();
+        await storage.write(key: 'auth', value: auth);
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      // Let the next auth call retry registration instead of leaving the
+      // app permanently without the callback for this session.
+      _tokenRefreshRegistration = null;
+    }
+  }
+
   /// Deletes the stored auth token so the next launch requires login again.
   /// Debug-only usage: see the Settings page's "Clear auth token" button.
   Future<void> clearAuth() async {
+    try {
+      await _backend.removeTokenRefreshCallback();
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+    }
+    _tokenRefreshRegistration = null;
     final storage = FlutterSecureStorage();
     await storage.delete(key: 'auth');
   }

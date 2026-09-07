@@ -28,6 +28,17 @@ abstract class GogBackend {
   String getLoginUrl();
   Future<String> loginWithCode(String code);
   Future<void> restoreAuth(String token);
+
+  /// Registers [onAuth] to be called with serialized auth JSON — the same
+  /// shape [restoreAuth] accepts — whenever the backend refreshes the access
+  /// token internally. This is the only notification that the refresh token
+  /// rotated; without persisting each call's payload, a stored token from
+  /// [loginWithCode]/[restoreAuth] can go stale after the first refresh.
+  Future<void> setTokenRefreshCallback(Future<void> Function(String auth) onAuth);
+
+  /// Unregisters the callback set by [setTokenRefreshCallback], if any.
+  Future<void> removeTokenRefreshCallback();
+
   Future<void> configureDownload({
     required int minConcurrency,
     required int maxConcurrency,

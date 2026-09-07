@@ -29,6 +29,14 @@ class RealGogBackend implements GogBackend {
   Future<void> restoreAuth(String token) => _api.restoreAuth(jsonStr: token);
 
   @override
+  Future<void> setTokenRefreshCallback(Future<void> Function(String) onAuth) =>
+      _api.setTokenRefreshCallback(callback: onAuth);
+
+  @override
+  Future<void> removeTokenRefreshCallback() =>
+      _api.removeTokenRefreshCallback();
+
+  @override
   Future<void> configureDownload({
     required int minConcurrency,
     required int maxConcurrency,
