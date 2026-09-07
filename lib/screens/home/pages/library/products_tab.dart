@@ -2,10 +2,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
-import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -41,7 +41,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         );
         for (final product in _products ?? const <DownloadableProduct>[]) {
           if (product.productType == "GAME") {
-            gamesNotifier.addProductId(widget.gameId, product.id);
+            gamesNotifier.addProductId(widget.gameId, product.id.toString());
           }
         }
       }
@@ -86,19 +86,21 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                               _BuildListItem(
                                 product: product,
                                 isSelected: _selectedProductIds.contains(
-                                  product.id,
+                                  product.id.toString(),
                                 ),
                                 onTap: (product) {
                                   setState(() {
                                     if (!_selectedProductIds.remove(
-                                      product.id,
+                                      product.id.toString(),
                                     )) {
-                                      _selectedProductIds.add(product.id);
+                                      _selectedProductIds.add(
+                                        product.id.toString(),
+                                      );
                                     }
                                   });
                                   gamesNotifier.toggleProductId(
                                     widget.gameId,
-                                    product.id,
+                                    product.id.toString(),
                                   );
                                 },
                               ),

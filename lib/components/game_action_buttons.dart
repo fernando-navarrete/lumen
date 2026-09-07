@@ -5,7 +5,6 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/executable_finder.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/primary_button.dart';
-import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
@@ -83,7 +82,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         ref.read(gamesStateProvider).getProductIds(gameId).isEmpty) {
       final products = await gogState.getProducts(gameId, buildName);
       for (final product in products ?? const <DownloadableProduct>[]) {
-        gamesNotifier.addProductId(gameId, product.id);
+        gamesNotifier.addProductId(gameId, product.id.toString());
       }
     }
 
