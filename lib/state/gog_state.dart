@@ -60,22 +60,6 @@ class GogState {
     }
   }
 
-  Future<void> refreshAuthWithCallback() async {
-    try {
-      await _backend.refreshAuth(
-        onAuth: (auth) async {
-          final storage = FlutterSecureStorage();
-          await storage.write(key: 'auth', value: auth);
-        },
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      rethrow;
-    }
-  }
-
   Future<String> getGameBackgroundLink(int gameId) async {
     try {
       String link = await _backend.getBackgroundImageLink(gameId);

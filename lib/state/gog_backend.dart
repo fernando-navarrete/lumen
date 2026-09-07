@@ -28,7 +28,6 @@ abstract class GogBackend {
   String getLoginUrl();
   Future<String> loginWithCode(String code);
   Future<void> restoreAuth(String token);
-  Future<void> refreshAuth({required Future<void> Function(String) onAuth});
   Future<void> configureDownload({
     required int minConcurrency,
     required int maxConcurrency,

@@ -23,14 +23,10 @@ class RealGogBackend implements GogBackend {
   String getLoginUrl() => _api.getLoginLink();
 
   @override
-  Future<String> loginWithCode(String code) => _stub.loginWithCode(code);
+  Future<String> loginWithCode(String code) => _api.loginWithCode(code: code);
 
   @override
   Future<void> restoreAuth(String token) => _api.restoreAuth(jsonStr: token);
-
-  @override
-  Future<void> refreshAuth({required Future<void> Function(String) onAuth}) =>
-      _stub.refreshAuth(onAuth: onAuth);
 
   @override
   Future<void> configureDownload({

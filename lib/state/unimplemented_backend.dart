@@ -32,13 +32,6 @@ class UnimplementedBackend implements GogBackend {
   }
 
   @override
-  Future<void> refreshAuth({
-    required Future<void> Function(String) onAuth,
-  }) async {
-    throw _unavailable('refreshAuth');
-  }
-
-  @override
   Future<void> configureDownload({
     required int minConcurrency,
     required int maxConcurrency,
