@@ -93,12 +93,12 @@ class RealGogBackend implements GogBackend {
   );
 
   @override
-  Stream<VerificationProgress> verifyDownload({
+  Stream<VerifyDownloadProgress> verifyDownload({
     required int gameId,
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _stub.verifyDownload(
+  }) => _api.verifyDownload(
     gameId: gameId,
     path: path,
     buildName: buildName,

@@ -23,7 +23,7 @@ class ProductsTab extends ConsumerStatefulWidget {
 
 class _ProductsTabState extends ConsumerState<ProductsTab> {
   List<DownloadableProduct>? _products;
-  Set<String> _selectedProductIds = {};
+  Set<int> _selectedProductIds = {};
 
   @override
   void initState() {
@@ -41,7 +41,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         );
         for (final product in _products ?? const <DownloadableProduct>[]) {
           if (product.productType == "GAME") {
-            gamesNotifier.addProductId(widget.gameId, product.id.toString());
+            gamesNotifier.addProductId(widget.gameId, product.id);
           }
         }
       }
@@ -86,21 +86,19 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                               _BuildListItem(
                                 product: product,
                                 isSelected: _selectedProductIds.contains(
-                                  product.id.toString(),
+                                  product.id,
                                 ),
                                 onTap: (product) {
                                   setState(() {
                                     if (!_selectedProductIds.remove(
-                                      product.id.toString(),
+                                      product.id,
                                     )) {
-                                      _selectedProductIds.add(
-                                        product.id.toString(),
-                                      );
+                                      _selectedProductIds.add(product.id);
                                     }
                                   });
                                   gamesNotifier.toggleProductId(
                                     widget.gameId,
-                                    product.id.toString(),
+                                    product.id,
                                   );
                                 },
                               ),

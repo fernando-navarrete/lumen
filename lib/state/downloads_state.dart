@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
@@ -9,15 +10,24 @@ enum TaskKind { download, verification, repair }
 
 enum TaskStatus { running, completed, failed }
 
+/// Why a file failed verification, from the three per-path failure events on
+/// the bridge's `VerifyDownloadProgress` stream.
+enum VerifyFailure { missing, corrupt, unreadable }
+
 class ActivityTask {
   final int gameId;
   final TaskKind kind;
   TaskStatus status;
-  int totalChunks;
-  int verifiedChunks;
-  List<String> errorChunks;
+  List<String> errorFiles;
 
-  // Repair progress (bytes-based) and current stage, e.g. "downloading".
+  // Verification only: which of [errorFiles] failed for which reason, and
+  // the chunk count from the terminal `finished` event (null until then).
+  // [errorFiles] is derived from this map's keys.
+  Map<String, VerifyFailure> verifyFailures;
+  int? chunksToRedownload;
+
+  // Download/repair/verification progress (bytes-based) and current stage,
+  // e.g. "downloading".
   int totalBytes;
   int downloadedBytes;
   String? stage;
@@ -31,9 +41,9 @@ class ActivityTask {
     required this.gameId,
     required this.kind,
     this.status = TaskStatus.running,
-    this.totalChunks = 0,
-    this.verifiedChunks = 0,
-    this.errorChunks = const [],
+    this.errorFiles = const [],
+    this.verifyFailures = const {},
+    this.chunksToRedownload,
     this.totalBytes = 0,
     this.downloadedBytes = 0,
     this.stage,
@@ -41,6 +51,9 @@ class ActivityTask {
     this.buildName,
     this.productIds = const [],
   });
+
+  int verifyFailureCount(VerifyFailure kind) =>
+      verifyFailures.values.where((f) => f == kind).length;
 }
 
 /// Immutable snapshot of in-flight/finished download & verification tasks,
@@ -148,22 +161,33 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalChunks = event.totalChunks;
-        task.verifiedChunks = event.verifiedChunks;
-        task.totalBytes = event.totalBytes;
-        task.downloadedBytes = event.verifiedBytes;
-        task.errorChunks = event.errorChunks;
-        task.stage = event.status;
+        switch (event) {
+          case VerifyDownloadProgress_Started(:final field0):
+            task.totalBytes = field0.toInt();
+            task.stage = 'verifying';
+          case VerifyDownloadProgress_Progress(:final field0):
+            task.downloadedBytes = field0.toInt();
+          case VerifyDownloadProgress_CouldNotResolvePath(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.unreadable);
+          case VerifyDownloadProgress_FileNotFound(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.missing);
+          case VerifyDownloadProgress_ChecksumMismatch(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.corrupt);
+          case VerifyDownloadProgress_Finished(:final field0):
+            task.chunksToRedownload = field0.toInt();
+            _emit();
+            return;
+        }
         _emitThrottled();
       },
       onDone: () {
-        if (task.errorChunks.isNotEmpty) {
-          task.status = TaskStatus.failed;
-        } else {
+        if (task.chunksToRedownload == 0 && task.errorFiles.isEmpty) {
           task.status = TaskStatus.completed;
           if (task.path != null) {
             _gamesNotifier.markInstalled(gameId, task.path!);
           }
+        } else {
+          task.status = TaskStatus.failed;
         }
         _emit();
       },
@@ -175,6 +199,19 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emit();
       },
     );
+  }
+
+  /// Records one per-path verification failure and re-derives [ActivityTask
+  /// .errorFiles] from the map's keys — the map is the source of truth.
+  /// Called from a per-event switch case, so it deliberately does not call
+  /// `_emitThrottled` itself; the caller does that once per event.
+  void _recordVerifyFailure(
+    ActivityTask task,
+    String path,
+    VerifyFailure kind,
+  ) {
+    task.verifyFailures = {...task.verifyFailures, path: kind};
+    task.errorFiles = task.verifyFailures.keys.toList();
   }
 
   /// Verifies an already-installed game. Unlike [startVerification]'s
@@ -235,12 +272,12 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       (event) {
         task.totalBytes = event.totalBytes;
         task.downloadedBytes = event.downloadedBytes;
-        task.errorChunks = event.errorFiles;
+        task.errorFiles = event.errorFiles;
         task.stage = event.status;
         _emitThrottled();
       },
       onDone: () {
-        if (task.errorChunks.isNotEmpty) {
+        if (task.errorFiles.isNotEmpty) {
           task.status = TaskStatus.failed;
           _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
         } else {
@@ -303,12 +340,12 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       (event) {
         task.totalBytes = event.totalBytes;
         task.downloadedBytes = event.downloadedBytes;
-        task.errorChunks = event.errorFiles;
+        task.errorFiles = event.errorFiles;
         task.stage = event.status;
         _emitThrottled();
       },
       onDone: () {
-        if (task.errorChunks.isNotEmpty) {
+        if (task.errorFiles.isNotEmpty) {
           task.status = TaskStatus.failed;
         } else {
           task.status = TaskStatus.completed;

@@ -1,15 +1,16 @@
-// Progress snapshots emitted on the download/verify/repair/save streams,
-// app-owned replacements for the bridge's `DownloadStream`,
-// `VerificationStream`, `RepairStream`, `SaveDownloadStream` and
-// `SaveUploadStream` — see `lib/state/gog_backend.dart`. Field sets mirror
-// the bridge types exactly, with counters as plain `int` instead of
-// `BigInt` and the opaque `*Status` objects (whose only member was
-// `.name()`) collapsed to a plain `String status`.
+// Progress snapshots emitted on the download/repair/save streams, app-owned
+// replacements for the bridge's `DownloadStream`, `RepairStream`,
+// `SaveDownloadStream` and `SaveUploadStream` — see
+// `lib/state/gog_backend.dart`. Field sets mirror the bridge types exactly,
+// with counters as plain `int` instead of `BigInt` and the opaque `*Status`
+// objects (whose only member was `.name()`) collapsed to a plain
+// `String status`.
 //
-// The Proton download stream's payload, `ProtonDownloadProgress`, is the
-// exception — it's a bridge-owned freezed union (see
-// `package:gogdl_flutter`), not an app-owned class here; `ProtonTask` in
-// `lib/state/proton_state.dart` adapts it.
+// Two streams are the exception: `ProtonDownloadProgress` and
+// `VerifyDownloadProgress` are bridge-owned freezed unions (see
+// `package:gogdl_flutter`), not app-owned classes here. `ProtonTask` in
+// `lib/state/proton_state.dart` and `ActivityTask` in
+// `lib/state/downloads_state.dart` adapt them directly.
 
 class DownloadProgress {
   final int totalBytes;
@@ -29,24 +30,6 @@ class DownloadProgress {
     required this.downloadedChunks,
     required this.allocatedFiles,
     required this.errorFiles,
-    required this.status,
-  });
-}
-
-class VerificationProgress {
-  final int totalBytes;
-  final int totalChunks;
-  final int verifiedBytes;
-  final int verifiedChunks;
-  final List<String> errorChunks;
-  final String status;
-
-  const VerificationProgress({
-    required this.totalBytes,
-    required this.totalChunks,
-    required this.verifiedBytes,
-    required this.verifiedChunks,
-    required this.errorChunks,
     required this.status,
   });
 }

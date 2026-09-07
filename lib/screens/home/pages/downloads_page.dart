@@ -93,13 +93,8 @@ class DownloadsPage extends ConsumerWidget {
                     for (final task in activeVerifications)
                       _ActiveTaskCard(
                         gameId: task.gameId,
-                        // Bytes give a smoother bar than chunk count alone
-                        // (chunk sizes vary widely); fall back to chunks for
-                        // a stream snapshot that hasn't populated bytes yet.
                         progress: task.totalBytes > 0
                             ? task.downloadedBytes / task.totalBytes
-                            : task.totalChunks > 0
-                            ? task.verifiedChunks / task.totalChunks
                             : null,
                         statusText: _verificationStatusText(task),
                         failed: _hasErrors(task),
@@ -165,7 +160,7 @@ class DownloadsPage extends ConsumerWidget {
 
 bool _hasErrors(ActivityTask task) =>
     task.status == TaskStatus.failed ||
-    (task.status == TaskStatus.completed && task.errorChunks.isNotEmpty);
+    (task.status == TaskStatus.completed && task.errorFiles.isNotEmpty);
 
 String _downloadStatusText(ActivityTask task) {
   switch (task.status) {
@@ -182,9 +177,9 @@ String _downloadStatusText(ActivityTask task) {
           return "Downloading…";
       }
     case TaskStatus.completed:
-      return task.errorChunks.isEmpty
+      return task.errorFiles.isEmpty
           ? "Downloaded"
-          : "Downloaded — ${task.errorChunks.length} file(s) failed";
+          : "Downloaded — ${task.errorFiles.length} file(s) failed";
     case TaskStatus.failed:
       return "Download failed";
   }
@@ -209,9 +204,9 @@ String _repairStatusText(ActivityTask task) {
           return "Repairing…";
       }
     case TaskStatus.completed:
-      return task.errorChunks.isEmpty
+      return task.errorFiles.isEmpty
           ? "Repaired"
-          : "Repaired — ${task.errorChunks.length} file(s) still failing";
+          : "Repaired — ${task.errorFiles.length} file(s) still failing";
     case TaskStatus.failed:
       return "Repair failed";
   }
@@ -221,20 +216,37 @@ String _verificationStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
       switch (task.stage) {
-        case "fetchingFiles":
-          return "Fetching file list…";
         case "verifying":
-          return "Verifying chunks… ${task.verifiedChunks}/${task.totalChunks}";
+          return "Verifying… ${formatBytes(task.downloadedBytes)}"
+              " of ${formatBytes(task.totalBytes)}";
         default:
-          return "Verifying…";
+          return "Fetching file list…";
       }
     case TaskStatus.completed:
-      return task.errorChunks.isEmpty
-          ? "Completed"
-          : "Completed — ${task.errorChunks.length} file(s) failed verification";
+      return "Verified";
     case TaskStatus.failed:
-      return "Verification failed";
+      return task.verifyFailures.isEmpty
+          ? "Verification failed"
+          : "Damaged — ${_verifyFailureSummary(task)}";
   }
+}
+
+/// Joins the non-zero per-reason failure counts from a failed verification,
+/// e.g. "2 missing, 1 corrupt (312 chunks to re-download)".
+String _verifyFailureSummary(ActivityTask task) {
+  final parts = [
+    if (task.verifyFailureCount(VerifyFailure.missing) > 0)
+      "${task.verifyFailureCount(VerifyFailure.missing)} missing",
+    if (task.verifyFailureCount(VerifyFailure.corrupt) > 0)
+      "${task.verifyFailureCount(VerifyFailure.corrupt)} corrupt",
+    if (task.verifyFailureCount(VerifyFailure.unreadable) > 0)
+      "${task.verifyFailureCount(VerifyFailure.unreadable)} unreadable",
+  ];
+  final summary = parts.join(", ");
+  final chunks = task.chunksToRedownload;
+  return chunks != null && chunks > 0
+      ? "$summary ($chunks chunk(s) to re-download)"
+      : summary;
 }
 
 String _completedStatusText(ActivityTask task) {
@@ -243,9 +255,9 @@ String _completedStatusText(ActivityTask task) {
     TaskKind.repair => "Repaired",
     TaskKind.verification => "Verified",
   };
-  return task.errorChunks.isEmpty
+  return task.errorFiles.isEmpty
       ? base
-      : "$base — ${task.errorChunks.length} file(s) failed";
+      : "$base — ${task.errorFiles.length} file(s) failed";
 }
 
 String _saveStatusText(SaveTask task) {

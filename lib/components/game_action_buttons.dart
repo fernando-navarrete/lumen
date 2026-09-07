@@ -82,7 +82,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         ref.read(gamesStateProvider).getProductIds(gameId).isEmpty) {
       final products = await gogState.getProducts(gameId, buildName);
       for (final product in products ?? const <DownloadableProduct>[]) {
-        gamesNotifier.addProductId(gameId, product.id.toString());
+        gamesNotifier.addProductId(gameId, product.id);
       }
     }
 
@@ -177,7 +177,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
           }
 
           final String path = location.uri!.toFilePath();
-          final List<String> productIds = gamesState
+          final List<int> productIds = gamesState
               .getProductIds(gameId)
               .toList();
           final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
@@ -218,7 +218,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
           }
 
           final String path = location.uri!.toFilePath();
-          final List<String> productIds = gamesState
+          final List<int> productIds = gamesState
               .getProductIds(gameId)
               .toList();
           final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
@@ -271,7 +271,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       return;
     }
     final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
-    final List<String> productIds = gamesState.getProductIds(gameId).toList();
+    final List<int> productIds = gamesState.getProductIds(gameId).toList();
     if (productIds.isEmpty) {
       return;
     }

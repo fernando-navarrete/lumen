@@ -10,25 +10,26 @@ GOG game library manager, downloader, and Proton launcher.
 **This is the `restart` branch.** All GOG API access, downloading, verification/repair, save-cloud
 sync, and Proton-GE release fetching used to be delegated to a Rust bridge consumed as the
 `gogdl_flutter` package (via `flutter_rust_bridge`). That package is being rebuilt from scratch (see
-lumen-project's workspace-level `CLAUDE.md` for the "restart line" across all three repos), so this
-branch has no dependency on it at all — `pubspec.yaml` has no `gogdl_flutter` entry, and nothing under
-`lib/` imports it. In its place, `lib/state/gog_backend.dart` declares a `GogBackend` interface with
-the same method set the old bridge exposed, and `lib/state/unimplemented_backend.dart` is the only
-implementation: every data/stream method throws or emits `GogUnavailable`, and the auth/config methods
-no-op successfully so login still falls through to `HomeScreen`. `lib/state/gog_state.dart` — the
-facade nearly everything else talks to — is unchanged in shape; it now wraps `GogBackend` instead of
-the bridge's `Gog`.
+lumen-project's workspace-level `CLAUDE.md` for the "restart line" across all three repos), one feature
+at a time, and `pubspec.yaml` pins it at whatever `*-restart` tag has the features this branch currently
+uses. `lib/state/gog_backend.dart` declares a `GogBackend` interface with the same method set the old
+bridge exposed. `lib/state/unimplemented_backend.dart` implements it as a stub — every data/stream
+method throws or emits `GogUnavailable`, and the auth/config methods no-op successfully so login still
+falls through to `HomeScreen`. `lib/state/real_gog_backend.dart`'s `RealGogBackend` is the other
+implementation, and the one actually wired up in `gogStateProvider`: it forwards each method that has
+landed on the rebuilt bridge to `GogdlApi`, and delegates everything else to an internal
+`UnimplementedBackend`. Landing a newly-rebuilt bridge feature means replacing its delegated line in
+`RealGogBackend` with a real `_api.*` call — no other file needs to change. `lib/state/gog_state.dart` —
+the facade nearly everything else talks to — is unchanged in shape; it wraps `GogBackend` instead of the
+old bridge's `Gog`.
 
-**Re-wiring a rebuilt bridge is meant to be one new file**: write a `RealGogBackend implements
-GogBackend` that adapts the new bridge's API to this interface, and swap the constructor argument in
-`gogStateProvider` (`lib/state/gog_state.dart`) from `UnimplementedBackend()` to it. No other file needs
-to change. Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `SaveAuthIds`,
-`CloudSaveConfig`, `CloudSaveFile`) and progress-stream payloads (`DownloadProgress`,
-`VerificationProgress`, `RepairProgress`, `SaveTransferProgress`) are now app-owned plain-Dart classes
-under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into these, not the
-other way around. `ProtonDownloadProgress` is the one exception: it stays the bridge's own freezed
-union (`started`/`progress`/`extracted`), and `ProtonNotifier` (`lib/state/proton_state.dart`) adapts
-it directly rather than going through an app-owned model.
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `SaveAuthIds`,
+`CloudSaveConfig`, `CloudSaveFile`) and progress-stream payloads (`DownloadProgress`, `RepairProgress`,
+`SaveTransferProgress`) are app-owned plain-Dart classes under `lib/models/`, not bridge-generated ones
+— a new backend adapts its own types into these, not the other way around. `ProtonDownloadProgress` and
+`VerifyDownloadProgress` are the exceptions: both stay the bridge's own freezed unions, and their owning
+notifiers (`ProtonNotifier` in `lib/state/proton_state.dart`, `DownloadsNotifier` in
+`lib/state/downloads_state.dart`) adapt them directly rather than going through an app-owned model.
 
 ## Commands
 

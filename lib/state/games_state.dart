@@ -19,7 +19,7 @@ const _unset = Object();
 class GameConfig {
   final GameStatus status;
   final String selectedBuild;
-  final Set<String> productIds;
+  final Set<int> productIds;
   final String? installPath;
 
   /// Per-game Proton-GE tag override; null means "use the global default
@@ -42,7 +42,7 @@ class GameConfig {
   GameConfig({
     required this.status,
     required this.selectedBuild,
-    Set<String>? productIds,
+    Set<int>? productIds,
     this.installPath,
     this.protonVersion,
     this.protonPrefixPath,
@@ -50,8 +50,8 @@ class GameConfig {
     List<String>? launchArgs,
     Map<String, String>? envVars,
   }) : productIds = productIds != null
-           ? Set<String>.from(productIds)
-           : <String>{},
+           ? Set<int>.from(productIds)
+           : <int>{},
        launchArgs = launchArgs != null
            ? List<String>.from(launchArgs)
            : const [],
@@ -66,7 +66,7 @@ class GameConfig {
   GameConfig copyWith({
     GameStatus? status,
     String? selectedBuild,
-    Set<String>? productIds,
+    Set<int>? productIds,
     Object? installPath = _unset,
     Object? protonVersion = _unset,
     Object? protonPrefixPath = _unset,
@@ -125,8 +125,8 @@ class GamesState {
     return games[gameId]?.protonPrefixPath;
   }
 
-  Set<String> getProductIds(int gameId) {
-    return Set<String>.from(games[gameId]?.productIds ?? <String>{});
+  Set<int> getProductIds(int gameId) {
+    return Set<int>.from(games[gameId]?.productIds ?? <int>{});
   }
 
   String? getExecutable(int gameId) {
@@ -190,7 +190,7 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, updated);
   }
 
-  void setProductIds(int gameId, Set<String> productIds) {
+  void setProductIds(int gameId, Set<int> productIds) {
     final existing = state.games[gameId];
     if (existing == null) {
       return;
@@ -198,7 +198,7 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, existing.copyWith(productIds: productIds));
   }
 
-  void addProductId(int gameId, String productId) {
+  void addProductId(int gameId, int productId) {
     final existing = state.games[gameId];
     if (existing == null) {
       return;
@@ -206,16 +206,16 @@ class GamesNotifier extends Notifier<GamesState> {
     if (existing.productIds.contains(productId)) {
       return;
     }
-    final updated = Set<String>.from(existing.productIds)..add(productId);
+    final updated = Set<int>.from(existing.productIds)..add(productId);
     _update(gameId, existing.copyWith(productIds: updated));
   }
 
-  void toggleProductId(int gameId, String productId) {
+  void toggleProductId(int gameId, int productId) {
     final existing = state.games[gameId];
     if (existing == null) {
       return;
     }
-    final updated = Set<String>.from(existing.productIds);
+    final updated = Set<int>.from(existing.productIds);
     if (!updated.remove(productId)) {
       updated.add(productId);
     }
@@ -323,7 +323,12 @@ class GamesNotifier extends Notifier<GamesState> {
               ? GameStatus.notInstalled
               : status,
           selectedBuild: entry['selectedBuild'] as String,
-          productIds: productIds?.map((id) => id as String).toSet(),
+          // Product ids used to be persisted as strings (pre product-id
+          // migration); tolerate either shape so a prefs file written by an
+          // older build doesn't crash on load.
+          productIds: productIds
+              ?.map((id) => id is int ? id : int.parse(id as String))
+              .toSet(),
           installPath: entry['installPath'] as String?,
           protonVersion: entry['protonVersion'] as String?,
           protonPrefixPath: entry['protonPrefixPath'] as String?,

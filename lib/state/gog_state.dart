@@ -12,7 +12,7 @@ import 'package:lumen/state/real_gog_backend.dart';
 
 class GogState {
   final GogBackend _backend;
-  final HashMap<int, Stream<VerificationProgress>> _verificationStreams =
+  final HashMap<int, Stream<VerifyDownloadProgress>> _verificationStreams =
       HashMap();
   final HashMap<int, Stream<RepairProgress>> _repairStreams = HashMap();
   final HashMap<int, Stream<DownloadProgress>> _downloadStreams = HashMap();
@@ -246,7 +246,7 @@ class GogState {
     }
   }
 
-  Future<Stream<VerificationProgress>?> verifyGameFiles(
+  Future<Stream<VerifyDownloadProgress>?> verifyGameFiles(
     int gameId,
     String path,
     String buildName,
