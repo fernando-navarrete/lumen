@@ -34,7 +34,9 @@ abstract class GogBackend {
   /// token internally. This is the only notification that the refresh token
   /// rotated; without persisting each call's payload, a stored token from
   /// [loginWithCode]/[restoreAuth] can go stale after the first refresh.
-  Future<void> setTokenRefreshCallback(Future<void> Function(String auth) onAuth);
+  Future<void> setTokenRefreshCallback(
+    Future<void> Function(String auth) onAuth,
+  );
 
   /// Unregisters the callback set by [setTokenRefreshCallback], if any.
   Future<void> removeTokenRefreshCallback();
@@ -63,19 +65,19 @@ abstract class GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   });
   Stream<VerificationProgress> verifyDownload({
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   });
   Stream<RepairProgress> repairDownload({
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   });
 
   // Proton-GE

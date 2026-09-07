@@ -85,7 +85,7 @@ class UnimplementedBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => Stream.error(_unavailable('downloadGame'));
 
   @override
@@ -93,7 +93,7 @@ class UnimplementedBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => Stream.error(_unavailable('verifyDownload'));
 
   @override
@@ -101,7 +101,7 @@ class UnimplementedBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => Stream.error(_unavailable('repairDownload'));
 
   @override

@@ -25,7 +25,7 @@ class ActivityTask {
   // Launch params, persisted so a repair can be started later from the card.
   String? path;
   String? buildName;
-  List<String> productIds;
+  List<int> productIds;
 
   ActivityTask({
     required this.gameId,
@@ -120,7 +120,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     int gameId, {
     required String path,
     required String buildName,
-    required List<String> productIds,
+    required List<int> productIds,
   }) async {
     if (state.tasks.containsKey(gameId)) {
       return;
@@ -187,7 +187,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     int gameId, {
     required String path,
     required String buildName,
-    required List<String> productIds,
+    required List<int> productIds,
   }) async {
     removeTask(gameId);
     _gogState.clearVerificationStream(gameId);
@@ -203,7 +203,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     int gameId, {
     required String path,
     required String buildName,
-    required List<String> productIds,
+    required List<int> productIds,
   }) async {
     if (state.tasks.containsKey(gameId)) {
       return;

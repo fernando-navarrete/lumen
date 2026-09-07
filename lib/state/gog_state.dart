@@ -250,7 +250,7 @@ class GogState {
     int gameId,
     String path,
     String buildName,
-    List<String> productIds,
+    List<int> productIds,
   ) async {
     try {
       if (_verificationStreams.containsKey(gameId)) {
@@ -282,7 +282,7 @@ class GogState {
     int gameId,
     String path,
     String buildName,
-    List<String> productIds,
+    List<int> productIds,
   ) async {
     try {
       if (_repairStreams.containsKey(gameId)) {
@@ -308,7 +308,7 @@ class GogState {
     int gameId,
     String path,
     String buildName,
-    List<String> productIds,
+    List<int> productIds,
   ) async {
     try {
       if (_downloadStreams.containsKey(gameId)) {

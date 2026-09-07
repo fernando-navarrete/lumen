@@ -84,7 +84,7 @@ class RealGogBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => _stub.downloadGame(
     gameId: gameId,
     path: path,
@@ -97,7 +97,7 @@ class RealGogBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => _stub.verifyDownload(
     gameId: gameId,
     path: path,
@@ -110,7 +110,7 @@ class RealGogBackend implements GogBackend {
     required int gameId,
     required String path,
     required String buildName,
-    required List<String> selectedProducts,
+    required List<int> selectedProducts,
   }) => _stub.repairDownload(
     gameId: gameId,
     path: path,
