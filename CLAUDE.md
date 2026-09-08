@@ -101,7 +101,10 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
 one-time `proton run wineboot` to initialize a fresh prefix, then `proton run <exe> <args>` with cwd
 set to the executable's parent directory. The only env vars the tool itself injects are
 `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup.
-This subsystem never talked to the bridge and is unaffected by the restart.
+If the game's `launchWrapper` config (`GameConfig.launchWrapper`) is non-empty, its tokens are
+prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `gamescope -f --`) becomes
+the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never
+wrapped. This subsystem never talked to the bridge and is unaffected by the restart.
 
 Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`).
 

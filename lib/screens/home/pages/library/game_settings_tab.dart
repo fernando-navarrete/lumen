@@ -29,8 +29,9 @@ class _EnvVarRow {
 
 /// Per-game settings: override which Proton-GE version this game launches
 /// with (falling back to the global default from the Settings screen when
-/// unset), which executable to run, extra launch arguments and environment
-/// variables, and show the game's Proton prefix directory.
+/// unset), which executable to run, a launch command wrapper, extra launch
+/// arguments and environment variables, and show the game's Proton prefix
+/// directory.
 class GameSettingsTab extends ConsumerStatefulWidget {
   const GameSettingsTab({super.key, required this.gameId});
 
@@ -41,6 +42,7 @@ class GameSettingsTab extends ConsumerStatefulWidget {
 }
 
 class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
+  late TextEditingController _launchWrapperController;
   late TextEditingController _launchArgsController;
   final List<_EnvVarRow> _envRows = [];
 
@@ -54,6 +56,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   void didUpdateWidget(covariant GameSettingsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.gameId != widget.gameId) {
+      _launchWrapperController.dispose();
       _launchArgsController.dispose();
       for (final row in _envRows) {
         row.dispose();
@@ -65,6 +68,9 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
 
   void _initFromState() {
     final gamesState = ref.read(gamesStateProvider);
+    _launchWrapperController = TextEditingController(
+      text: gamesState.getLaunchWrapper(widget.gameId).join(' '),
+    );
     _launchArgsController = TextEditingController(
       text: gamesState.getLaunchArgs(widget.gameId).join(' '),
     );
@@ -75,11 +81,22 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
 
   @override
   void dispose() {
+    _launchWrapperController.dispose();
     _launchArgsController.dispose();
     for (final row in _envRows) {
       row.dispose();
     }
     super.dispose();
+  }
+
+  void _persistLaunchWrapper() {
+    final wrapper = _launchWrapperController.text
+        .split(RegExp(r'\s+'))
+        .where((arg) => arg.isNotEmpty)
+        .toList();
+    ref
+        .read(gamesStateProvider.notifier)
+        .setLaunchWrapper(widget.gameId, wrapper);
   }
 
   void _persistLaunchArgs() {
@@ -126,10 +143,12 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     }
   }
 
-  /// "ENV=VAL … ./game.exe -args" preview assembled from the saved config.
+  /// "ENV=VAL … wrapper -- ./game.exe -args" preview assembled from the
+  /// saved config.
   String _resolvedCommand(GamesState gamesState) {
     final envVars = gamesState.getEnvVars(widget.gameId);
     final executable = gamesState.getExecutable(widget.gameId);
+    final wrapper = gamesState.getLaunchWrapper(widget.gameId);
     final args = gamesState.getLaunchArgs(widget.gameId);
 
     final envStr = envVars.entries
@@ -138,6 +157,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     final exeName = executable?.split(RegExp(r'[/\\]')).last;
     return [
       if (envStr.isNotEmpty) envStr,
+      ...wrapper,
       './${exeName ?? '<game>'}',
       ...args,
     ].join(' ');
@@ -223,6 +243,28 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                       ),
                   ],
                 ],
+              ),
+            ),
+            SectionCard(
+              title: "Launch command wrapper",
+              description:
+                  "Runs the game through this command, e.g. gamescope or "
+                  "mangohud. Prepended to the Proton invocation.",
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                decoration: AppDecorations.monoInput(),
+                child: TextField(
+                  controller: _launchWrapperController,
+                  onChanged: (_) => _persistLaunchWrapper(),
+                  style: AppText.code(color: Colors.white),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    hintText: "gamescope -f --",
+                    hintStyle: AppText.code(color: AppColors.textMuted),
+                  ),
+                ),
               ),
             ),
             SectionCard(

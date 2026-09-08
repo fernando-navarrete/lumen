@@ -350,6 +350,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
           prefixPath: prefixPath,
           launchArgs: gamesState.getLaunchArgs(gameId),
           envVars: gamesState.getEnvVars(gameId),
+          launchWrapper: gamesState.getLaunchWrapper(gameId),
         );
   }
 

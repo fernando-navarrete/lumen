@@ -48,7 +48,11 @@ class LaunchState {
 /// then `proton run <exe> <args>` with the game's working directory set to
 /// the executable's parent folder. The only environment variables the tool
 /// itself sets are `STEAM_COMPAT_CLIENT_INSTALL_PATH` and
-/// `STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup.
+/// `STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup. If a
+/// launch wrapper is set (e.g. `gamescope -f --`), it is prepended to the
+/// `proton run ...` invocation, becoming the process actually spawned —
+/// mirroring Steam's launch-option wrappers. The wrapper never applies to
+/// the one-time wineboot init, only to the game itself.
 class LaunchNotifier extends Notifier<LaunchState> {
   @override
   LaunchState build() => const LaunchState.empty();
@@ -60,7 +64,9 @@ class LaunchNotifier extends Notifier<LaunchState> {
   /// Launches [gameId] using [protonPath] (the extracted Proton-GE release
   /// directory), the game's [installPath] and [executable] (relative to
   /// it), and its Proton [prefixPath]. No-ops if the game is already
-  /// launching or running.
+  /// launching or running. If [launchWrapper] is non-empty (e.g.
+  /// `["gamescope", "-f", "--"]`), it is prepended to the `proton run ...`
+  /// invocation so the wrapper becomes the spawned process.
   Future<void> launchGame(
     int gameId, {
     required String protonPath,
@@ -69,6 +75,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
     required String prefixPath,
     List<String> launchArgs = const [],
     Map<String, String> envVars = const {},
+    List<String> launchWrapper = const [],
   }) async {
     debugPrint('[DIAG] launchGame called: gameId=$gameId isActive=${state.isActive(gameId)}');
     if (state.isActive(gameId)) {
@@ -91,7 +98,8 @@ class LaunchNotifier extends Notifier<LaunchState> {
       debugPrint('[DIAG] protonBinary=$protonBinary compatEnv=$compatEnv');
 
       // Proton creates <prefix>/pfx the first time it runs in a prefix, so
-      // its absence signals this prefix hasn't been initialized yet.
+      // its absence signals this prefix hasn't been initialized yet. This
+      // init run is never wrapped — it's prefix setup, not the game itself.
       if (!Directory('$prefixPath/pfx').existsSync()) {
         debugPrint('[DIAG] running wineboot init...');
         // Include the user's env vars here too (not just compatEnv) — some
@@ -108,11 +116,17 @@ class LaunchNotifier extends Notifier<LaunchState> {
 
       final fullExe = '$installPath/$executable';
       final cwd = File(fullExe).parent.path;
-      debugPrint('[DIAG] starting process: $protonBinary run $fullExe cwd=$cwd');
+
+      // The wrapper (e.g. `gamescope -f --`) becomes the process actually
+      // spawned, with the whole Proton invocation as its arguments —
+      // mirroring how Steam's launch-option wrappers work.
+      final command = [protonBinary, 'run', fullExe, ...launchArgs];
+      final wrapped = [...launchWrapper, ...command];
+      debugPrint('[DIAG] starting process: ${wrapped.join(' ')} cwd=$cwd');
 
       final process = await Process.start(
-        protonBinary,
-        ['run', fullExe, ...launchArgs],
+        wrapped.first,
+        wrapped.sublist(1),
         workingDirectory: cwd,
         environment: {...envVars, ...compatEnv},
         includeParentEnvironment: true,

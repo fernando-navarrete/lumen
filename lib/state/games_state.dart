@@ -39,6 +39,10 @@ class GameConfig {
   /// Extra environment variables set on the launched game process.
   final Map<String, String> envVars;
 
+  /// Command prepended to the Proton invocation at launch, e.g.
+  /// `["gamescope", "-f", "--"]`; empty means launch Proton directly.
+  final List<String> launchWrapper;
+
   GameConfig({
     required this.status,
     required this.selectedBuild,
@@ -49,6 +53,7 @@ class GameConfig {
     this.executable,
     List<String>? launchArgs,
     Map<String, String>? envVars,
+    List<String>? launchWrapper,
   }) : productIds = productIds != null
            ? Set<int>.from(productIds)
            : <int>{},
@@ -57,7 +62,10 @@ class GameConfig {
            : const [],
        envVars = envVars != null
            ? Map<String, String>.from(envVars)
-           : const {};
+           : const {},
+       launchWrapper = launchWrapper != null
+           ? List<String>.from(launchWrapper)
+           : const [];
 
   /// Nullable fields (`installPath`, `protonVersion`, `protonPrefixPath`,
   /// `executable`) default to the [_unset] sentinel rather than `null`, so
@@ -73,6 +81,7 @@ class GameConfig {
     Object? executable = _unset,
     List<String>? launchArgs,
     Map<String, String>? envVars,
+    List<String>? launchWrapper,
   }) {
     return GameConfig(
       status: status ?? this.status,
@@ -92,6 +101,7 @@ class GameConfig {
           : executable as String?,
       launchArgs: launchArgs ?? this.launchArgs,
       envVars: envVars ?? this.envVars,
+      launchWrapper: launchWrapper ?? this.launchWrapper,
     );
   }
 }
@@ -140,6 +150,12 @@ class GamesState {
   Map<String, String> getEnvVars(int gameId) {
     return Map<String, String>.from(
       games[gameId]?.envVars ?? const <String, String>{},
+    );
+  }
+
+  List<String> getLaunchWrapper(int gameId) {
+    return List<String>.from(
+      games[gameId]?.launchWrapper ?? const <String>[],
     );
   }
 }
@@ -259,6 +275,14 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, existing.copyWith(envVars: envVars));
   }
 
+  void setLaunchWrapper(int gameId, List<String> launchWrapper) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _update(gameId, existing.copyWith(launchWrapper: launchWrapper));
+  }
+
   /// Returns [gameId]'s Proton prefix directory, creating it (and the
   /// default `~/.local/share/lumen/prefixes/<gameId>` path, if none is set
   /// yet) on first launch.
@@ -300,6 +324,7 @@ class GamesNotifier extends Notifier<GamesState> {
         'executable': config.executable,
         'launchArgs': config.launchArgs,
         'envVars': config.envVars,
+        'launchWrapper': config.launchWrapper,
       }),
     );
     return jsonEncode(stringKeyed);
@@ -312,6 +337,7 @@ class GamesNotifier extends Notifier<GamesState> {
       final productIds = entry['productIds'] as List<dynamic>?;
       final launchArgs = entry['launchArgs'] as List<dynamic>?;
       final envVars = entry['envVars'] as Map<String, dynamic>?;
+      final launchWrapper = entry['launchWrapper'] as List<dynamic>?;
       // A game left mid-download when the app was killed can't resume, so
       // it's coerced back to notInstalled rather than staying stuck showing
       // "Installing…"/Pause forever.
@@ -335,6 +361,7 @@ class GamesNotifier extends Notifier<GamesState> {
           executable: entry['executable'] as String?,
           launchArgs: launchArgs?.map((arg) => arg as String).toList(),
           envVars: envVars?.map((key, value) => MapEntry(key, value as String)),
+          launchWrapper: launchWrapper?.map((arg) => arg as String).toList(),
         ),
       );
     });
