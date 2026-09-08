@@ -20,16 +20,18 @@ class ActivityTask {
   TaskStatus status;
   List<String> errorFiles;
 
-  // Verification only: which of [errorFiles] failed for which reason, and
-  // the chunk count from the terminal `finished` event (null until then).
-  // [errorFiles] is derived from this map's keys.
+  // Verification and repair: which of the damaged files failed for which
+  // reason, and (verification only) the chunk count from the terminal
+  // `finished` event (null until then). [errorFiles] is derived from this
+  // map's keys for verification; for repair, [errorFiles] stays reserved
+  // for genuine allocation errors and damaged files live only here.
   Map<String, VerifyFailure> verifyFailures;
   int? chunksToRedownload;
 
   // Download/repair/verification progress (bytes-based) and current stage.
-  // Verification/repair stages: "verifying"/"fetchingFiles"/"allocating"/
-  // "verifyingChunks"/"downloading". Download stages: "checkingFiles",
-  // "allocating", "downloading", "finished".
+  // Verification stages: "verifying". Repair stages: "checkingFiles",
+  // "allocating", "verifyingChunks", "downloading", "finished". Download
+  // stages: "checkingFiles", "allocating", "downloading", "finished".
   int totalBytes;
   int downloadedBytes;
   String? stage;
@@ -71,7 +73,7 @@ class ActivityTask {
   /// during it; verification and repair are always byte-counted.
   double? get progress {
     final fileCounted =
-        kind == TaskKind.download &&
+        kind != TaskKind.verification &&
         (stage == 'checkingFiles' || stage == 'allocating');
     if (fileCounted) {
       return totalFiles > 0 ? processedFiles / totalFiles : null;
@@ -225,9 +227,12 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
   }
 
-  /// Records one per-path verification failure and re-derives [ActivityTask
-  /// .errorFiles] from the map's keys — the map is the source of truth.
-  /// Called from a per-event switch case, so it deliberately does not call
+  /// Records one per-path damaged-file event — from verification (a real
+  /// failure) or repair (a file repair is about to fix) — and, for
+  /// verification, re-derives [ActivityTask.errorFiles] from the map's
+  /// keys, which is the source of truth there. Repair leaves [ActivityTask
+  /// .errorFiles] alone; it stays reserved for allocation errors. Called
+  /// from a per-event switch case, so it deliberately does not call
   /// `_emitThrottled` itself; the caller does that once per event.
   void _recordVerifyFailure(
     ActivityTask task,
@@ -235,7 +240,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     VerifyFailure kind,
   ) {
     task.verifyFailures = {...task.verifyFailures, path: kind};
-    task.errorFiles = task.verifyFailures.keys.toList();
+    if (task.kind == TaskKind.verification) {
+      task.errorFiles = task.verifyFailures.keys.toList();
+    }
   }
 
   /// Verifies an already-installed game. Unlike [startVerification]'s
@@ -355,21 +362,25 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
   }
 
-  /// Dequeues a failed verification task and starts repairing the same game,
-  /// tracked as a [TaskKind.repair] task in the Downloads section.
+  /// Dequeues a failed verification (or previously-failed repair) task and
+  /// starts repairing the same game, tracked as a [TaskKind.repair] task in
+  /// the Downloads section. A still-[TaskStatus.running] task for the same
+  /// game blocks a second start, same as [startDownload].
   Future<void> startRepair(int gameId) async {
-    final failedTask = state.tasks[gameId];
-    if (failedTask == null ||
-        failedTask.path == null ||
-        failedTask.buildName == null) {
+    final existing = state.tasks[gameId];
+    if (existing == null || existing.path == null || existing.buildName == null) {
       return;
     }
-    final path = failedTask.path!;
-    final buildName = failedTask.buildName!;
-    final productIds = failedTask.productIds;
+    if (existing.status == TaskStatus.running) {
+      return;
+    }
+    final path = existing.path!;
+    final buildName = existing.buildName!;
+    final productIds = existing.productIds;
 
     removeTask(gameId);
     _gogState.clearVerificationStream(gameId);
+    _gogState.clearRepairStream(gameId);
 
     final task = ActivityTask(
       gameId: gameId,
@@ -394,20 +405,52 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalBytes = event.totalBytes;
-        task.downloadedBytes = event.downloadedBytes;
-        task.errorFiles = event.errorFiles;
-        task.stage = event.status;
+        switch (event) {
+          case RepairGameProgress_Started(:final totalFiles, :final totalBytes):
+            task.totalFiles = totalFiles.toInt();
+            task.totalBytes = totalBytes.toInt();
+            task.processedFiles = 0;
+            task.stage = 'checkingFiles';
+          case RepairGameProgress_FileSizeVerification(:final checkedFiles):
+            task.processedFiles = checkedFiles.toInt();
+          case RepairGameProgress_FileAllocationStarted(:final totalFiles):
+            task.totalFiles = totalFiles.toInt();
+            task.processedFiles = 0;
+            task.stage = 'allocating';
+          case RepairGameProgress_FileAllocation(:final allocatedFiles):
+            task.processedFiles = allocatedFiles.toInt();
+          case RepairGameProgress_AllocationError(:final field0):
+            task.errorFiles = [...task.errorFiles, field0];
+          case RepairGameProgress_Verification(:final checkedBytes):
+            task.downloadedBytes = checkedBytes.toInt();
+            task.stage = 'verifyingChunks';
+          case RepairGameProgress_CouldNotResolvePath(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.unreadable);
+          case RepairGameProgress_FileNotFound(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.missing);
+          case RepairGameProgress_ChecksumMismatch(:final field0):
+            _recordVerifyFailure(task, field0, VerifyFailure.corrupt);
+          case RepairGameProgress_DownloadStarted(:final totalBytes):
+            task.totalBytes = totalBytes.toInt();
+            task.downloadedBytes = 0;
+            task.stage = 'downloading';
+          case RepairGameProgress_DownloadProgress(:final downloadedBytes):
+            task.downloadedBytes = downloadedBytes.toInt();
+          case RepairGameProgress_Finished():
+            task.stage = 'finished';
+            _emit();
+            return;
+        }
         _emitThrottled();
       },
       onDone: () {
-        if (task.errorFiles.isNotEmpty) {
-          task.status = TaskStatus.failed;
-        } else {
+        if (task.stage == 'finished' && task.errorFiles.isEmpty) {
           task.status = TaskStatus.completed;
           if (task.path != null) {
             _gamesNotifier.markInstalled(gameId, task.path!);
           }
+        } else {
+          task.status = TaskStatus.failed;
         }
         _emit();
       },

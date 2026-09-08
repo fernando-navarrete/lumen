@@ -1,37 +1,15 @@
-// Progress snapshots emitted on the repair/save streams, app-owned
-// replacements for the bridge's `RepairStream`, `SaveDownloadStream` and
-// `SaveUploadStream` — see `lib/state/gog_backend.dart`. Field sets mirror
-// the bridge types exactly, with counters as plain `int` instead of
-// `BigInt` and the opaque `*Status` objects (whose only member was
-// `.name()`) collapsed to a plain `String status`.
+// Progress snapshots emitted on the save streams, app-owned replacements
+// for the bridge's `SaveDownloadStream` and `SaveUploadStream` — see
+// `lib/state/gog_backend.dart`. Field sets mirror the bridge types exactly,
+// with counters as plain `int` instead of `BigInt` and the opaque
+// `*Status` objects (whose only member was `.name()`) collapsed to a plain
+// `String status`.
 //
-// Three streams are the exception: `ProtonDownloadProgress`,
-// `VerifyDownloadProgress` and `DownloadGameProgress` are bridge-owned
-// freezed unions (see `package:gogdl_flutter`), not app-owned classes here.
-// `ProtonTask` in `lib/state/proton_state.dart` and `ActivityTask` in
-// `lib/state/downloads_state.dart` adapt them directly.
-
-class RepairProgress {
-  final int totalBytes;
-  final int totalChunks;
-  final int totalFiles;
-  final int downloadedBytes;
-  final int downloadedChunks;
-  final int processedFiles;
-  final List<String> errorFiles;
-  final String status;
-
-  const RepairProgress({
-    required this.totalBytes,
-    required this.totalChunks,
-    required this.totalFiles,
-    required this.downloadedBytes,
-    required this.downloadedChunks,
-    required this.processedFiles,
-    required this.errorFiles,
-    required this.status,
-  });
-}
+// Four streams are the exception: `ProtonDownloadProgress`,
+// `VerifyDownloadProgress`, `DownloadGameProgress` and `RepairGameProgress`
+// are bridge-owned freezed unions (see `package:gogdl_flutter`), not
+// app-owned classes here. `ProtonTask` in `lib/state/proton_state.dart` and
+// `ActivityTask` in `lib/state/downloads_state.dart` adapt them directly.
 
 /// Covers both the save-download and save-upload streams — the bridge gave
 /// each its own opaque type, but both were `{transferred, total, status}`.

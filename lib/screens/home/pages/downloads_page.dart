@@ -190,26 +190,36 @@ String _repairStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
       switch (task.stage) {
-        case "fetchingFiles":
-          return "Fetching files…";
-        case "verifyingFiles":
-          return "Verifying files…";
+        case "checkingFiles":
+          return "Checking existing files… ${task.processedFiles}"
+              " of ${task.totalFiles}";
         case "allocating":
-          return "Allocating disk space…";
+          return "Allocating disk space… ${task.processedFiles}"
+              " of ${task.totalFiles} files";
         case "verifyingChunks":
-          return "Verifying chunks…";
-        case "downloading":
-          return "Repairing… ${formatBytes(task.downloadedBytes)}"
+          return "Verifying chunks… ${formatBytes(task.downloadedBytes)}"
               " of ${formatBytes(task.totalBytes)}";
+        case "downloading":
+          final base =
+              "Restoring… ${formatBytes(task.downloadedBytes)}"
+              " of ${formatBytes(task.totalBytes)}";
+          return task.verifyFailures.isEmpty
+              ? base
+              : "$base (${_verifyFailureSummary(task)})";
+        case "finished":
+          return "Finishing…";
         default:
-          return "Repairing…";
+          return "Preparing…";
       }
     case TaskStatus.completed:
-      return task.errorFiles.isEmpty
+      return task.verifyFailures.isEmpty
           ? "Repaired"
-          : "Repaired — ${task.errorFiles.length} file(s) still failing";
+          : "Repaired — ${task.verifyFailures.length} file(s) restored";
     case TaskStatus.failed:
-      return "Repair failed";
+      return task.errorFiles.isEmpty
+          ? "Repair failed"
+          : "Repair failed — couldn't create"
+                " ${task.errorFiles.length} file(s)";
   }
 }
 

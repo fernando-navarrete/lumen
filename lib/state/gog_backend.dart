@@ -79,7 +79,10 @@ abstract class GogBackend {
     required String buildName,
     required List<int> selectedProducts,
   });
-  Stream<RepairProgress> repairDownload({
+  /// Bridge-owned freezed union, like [downloadProtonRelease]'s
+  /// `ProtonDownloadProgress` — not an app-owned model. [DownloadsNotifier]
+  /// adapts it directly.
+  Stream<RepairGameProgress> repairDownload({
     required int gameId,
     required String path,
     required String buildName,

@@ -97,7 +97,7 @@ class UnimplementedBackend implements GogBackend {
   }) => Stream.error(_unavailable('verifyDownload'));
 
   @override
-  Stream<RepairProgress> repairDownload({
+  Stream<RepairGameProgress> repairDownload({
     required int gameId,
     required String path,
     required String buildName,

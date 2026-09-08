@@ -106,12 +106,12 @@ class RealGogBackend implements GogBackend {
   );
 
   @override
-  Stream<RepairProgress> repairDownload({
+  Stream<RepairGameProgress> repairDownload({
     required int gameId,
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _stub.repairDownload(
+  }) => _api.repairGame(
     gameId: gameId,
     path: path,
     buildName: buildName,

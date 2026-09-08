@@ -14,7 +14,7 @@ class GogState {
   final GogBackend _backend;
   final HashMap<int, Stream<VerifyDownloadProgress>> _verificationStreams =
       HashMap();
-  final HashMap<int, Stream<RepairProgress>> _repairStreams = HashMap();
+  final HashMap<int, Stream<RepairGameProgress>> _repairStreams = HashMap();
   final HashMap<int, Stream<DownloadGameProgress>> _downloadStreams =
       HashMap();
   final HashMap<String, Stream<ProtonDownloadProgress>> _protonDownloadStreams =
@@ -285,7 +285,13 @@ class GogState {
     _downloadStreams.remove(gameId);
   }
 
-  Future<Stream<RepairProgress>?> repairGameFiles(
+  /// Drops the cached repair stream for [gameId] so the game can be
+  /// repaired again, e.g. after a failed attempt.
+  void clearRepairStream(int gameId) {
+    _repairStreams.remove(gameId);
+  }
+
+  Future<Stream<RepairGameProgress>?> repairGameFiles(
     int gameId,
     String path,
     String buildName,
