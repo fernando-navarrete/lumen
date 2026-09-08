@@ -26,11 +26,19 @@ class ActivityTask {
   Map<String, VerifyFailure> verifyFailures;
   int? chunksToRedownload;
 
-  // Download/repair/verification progress (bytes-based) and current stage,
-  // e.g. "downloading".
+  // Download/repair/verification progress (bytes-based) and current stage.
+  // Verification/repair stages: "verifying"/"fetchingFiles"/"allocating"/
+  // "verifyingChunks"/"downloading". Download stages: "checkingFiles",
+  // "allocating", "downloading", "finished".
   int totalBytes;
   int downloadedBytes;
   String? stage;
+
+  // Download only: the file-counted pre-transfer stages (size verification,
+  // then allocation). Each stage resets these against its own denominator;
+  // [totalBytes]/[downloadedBytes] stay the compressed-transfer pair.
+  int totalFiles;
+  int processedFiles;
 
   // Launch params, persisted so a repair can be started later from the card.
   String? path;
@@ -47,6 +55,8 @@ class ActivityTask {
     this.totalBytes = 0,
     this.downloadedBytes = 0,
     this.stage,
+    this.totalFiles = 0,
+    this.processedFiles = 0,
     this.path,
     this.buildName,
     this.productIds = const [],
@@ -54,6 +64,20 @@ class ActivityTask {
 
   int verifyFailureCount(VerifyFailure kind) =>
       verifyFailures.values.where((f) => f == kind).length;
+
+  /// Fraction complete for the task's current stage, or null when the
+  /// denominator isn't known yet (drives the indeterminate bar). Download
+  /// tasks are file-counted before the transfer starts and byte-counted
+  /// during it; verification and repair are always byte-counted.
+  double? get progress {
+    final fileCounted =
+        kind == TaskKind.download &&
+        (stage == 'checkingFiles' || stage == 'allocating');
+    if (fileCounted) {
+      return totalFiles > 0 ? processedFiles / totalFiles : null;
+    }
+    return totalBytes > 0 ? downloadedBytes / totalBytes : null;
+  }
 }
 
 /// Immutable snapshot of in-flight/finished download & verification tasks,
@@ -236,15 +260,27 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
   }
 
+  /// Starts a download for [gameId], or restarts one whose previous attempt
+  /// failed. A still-[TaskStatus.running] task for the same game blocks a
+  /// second start; a failed/completed one is dequeued first — same trick
+  /// [startRepair] uses — since the bridge's download stream is
+  /// single-subscription and a stale cache entry would otherwise make the
+  /// retry silently no-op or re-listen to an already-closed stream.
   Future<void> startDownload(
     int gameId, {
     required String path,
     required String buildName,
     required List<int> productIds,
   }) async {
-    if (state.tasks.containsKey(gameId)) {
-      return;
+    final existing = state.tasks[gameId];
+    if (existing != null) {
+      if (existing.status == TaskStatus.running) {
+        return;
+      }
+      removeTask(gameId);
+      _gogState.clearDownloadStream(gameId);
     }
+
     final task = ActivityTask(
       gameId: gameId,
       kind: TaskKind.download,
@@ -270,21 +306,41 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
     stream.listen(
       (event) {
-        task.totalBytes = event.totalBytes;
-        task.downloadedBytes = event.downloadedBytes;
-        task.errorFiles = event.errorFiles;
-        task.stage = event.status;
+        switch (event) {
+          case DownloadGameProgress_Started(:final totalFiles, :final totalBytes):
+            task.totalFiles = totalFiles.toInt();
+            task.totalBytes = totalBytes.toInt();
+            task.processedFiles = 0;
+            task.stage = 'checkingFiles';
+          case DownloadGameProgress_FileSizeVerification(:final checkedFiles):
+            task.processedFiles = checkedFiles.toInt();
+          case DownloadGameProgress_FileAllocationStarted(:final totalFiles):
+            task.totalFiles = totalFiles.toInt();
+            task.processedFiles = 0;
+            task.stage = 'allocating';
+          case DownloadGameProgress_FileAllocation(:final allocatedFiles):
+            task.processedFiles = allocatedFiles.toInt();
+          case DownloadGameProgress_AllocationError(:final field0):
+            task.errorFiles = [...task.errorFiles, field0];
+          case DownloadGameProgress_DownloadProgress(:final downloadedBytes):
+            task.downloadedBytes = downloadedBytes.toInt();
+            task.stage = 'downloading';
+          case DownloadGameProgress_Finished():
+            task.stage = 'finished';
+            _emit();
+            return;
+        }
         _emitThrottled();
       },
       onDone: () {
-        if (task.errorFiles.isNotEmpty) {
-          task.status = TaskStatus.failed;
-          _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
-        } else {
+        if (task.stage == 'finished') {
           task.status = TaskStatus.completed;
           if (task.path != null) {
             _gamesNotifier.markInstalled(gameId, task.path!);
           }
+        } else {
+          task.status = TaskStatus.failed;
+          _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
         }
         _emit();
       },

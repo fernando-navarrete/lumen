@@ -24,12 +24,14 @@ the facade nearly everything else talks to — is unchanged in shape; it wraps `
 old bridge's `Gog`.
 
 Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `SaveAuthIds`,
-`CloudSaveConfig`, `CloudSaveFile`) and progress-stream payloads (`DownloadProgress`, `RepairProgress`,
+`CloudSaveConfig`, `CloudSaveFile`) and progress-stream payloads (`RepairProgress`,
 `SaveTransferProgress`) are app-owned plain-Dart classes under `lib/models/`, not bridge-generated ones
-— a new backend adapts its own types into these, not the other way around. `ProtonDownloadProgress` and
-`VerifyDownloadProgress` are the exceptions: both stay the bridge's own freezed unions, and their owning
-notifiers (`ProtonNotifier` in `lib/state/proton_state.dart`, `DownloadsNotifier` in
-`lib/state/downloads_state.dart`) adapt them directly rather than going through an app-owned model.
+— a new backend adapts its own types into these, not the other way around. `ProtonDownloadProgress`,
+`VerifyDownloadProgress` and `DownloadGameProgress` are the exceptions: all three stay the bridge's own
+freezed unions, and their owning notifiers (`ProtonNotifier` in `lib/state/proton_state.dart`,
+`DownloadsNotifier` in `lib/state/downloads_state.dart`, which owns both `DownloadGameProgress` for
+downloads and `VerifyDownloadProgress` for verification) adapt them directly rather than going through
+an app-owned model.
 
 ## Commands
 

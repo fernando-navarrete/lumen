@@ -71,9 +71,7 @@ class DownloadsPage extends ConsumerWidget {
                     for (final task in activeTransfers)
                       _ActiveTaskCard(
                         gameId: task.gameId,
-                        progress: task.totalBytes > 0
-                            ? task.downloadedBytes / task.totalBytes
-                            : null,
+                        progress: task.progress,
                         statusText: task.kind == TaskKind.download
                             ? _downloadStatusText(task)
                             : _repairStatusText(task),
@@ -93,9 +91,7 @@ class DownloadsPage extends ConsumerWidget {
                     for (final task in activeVerifications)
                       _ActiveTaskCard(
                         gameId: task.gameId,
-                        progress: task.totalBytes > 0
-                            ? task.downloadedBytes / task.totalBytes
-                            : null,
+                        progress: task.progress,
                         statusText: _verificationStatusText(task),
                         failed: _hasErrors(task),
                         trailing: task.status == TaskStatus.failed
@@ -166,22 +162,27 @@ String _downloadStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
       switch (task.stage) {
-        case "fetchingFiles":
-          return "Fetching files…";
+        case "checkingFiles":
+          return "Checking existing files… ${task.processedFiles}"
+              " of ${task.totalFiles}";
         case "allocating":
-          return "Allocating disk space…";
+          return "Allocating disk space… ${task.processedFiles}"
+              " of ${task.totalFiles} files";
         case "downloading":
           return "Downloading… ${formatBytes(task.downloadedBytes)}"
               " of ${formatBytes(task.totalBytes)}";
+        case "finished":
+          return "Finishing…";
         default:
-          return "Downloading…";
+          return "Preparing…";
       }
     case TaskStatus.completed:
-      return task.errorFiles.isEmpty
-          ? "Downloaded"
-          : "Downloaded — ${task.errorFiles.length} file(s) failed";
+      return "Downloaded";
     case TaskStatus.failed:
-      return "Download failed";
+      return task.errorFiles.isEmpty
+          ? "Download failed"
+          : "Download failed — couldn't create"
+                " ${task.errorFiles.length} file(s)";
   }
 }
 

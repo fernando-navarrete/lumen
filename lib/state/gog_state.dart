@@ -15,7 +15,8 @@ class GogState {
   final HashMap<int, Stream<VerifyDownloadProgress>> _verificationStreams =
       HashMap();
   final HashMap<int, Stream<RepairProgress>> _repairStreams = HashMap();
-  final HashMap<int, Stream<DownloadProgress>> _downloadStreams = HashMap();
+  final HashMap<int, Stream<DownloadGameProgress>> _downloadStreams =
+      HashMap();
   final HashMap<String, Stream<ProtonDownloadProgress>> _protonDownloadStreams =
       HashMap();
 
@@ -278,6 +279,12 @@ class GogState {
     _verificationStreams.remove(gameId);
   }
 
+  /// Drops the cached download stream for [gameId] so the game can be
+  /// downloaded again, e.g. after a failed attempt.
+  void clearDownloadStream(int gameId) {
+    _downloadStreams.remove(gameId);
+  }
+
   Future<Stream<RepairProgress>?> repairGameFiles(
     int gameId,
     String path,
@@ -304,7 +311,7 @@ class GogState {
     }
   }
 
-  Future<Stream<DownloadProgress>?> downloadGameFiles(
+  Future<Stream<DownloadGameProgress>?> downloadGameFiles(
     int gameId,
     String path,
     String buildName,

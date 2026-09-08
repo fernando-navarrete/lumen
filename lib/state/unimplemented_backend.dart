@@ -81,7 +81,7 @@ class UnimplementedBackend implements GogBackend {
   }) async => throw _unavailable('getDownloadableProducts');
 
   @override
-  Stream<DownloadProgress> downloadGame({
+  Stream<DownloadGameProgress> downloadGame({
     required int gameId,
     required String path,
     required String buildName,

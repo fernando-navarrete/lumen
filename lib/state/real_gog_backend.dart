@@ -80,12 +80,12 @@ class RealGogBackend implements GogBackend {
   }) => _api.getDownloadableProducts(gameId: gameId, buildName: buildName);
 
   @override
-  Stream<DownloadProgress> downloadGame({
+  Stream<DownloadGameProgress> downloadGame({
     required int gameId,
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _stub.downloadGame(
+  }) => _api.downloadGame(
     gameId: gameId,
     path: path,
     buildName: buildName,

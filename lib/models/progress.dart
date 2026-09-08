@@ -1,38 +1,15 @@
-// Progress snapshots emitted on the download/repair/save streams, app-owned
-// replacements for the bridge's `DownloadStream`, `RepairStream`,
-// `SaveDownloadStream` and `SaveUploadStream` — see
-// `lib/state/gog_backend.dart`. Field sets mirror the bridge types exactly,
-// with counters as plain `int` instead of `BigInt` and the opaque `*Status`
-// objects (whose only member was `.name()`) collapsed to a plain
-// `String status`.
+// Progress snapshots emitted on the repair/save streams, app-owned
+// replacements for the bridge's `RepairStream`, `SaveDownloadStream` and
+// `SaveUploadStream` — see `lib/state/gog_backend.dart`. Field sets mirror
+// the bridge types exactly, with counters as plain `int` instead of
+// `BigInt` and the opaque `*Status` objects (whose only member was
+// `.name()`) collapsed to a plain `String status`.
 //
-// Two streams are the exception: `ProtonDownloadProgress` and
-// `VerifyDownloadProgress` are bridge-owned freezed unions (see
-// `package:gogdl_flutter`), not app-owned classes here. `ProtonTask` in
-// `lib/state/proton_state.dart` and `ActivityTask` in
+// Three streams are the exception: `ProtonDownloadProgress`,
+// `VerifyDownloadProgress` and `DownloadGameProgress` are bridge-owned
+// freezed unions (see `package:gogdl_flutter`), not app-owned classes here.
+// `ProtonTask` in `lib/state/proton_state.dart` and `ActivityTask` in
 // `lib/state/downloads_state.dart` adapt them directly.
-
-class DownloadProgress {
-  final int totalBytes;
-  final int totalChunks;
-  final int totalFiles;
-  final int downloadedBytes;
-  final int downloadedChunks;
-  final int allocatedFiles;
-  final List<String> errorFiles;
-  final String status;
-
-  const DownloadProgress({
-    required this.totalBytes,
-    required this.totalChunks,
-    required this.totalFiles,
-    required this.downloadedBytes,
-    required this.downloadedChunks,
-    required this.allocatedFiles,
-    required this.errorFiles,
-    required this.status,
-  });
-}
 
 class RepairProgress {
   final int totalBytes;
