@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
-import 'package:lumen/models/cloud_save.dart';
-import 'package:lumen/models/progress.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/unimplemented_backend.dart';
 
@@ -138,43 +136,29 @@ class RealGogBackend implements GogBackend {
   }) => _api.downloadProtonRelease(tagName: tagName, path: path);
 
   @override
-  Future<SaveAuthIds> getSaveAuthIds(int gameId) =>
-      _stub.getSaveAuthIds(gameId);
-
-  @override
-  Future<CloudSaveConfig> getSaveRemoteConfig(String clientId) =>
-      _stub.getSaveRemoteConfig(clientId);
-
-  @override
-  Future<List<CloudSaveFile>> getSaveFileList({
-    required String clientId,
-    required String clientSecret,
-  }) => _stub.getSaveFileList(clientId: clientId, clientSecret: clientSecret);
-
-  @override
-  Stream<SaveTransferProgress> downloadSave({
-    required CloudSaveFile saveFile,
-    required String clientId,
-    required String clientSecret,
-    required String path,
-  }) => _stub.downloadSave(
-    saveFile: saveFile,
-    clientId: clientId,
-    clientSecret: clientSecret,
-    path: path,
+  Stream<DownloadSavesProgress> downloadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
+  }) => _api.downloadSaveFiles(
+    gameId: gameId,
+    buildName: buildName,
+    prefix: prefix,
+    installPath: installPath,
   );
 
   @override
-  Stream<SaveTransferProgress> uploadSave({
-    required String clientId,
-    required String clientSecret,
-    required String path,
-    required String urlPath,
-  }) => _stub.uploadSave(
-    clientId: clientId,
-    clientSecret: clientSecret,
-    path: path,
-    urlPath: urlPath,
+  Stream<UploadSavesProgress> uploadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
+  }) => _api.uploadSaveFiles(
+    gameId: gameId,
+    buildName: buildName,
+    prefix: prefix,
+    installPath: installPath,
   );
 
   @override

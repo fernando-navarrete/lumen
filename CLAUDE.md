@@ -23,15 +23,16 @@ landed on the rebuilt bridge to `GogdlApi`, and delegates everything else to an 
 the facade nearly everything else talks to — is unchanged in shape; it wraps `GogBackend` instead of the
 old bridge's `Gog`.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `SaveAuthIds`,
-`CloudSaveConfig`, `CloudSaveFile`) and the `SaveTransferProgress` progress-stream payload are
-app-owned plain-Dart classes under `lib/models/`, not bridge-generated ones — a new backend adapts its
-own types into these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
-`DownloadGameProgress` and `RepairGameProgress` are the exceptions: all four stay the bridge's own
-freezed unions, and their owning notifiers (`ProtonNotifier` in `lib/state/proton_state.dart`,
-`DownloadsNotifier` in `lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for
-downloads, `VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair) adapt them
-directly rather than going through an app-owned model.
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`) are app-owned plain-Dart
+classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
+these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
+`DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
+the exceptions: all six stay the bridge's own freezed unions, and their owning notifiers
+(`ProtonNotifier` in `lib/state/proton_state.dart`, `DownloadsNotifier` in
+`lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for downloads,
+`VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair, and `SavesNotifier`
+in `lib/state/saves_state.dart` for both save-sync unions) adapt them directly rather than going
+through an app-owned model.
 
 ## Commands
 
@@ -71,8 +72,8 @@ catch — callers are expected to handle `null` as "the operation failed." This 
 `UnimplementedBackend` safe to ship: every call site already tolerates failure.
 
 **Backend streams are single-subscription.** `GogState` caches one stream per gameId (verification,
-download, repair) or per Proton tag (Proton download), so only the owning notifier
-(`DownloadsNotifier`, `ProtonNotifier`) may ever `.listen()` to it. UI code must never listen to the
+download, repair, save download, save upload) or per Proton tag (Proton download), so only the
+owning notifier (`DownloadsNotifier`, `ProtonNotifier`, `SavesNotifier`) may ever `.listen()` to it. UI code must never listen to the
 raw backend stream directly — it reads live progress from the corresponding State object
 (`DownloadsState.tasks`, `ProtonState.tasks`, ...), which the owning notifier updates on every event.
 
@@ -110,11 +111,17 @@ Game install directories are always user-chosen via `DirPicker` (never under `lu
 
 ### Cloud saves
 
-`lib/common/save_paths.dart` maps GOG's Windows "known folder" keys (`Saved Games`, `Documents`,
-`AppData/Roaming`, ...) onto paths inside a game's Wine prefix (`<prefixPath>/pfx/drive_c/...`), except
-`INSTALLATION_PATH` which resolves to the game's actual install directory. There is no automatic
-conflict resolution or timestamp comparison — download vs. upload are two explicit, user-triggered
-directions (`SavesNotifier.downloadSaves`/`uploadSaves` in `lib/state/saves_state.dart`).
+Save sync is two whole-job bridge streams (`GogBackend.downloadSaves`/`uploadSaves`), not per-file
+calls. The bridge resolves GOG's save locations itself from `prefix` + `installPath`, so Lumen has no
+known-folder mapping of its own: `prefix` must be the Wine prefix that contains `drive_c`, which is
+`<protonPrefixPath>/pfx` (not the Proton prefix root), and `installPath` backs `INSTALL`-relative
+locations. There is no automatic conflict resolution or timestamp comparison — download vs. upload
+are two explicit, user-triggered directions (`SavesNotifier.downloadSaves`/`uploadSaves`). The bridge
+never retries, so the first failure aborts the whole job. Download progress has a job byte total up
+front; upload only reports a file count up front, so `SaveTask.progress` is bytes for downloads and
+files for uploads. Because a finished stream can't be re-listened to, `SavesNotifier` clears the
+cached stream before every run. Cloud-save support isn't queryable ahead of time: a game with none
+completes with zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
 
 ### UI structure
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/format.dart';
+import 'package:lumen/common/save_status.dart';
 import 'package:lumen/components/async_cover_image.dart';
 import 'package:lumen/components/gradient_progress_bar.dart';
 import 'package:lumen/components/primary_button.dart';
@@ -136,13 +137,9 @@ class DownloadsPage extends ConsumerWidget {
                     for (final task in saveTasks)
                       _ActiveTaskCard(
                         gameId: task.gameId,
-                        progress: task.filesTotal > 0
-                            ? task.filesProcessed / task.filesTotal
-                            : null,
-                        statusText: _saveStatusText(task),
-                        failed:
-                            task.status == TaskStatus.failed ||
-                            task.errorFiles.isNotEmpty,
+                        progress: task.progress,
+                        statusText: saveStatusText(task),
+                        failed: task.status == TaskStatus.failed,
                       ),
                   ],
                 ),
@@ -269,28 +266,6 @@ String _completedStatusText(ActivityTask task) {
   return task.errorFiles.isEmpty
       ? base
       : "$base — ${task.errorFiles.length} file(s) failed";
-}
-
-String _saveStatusText(SaveTask task) {
-  final verb = task.direction == SaveDirection.download
-      ? "Downloading"
-      : "Uploading";
-  final doneVerb = task.direction == SaveDirection.download
-      ? "downloaded"
-      : "uploaded";
-  switch (task.status) {
-    case TaskStatus.running:
-      return "$verb saves… ${task.filesProcessed}/${task.filesTotal} files"
-          " (${formatBytes(task.transferred)}/${formatBytes(task.total)})";
-    case TaskStatus.completed:
-      return task.errorFiles.isEmpty
-          ? "Saves $doneVerb"
-          : "Saves $doneVerb — ${task.errorFiles.length} file(s) failed";
-    case TaskStatus.failed:
-      return task.direction == SaveDirection.download
-          ? "Save download failed"
-          : "Save upload failed";
-  }
 }
 
 class _EmptyState extends StatelessWidget {

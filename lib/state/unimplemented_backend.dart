@@ -1,6 +1,4 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
-import 'package:lumen/models/cloud_save.dart';
-import 'package:lumen/models/progress.dart';
 import 'package:lumen/state/gog_backend.dart';
 
 /// Placeholder [GogBackend] for while `gogdl_flutter` is being rebuilt from
@@ -115,34 +113,20 @@ class UnimplementedBackend implements GogBackend {
   }) => Stream.error(_unavailable('downloadProtonRelease'));
 
   @override
-  Future<SaveAuthIds> getSaveAuthIds(int gameId) async =>
-      throw _unavailable('getSaveAuthIds');
+  Stream<DownloadSavesProgress> downloadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
+  }) => Stream.error(_unavailable('downloadSaves'));
 
   @override
-  Future<CloudSaveConfig> getSaveRemoteConfig(String clientId) async =>
-      throw _unavailable('getSaveRemoteConfig');
-
-  @override
-  Future<List<CloudSaveFile>> getSaveFileList({
-    required String clientId,
-    required String clientSecret,
-  }) async => throw _unavailable('getSaveFileList');
-
-  @override
-  Stream<SaveTransferProgress> downloadSave({
-    required CloudSaveFile saveFile,
-    required String clientId,
-    required String clientSecret,
-    required String path,
-  }) => Stream.error(_unavailable('downloadSave'));
-
-  @override
-  Stream<SaveTransferProgress> uploadSave({
-    required String clientId,
-    required String clientSecret,
-    required String path,
-    required String urlPath,
-  }) => Stream.error(_unavailable('uploadSave'));
+  Stream<UploadSavesProgress> uploadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
+  }) => Stream.error(_unavailable('uploadSaves'));
 
   @override
   void dispose() {}

@@ -1,6 +1,4 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
-import 'package:lumen/models/cloud_save.dart';
-import 'package:lumen/models/progress.dart';
 
 /// Thrown by [GogBackend] methods that have no working implementation —
 /// currently everything, since `gogdl_flutter` is being rebuilt from
@@ -97,23 +95,28 @@ abstract class GogBackend {
   });
 
   // Cloud saves
-  Future<SaveAuthIds> getSaveAuthIds(int gameId);
-  Future<CloudSaveConfig> getSaveRemoteConfig(String clientId);
-  Future<List<CloudSaveFile>> getSaveFileList({
-    required String clientId,
-    required String clientSecret,
+  /// Downloads every cloud save file of [gameId] into the game's local save
+  /// locations, which the backend resolves itself. [prefix] is the Wine
+  /// prefix that contains `drive_c` (i.e. `<protonPrefixPath>/pfx`, not the
+  /// Proton prefix root); [installPath] backs `INSTALL`-relative locations.
+  /// Bridge-owned freezed union, like [downloadProtonRelease]'s
+  /// `ProtonDownloadProgress` — not an app-owned model. [SavesNotifier]
+  /// adapts it directly.
+  Stream<DownloadSavesProgress> downloadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
   });
-  Stream<SaveTransferProgress> downloadSave({
-    required CloudSaveFile saveFile,
-    required String clientId,
-    required String clientSecret,
-    required String path,
-  });
-  Stream<SaveTransferProgress> uploadSave({
-    required String clientId,
-    required String clientSecret,
-    required String path,
-    required String urlPath,
+
+  /// Uploads every local save file of [gameId] to the cloud. [prefix] and
+  /// [installPath] mean the same as for [downloadSaves]. Bridge-owned
+  /// freezed union, adapted directly by [SavesNotifier].
+  Stream<UploadSavesProgress> uploadSaves({
+    required int gameId,
+    required String buildName,
+    required String prefix,
+    required String installPath,
   });
 
   void dispose();

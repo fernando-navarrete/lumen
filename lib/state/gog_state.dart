@@ -5,8 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
-import 'package:lumen/models/cloud_save.dart';
-import 'package:lumen/models/progress.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/real_gog_backend.dart';
 
@@ -18,6 +16,10 @@ class GogState {
   final HashMap<int, Stream<DownloadGameProgress>> _downloadStreams =
       HashMap();
   final HashMap<String, Stream<ProtonDownloadProgress>> _protonDownloadStreams =
+      HashMap();
+  final HashMap<int, Stream<DownloadSavesProgress>> _saveDownloadStreams =
+      HashMap();
+  final HashMap<int, Stream<UploadSavesProgress>> _saveUploadStreams =
       HashMap();
 
   /// Names and boxart links are static for a session, but callers (e.g. the
@@ -379,37 +381,24 @@ class GogState {
     _protonDownloadStreams.remove(tag);
   }
 
-  Future<SaveAuthIds?> getSaveAuthIds(int gameId) async {
-    try {
-      return await _backend.getSaveAuthIds(gameId);
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      return null;
-    }
-  }
-
-  Future<CloudSaveConfig?> getSaveRemoteConfig(String clientId) async {
-    try {
-      return await _backend.getSaveRemoteConfig(clientId);
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      return null;
-    }
-  }
-
-  Future<List<CloudSaveFile>?> getSaveFileList(
-    String clientId,
-    String clientSecret,
+  Future<Stream<DownloadSavesProgress>?> downloadSaves(
+    int gameId,
+    String buildName,
+    String prefix,
+    String installPath,
   ) async {
     try {
-      return await _backend.getSaveFileList(
-        clientId: clientId,
-        clientSecret: clientSecret,
+      if (_saveDownloadStreams.containsKey(gameId)) {
+        return _saveDownloadStreams[gameId];
+      }
+      var stream = _backend.downloadSaves(
+        gameId: gameId,
+        buildName: buildName,
+        prefix: prefix,
+        installPath: installPath,
       );
+      _saveDownloadStreams[gameId] = stream;
+      return stream;
     } catch (e) {
       if (kDebugMode) {
         print(e);
@@ -418,37 +407,42 @@ class GogState {
     }
   }
 
-  /// Streams the download of a single cloud save file to [path]. Unlike the
-  /// download/repair/Proton streams, this isn't cached — save syncs consume
-  /// each per-file stream once, sequentially, from [SavesNotifier].
-  Stream<SaveTransferProgress> downloadSaveFile({
-    required CloudSaveFile saveFile,
-    required String clientId,
-    required String clientSecret,
-    required String path,
-  }) {
-    return _backend.downloadSave(
-      saveFile: saveFile,
-      clientId: clientId,
-      clientSecret: clientSecret,
-      path: path,
-    );
+  Future<Stream<UploadSavesProgress>?> uploadSaves(
+    int gameId,
+    String buildName,
+    String prefix,
+    String installPath,
+  ) async {
+    try {
+      if (_saveUploadStreams.containsKey(gameId)) {
+        return _saveUploadStreams[gameId];
+      }
+      var stream = _backend.uploadSaves(
+        gameId: gameId,
+        buildName: buildName,
+        prefix: prefix,
+        installPath: installPath,
+      );
+      _saveUploadStreams[gameId] = stream;
+      return stream;
+    } catch (e) {
+      if (kDebugMode) {
+        print(e);
+      }
+      return null;
+    }
   }
 
-  /// Streams the upload of a single local file at [path] to [urlPath] in
-  /// cloud storage. Not cached — see [downloadSaveFile].
-  Stream<SaveTransferProgress> uploadSaveFile({
-    required String clientId,
-    required String clientSecret,
-    required String path,
-    required String urlPath,
-  }) {
-    return _backend.uploadSave(
-      clientId: clientId,
-      clientSecret: clientSecret,
-      path: path,
-      urlPath: urlPath,
-    );
+  /// Drops the cached save download stream so [downloadSaves] starts a fresh
+  /// sync — needed before every re-run, since a finished stream can't be
+  /// listened to again.
+  void clearSaveDownloadStream(int gameId) {
+    _saveDownloadStreams.remove(gameId);
+  }
+
+  /// Drops the cached save upload stream. See [clearSaveDownloadStream].
+  void clearSaveUploadStream(int gameId) {
+    _saveUploadStreams.remove(gameId);
   }
 }
 

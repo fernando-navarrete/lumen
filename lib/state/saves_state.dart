@@ -2,32 +2,36 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lumen/common/save_paths.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
-import 'package:lumen/models/cloud_save.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
 enum SaveDirection { download, upload }
 
 /// In-flight/finished progress for one game's cloud save sync, keyed by
-/// gameId in [SavesState.tasks]. Mirrors [ProtonTask] (proton_state.dart) —
-/// byte-only progress for the file currently transferring — plus a
-/// file-count pair since a sync moves a whole directory of save files one
-/// at a time rather than a single archive.
+/// gameId in [SavesState.tasks]. A sync is a single whole-job bridge stream
+/// that moves a directory of save files one at a time, so this tracks both
+/// job-level counters (files, and bytes where the bridge knows them) and the
+/// file currently transferring.
 class SaveTask {
   final int gameId;
   final SaveDirection direction;
   TaskStatus status;
   int filesTotal;
   int filesProcessed;
+
+  /// Bytes moved across the whole job. [total] is only known up front for
+  /// downloads — uploads leave it at 0, since the bridge reports each file's
+  /// size only as that file starts.
   int transferred;
   int total;
 
-  /// e.g. "downloading"/"downloaded" or "uploading"/"uploaded" — see
-  /// `SaveTransferProgress.status` in `lib/models/progress.dart`.
-  String? stage;
-  List<String> errorFiles;
+  /// The file currently in flight and its own byte counters; null between
+  /// files.
+  String? currentFile;
+  int fileTransferred;
+  int fileTotal;
 
   SaveTask({
     required this.gameId,
@@ -37,9 +41,20 @@ class SaveTask {
     this.filesProcessed = 0,
     this.transferred = 0,
     this.total = 0,
-    this.stage,
-    this.errorFiles = const [],
+    this.currentFile,
+    this.fileTransferred = 0,
+    this.fileTotal = 0,
   });
+
+  /// Download knows a real job byte total; upload only learns each file's
+  /// size as it starts, so its bar counts files instead. Null until the
+  /// first `Started` event, i.e. render indeterminate.
+  double? get progress => direction == SaveDirection.download
+      ? (total > 0 ? transferred / total : null)
+      : (filesTotal > 0 ? filesProcessed / filesTotal : null);
+
+  /// `Started` reported zero files — the game has no cloud saves to move.
+  bool get isEmpty => status == TaskStatus.completed && filesTotal == 0;
 }
 
 /// Immutable snapshot of in-flight/finished cloud save syncs, keyed by
@@ -56,11 +71,14 @@ class SavesState {
 }
 
 /// Manages cloud save sync for games: downloading every remote save file to
-/// the game's local save directory, or uploading every local save file to
-/// the cloud. There's no automatic conflict resolution — the bridge exposes
-/// no remote timestamp/hash, so these are two explicit, user-triggered
-/// directions rather than a single merge. Progress is tracked the same way
-/// as downloads/repairs/Proton downloads — see [SaveTask].
+/// the game's local save directories, or uploading every local save file to
+/// the cloud. The bridge resolves the save locations itself from the Wine
+/// prefix and install path. There's no automatic conflict resolution, so
+/// these are two explicit, user-triggered directions rather than a single
+/// merge. The bridge doesn't retry, so a failure aborts the whole job.
+///
+/// Sole owner of the per-game save streams cached in [GogState] — bridge
+/// streams are single-subscription, so nothing else may listen to them.
 class SavesNotifier extends Notifier<SavesState> {
   late final GogState _gogState;
   late final GamesNotifier _gamesNotifier;
@@ -93,147 +111,108 @@ class SavesNotifier extends Notifier<SavesState> {
     final task = SaveTask(gameId: gameId, direction: direction);
     state = SavesState({...state.tasks, gameId: task});
 
-    try {
-      final gamesState = ref.read(gamesStateProvider);
-      final installPath = gamesState.getInstallPath(gameId);
-      if (installPath == null) {
-        task.status = TaskStatus.failed;
-        _emit();
-        return;
-      }
-      final prefixPath = _gamesNotifier.ensureProtonPrefix(gameId);
-
-      final authIds = await _gogState.getSaveAuthIds(gameId);
-      if (authIds == null) {
-        task.status = TaskStatus.failed;
-        _emit();
-        return;
-      }
-      final config = await _gogState.getSaveRemoteConfig(authIds.clientId);
-      if (config == null || !config.isSupported) {
-        task.status = TaskStatus.failed;
-        _emit();
-        return;
-      }
-      final root = resolveSaveRoot(
-        config.knownFolder,
-        config.relativePath,
-        prefixPath: prefixPath,
-        installPath: installPath,
-      );
-
-      if (direction == SaveDirection.download) {
-        await _downloadAll(task, authIds, root);
-      } else {
-        await _uploadAll(task, authIds, root);
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-      task.status = TaskStatus.failed;
-      _emit();
-    }
-  }
-
-  Future<void> _downloadAll(
-    SaveTask task,
-    SaveAuthIds authIds,
-    String root,
-  ) async {
-    final files = await _gogState.getSaveFileList(
-      authIds.clientId,
-      authIds.clientSecret,
-    );
-    if (files == null) {
+    final gamesState = ref.read(gamesStateProvider);
+    final buildName = gamesState.getSelectedBuild(gameId);
+    final installPath = gamesState.getInstallPath(gameId);
+    if (buildName == null || installPath == null) {
       task.status = TaskStatus.failed;
       _emit();
       return;
     }
-    task.filesTotal = files.length;
-    _emit();
+    // The bridge expands save locations under `<prefix>/drive_c`, so it wants
+    // the Wine prefix Proton creates inside the compat data dir, not the
+    // compat data dir itself.
+    final prefix = '${_gamesNotifier.ensureProtonPrefix(gameId)}/pfx';
 
-    final errorFiles = <String>[];
-    for (final file in files) {
-      final path = '$root/${file.path}';
-      final completer = Completer<void>();
-      _gogState
-          .downloadSaveFile(
-            saveFile: file,
-            clientId: authIds.clientId,
-            clientSecret: authIds.clientSecret,
-            path: path,
-          )
-          .listen(
-            (event) {
-              task.transferred = event.transferred;
-              task.total = event.total;
-              task.stage = event.status;
-              _emit();
-            },
-            onDone: () => completer.complete(),
-            onError: (Object error) {
-              if (kDebugMode) {
-                print(error);
-              }
-              errorFiles.add(file.path);
-              completer.complete();
-            },
-          );
-      await completer.future;
-      task.filesProcessed++;
+    // A finished or failed stream can't be re-listened to, so drop the
+    // cached one before every run.
+    final Stream<Object?>? stream;
+    if (direction == SaveDirection.download) {
+      _gogState.clearSaveDownloadStream(gameId);
+      stream = await _gogState.downloadSaves(
+        gameId,
+        buildName,
+        prefix,
+        installPath,
+      );
+    } else {
+      _gogState.clearSaveUploadStream(gameId);
+      stream = await _gogState.uploadSaves(
+        gameId,
+        buildName,
+        prefix,
+        installPath,
+      );
+    }
+    if (stream == null) {
+      task.status = TaskStatus.failed;
       _emit();
+      return;
     }
 
-    task.errorFiles = errorFiles;
-    task.status = errorFiles.isEmpty ? TaskStatus.completed : TaskStatus.failed;
-    _emit();
+    stream.listen(
+      (event) {
+        _apply(task, event);
+        _emit();
+      },
+      onDone: () {
+        // `Finished` normally marks completion first; this covers a stream
+        // that closes without one.
+        if (task.status == TaskStatus.running) {
+          task.status = TaskStatus.completed;
+        }
+        _emit();
+      },
+      onError: (Object error) {
+        if (kDebugMode) {
+          print(error);
+        }
+        task.status = TaskStatus.failed;
+        _emit();
+      },
+    );
   }
 
-  Future<void> _uploadAll(
-    SaveTask task,
-    SaveAuthIds authIds,
-    String root,
-  ) async {
-    final relativePaths = listLocalSaveFiles(root);
-    task.filesTotal = relativePaths.length;
-    _emit();
-
-    final errorFiles = <String>[];
-    for (final relativePath in relativePaths) {
-      final path = '$root/$relativePath';
-      final completer = Completer<void>();
-      _gogState
-          .uploadSaveFile(
-            clientId: authIds.clientId,
-            clientSecret: authIds.clientSecret,
-            path: path,
-            urlPath: relativePath,
-          )
-          .listen(
-            (event) {
-              task.transferred = event.transferred;
-              task.total = event.total;
-              task.stage = event.status;
-              _emit();
-            },
-            onDone: () => completer.complete(),
-            onError: (Object error) {
-              if (kDebugMode) {
-                print(error);
-              }
-              errorFiles.add(relativePath);
-              completer.complete();
-            },
-          );
-      await completer.future;
-      task.filesProcessed++;
-      _emit();
+  void _apply(SaveTask task, Object? event) {
+    switch (event) {
+      case DownloadSavesProgress_Started(:final totalFiles, :final totalBytes):
+        task.filesTotal = totalFiles.toInt();
+        task.total = totalBytes.toInt();
+      case DownloadSavesProgress_FileStarted(:final name, :final totalBytes):
+        task.currentFile = name;
+        task.fileTotal = totalBytes.toInt();
+        task.fileTransferred = 0;
+      case DownloadSavesProgress_Progress(
+        :final downloadedBytes,
+        :final fileDownloadedBytes,
+      ):
+        task.transferred = downloadedBytes.toInt();
+        task.fileTransferred = fileDownloadedBytes.toInt();
+      case DownloadSavesProgress_FileFinished():
+        task.filesProcessed++;
+        task.currentFile = null;
+      case DownloadSavesProgress_Finished():
+        task.status = TaskStatus.completed;
+      case UploadSavesProgress_Started(:final totalFiles):
+        task.filesTotal = totalFiles.toInt();
+      case UploadSavesProgress_FileStarted(:final name, :final totalBytes):
+        task.currentFile = name;
+        task.fileTotal = totalBytes.toInt();
+        task.fileTransferred = 0;
+      case UploadSavesProgress_Progress(
+        :final uploadedBytes,
+        :final fileUploadedBytes,
+      ):
+        task.transferred = uploadedBytes.toInt();
+        task.fileTransferred = fileUploadedBytes.toInt();
+      case UploadSavesProgress_FileFinished():
+        task.filesProcessed++;
+        task.currentFile = null;
+      case UploadSavesProgress_Finished():
+        task.status = TaskStatus.completed;
+      default:
+        break;
     }
-
-    task.errorFiles = errorFiles;
-    task.status = errorFiles.isEmpty ? TaskStatus.completed : TaskStatus.failed;
-    _emit();
   }
 }
 
