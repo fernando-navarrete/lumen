@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lumen/common/gog_error.dart';
 
 enum GameStatus { downloading, downloaded, notInstalled }
 
@@ -371,9 +371,7 @@ class GamesNotifier extends Notifier<GamesState> {
     try {
       _prefs.setString('games', _encodeGames(state.games));
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
     }
   }
 
@@ -389,9 +387,7 @@ class GamesNotifier extends Notifier<GamesState> {
     try {
       return GamesState(_decodeGames(gamesJson));
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return const GamesState.empty();
     }
   }

@@ -11,6 +11,7 @@ import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:lumen/common/gog_error.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -47,9 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
         }
       } on GogError catch (e) {
-        if (kDebugMode) {
-          print(e.message());
-        }
+        logGogError(e);
       }
     });
     super.initState();
@@ -102,9 +101,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
     } on GogError catch (e) {
-      if (kDebugMode) {
-        print(e.message());
-      }
+      logGogError(e);
       setState(() {
         _loginError = true;
       });

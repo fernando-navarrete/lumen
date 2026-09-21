@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
@@ -18,6 +18,9 @@ class SaveTask {
   final int gameId;
   final SaveDirection direction;
   TaskStatus status;
+
+  /// Why the sync failed; null unless [status] is [TaskStatus.failed].
+  String? error;
   int filesTotal;
   int filesProcessed;
 
@@ -37,6 +40,7 @@ class SaveTask {
     required this.gameId,
     required this.direction,
     this.status = TaskStatus.running,
+    this.error,
     this.filesTotal = 0,
     this.filesProcessed = 0,
     this.transferred = 0,
@@ -116,6 +120,7 @@ class SavesNotifier extends Notifier<SavesState> {
     final installPath = gamesState.getInstallPath(gameId);
     if (buildName == null || installPath == null) {
       task.status = TaskStatus.failed;
+      task.error = 'game is not installed';
       _emit();
       return;
     }
@@ -146,6 +151,7 @@ class SavesNotifier extends Notifier<SavesState> {
     }
     if (stream == null) {
       task.status = TaskStatus.failed;
+      task.error = 'could not start the sync';
       _emit();
       return;
     }
@@ -164,10 +170,9 @@ class SavesNotifier extends Notifier<SavesState> {
         _emit();
       },
       onError: (Object error) {
-        if (kDebugMode) {
-          print(error);
-        }
+        logGogError(error);
         task.status = TaskStatus.failed;
+        task.error = gogErrorText(error);
         _emit();
       },
     );

@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/common/gog_error.dart';
 
 enum TaskKind { download, verification, repair }
 
@@ -218,9 +218,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emit();
       },
       onError: (Object error) {
-        if (kDebugMode) {
-          print(error);
-        }
+        logGogError(error);
         task.status = TaskStatus.failed;
         _emit();
       },
@@ -352,9 +350,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emit();
       },
       onError: (Object error) {
-        if (kDebugMode) {
-          print(error);
-        }
+        logGogError(error);
         task.status = TaskStatus.failed;
         _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
         _emit();
@@ -455,9 +451,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emit();
       },
       onError: (Object error) {
-        if (kDebugMode) {
-          print(error);
-        }
+        logGogError(error);
         task.status = TaskStatus.failed;
         _emit();
       },

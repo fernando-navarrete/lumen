@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/unimplemented_backend.dart';
 
@@ -83,11 +84,13 @@ class RealGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _api.downloadGame(
-    gameId: gameId,
-    path: path,
-    buildName: buildName,
-    selectedProducts: selectedProducts,
+  }) => guardBridgeStream(
+    () => _api.downloadGame(
+      gameId: gameId,
+      path: path,
+      buildName: buildName,
+      selectedProducts: selectedProducts,
+    ),
   );
 
   @override
@@ -96,11 +99,13 @@ class RealGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _api.verifyDownload(
-    gameId: gameId,
-    path: path,
-    buildName: buildName,
-    selectedProducts: selectedProducts,
+  }) => guardBridgeStream(
+    () => _api.verifyDownload(
+      gameId: gameId,
+      path: path,
+      buildName: buildName,
+      selectedProducts: selectedProducts,
+    ),
   );
 
   @override
@@ -109,11 +114,13 @@ class RealGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => _api.repairGame(
-    gameId: gameId,
-    path: path,
-    buildName: buildName,
-    selectedProducts: selectedProducts,
+  }) => guardBridgeStream(
+    () => _api.repairGame(
+      gameId: gameId,
+      path: path,
+      buildName: buildName,
+      selectedProducts: selectedProducts,
+    ),
   );
 
   @override
@@ -122,9 +129,7 @@ class RealGogBackend implements GogBackend {
       var result = await _api.getProtonReleases(page: page);
       return result;
     } on GogError catch (e) {
-      if (kDebugMode) {
-        print(e.message());
-      }
+      logGogError(e);
       return [];
     }
   }
@@ -133,7 +138,9 @@ class RealGogBackend implements GogBackend {
   Stream<ProtonDownloadProgress> downloadProtonRelease({
     required String tagName,
     required String path,
-  }) => _api.downloadProtonRelease(tagName: tagName, path: path);
+  }) => guardBridgeStream(
+    () => _api.downloadProtonRelease(tagName: tagName, path: path),
+  );
 
   @override
   Stream<DownloadSavesProgress> downloadSaves({
@@ -141,11 +148,13 @@ class RealGogBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
-  }) => _api.downloadSaveFiles(
-    gameId: gameId,
-    buildName: buildName,
-    prefix: prefix,
-    installPath: installPath,
+  }) => guardBridgeStream(
+    () => _api.downloadSaveFiles(
+      gameId: gameId,
+      buildName: buildName,
+      prefix: prefix,
+      installPath: installPath,
+    ),
   );
 
   @override
@@ -154,11 +163,13 @@ class RealGogBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
-  }) => _api.uploadSaveFiles(
-    gameId: gameId,
-    buildName: buildName,
-    prefix: prefix,
-    installPath: installPath,
+  }) => guardBridgeStream(
+    () => _api.uploadSaveFiles(
+      gameId: gameId,
+      buildName: buildName,
+      prefix: prefix,
+      installPath: installPath,
+    ),
   );
 
   @override

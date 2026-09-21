@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/app_paths.dart';
@@ -9,6 +8,7 @@ import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lumen/common/gog_error.dart';
 
 /// In-flight/finished progress for one Proton-GE release download, keyed by
 /// tag name in [ProtonState.tasks]. Mirrors [ActivityTask] in
@@ -160,9 +160,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
         _emit();
       },
       onError: (Object error) {
-        if (kDebugMode) {
-          print(error);
-        }
+        logGogError(error);
         task.status = TaskStatus.failed;
         _emit();
       },
@@ -224,9 +222,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
         _prefs.remove(_defaultKey);
       }
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
     }
   }
 
@@ -251,9 +247,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
         tasks: const {},
       );
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return const ProtonState.empty();
     }
   }

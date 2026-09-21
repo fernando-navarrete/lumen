@@ -21,6 +21,7 @@ String saveStatusText(SaveTask task) {
       }
       return download ? "Saves downloaded" : "Saves uploaded";
     case TaskStatus.failed:
-      return download ? "Save download failed" : "Save upload failed";
+      final label = download ? "Save download failed" : "Save upload failed";
+      return task.error == null ? label : "$label: ${task.error}";
   }
 }

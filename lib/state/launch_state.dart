@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/gog_error.dart';
 
 enum LaunchStatus { launching, running, exited, failed }
 
@@ -150,9 +151,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
       });
     } catch (e) {
       debugPrint('[DIAG] CAUGHT EXCEPTION: $e');
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       game.status = LaunchStatus.failed;
       game.error = e.toString();
       _emit();

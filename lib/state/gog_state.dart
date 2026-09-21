@@ -7,6 +7,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/real_gog_backend.dart';
+import 'package:lumen/common/gog_error.dart';
 
 class GogState {
   final GogBackend _backend;
@@ -42,9 +43,7 @@ class GogState {
     try {
       return _backend.getLoginUrl();
     } on GogError catch (e) {
-      if (kDebugMode) {
-        print(e.message());
-      }
+      logGogError(e);
       return '';
     }
   }
@@ -61,9 +60,7 @@ class GogState {
         idleTimeout: timeout,
       );
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       rethrow;
     }
   }
@@ -74,8 +71,8 @@ class GogState {
       return link;
     } catch (e) {
       if (kDebugMode) {
-        print(e);
-        throw Exception(e);
+        logGogError(e);
+        throw Exception(gogErrorText(e));
       }
       return '';
     }
@@ -90,8 +87,8 @@ class GogState {
       return link;
     } catch (e) {
       if (kDebugMode) {
-        print(e);
-        throw Exception(e);
+        logGogError(e);
+        throw Exception(gogErrorText(e));
       }
       return '';
     }
@@ -103,8 +100,8 @@ class GogState {
       return summary;
     } catch (e) {
       if (kDebugMode) {
-        print(e);
-        throw Exception(e);
+        logGogError(e);
+        throw Exception(gogErrorText(e));
       }
       return '';
     }
@@ -116,8 +113,8 @@ class GogState {
       return screenshots;
     } catch (e) {
       if (kDebugMode) {
-        print(e);
-        throw Exception(e);
+        logGogError(e);
+        throw Exception(gogErrorText(e));
       }
       return [];
     }
@@ -130,9 +127,7 @@ class GogState {
       final storage = FlutterSecureStorage();
       await storage.write(key: 'auth', value: auth);
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       rethrow;
     }
   }
@@ -148,9 +143,7 @@ class GogState {
         throw Exception('No auth token found in storage');
       }
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       rethrow;
     }
   }
@@ -170,9 +163,7 @@ class GogState {
         await storage.write(key: 'auth', value: auth);
       });
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       // Let the next auth call retry registration instead of leaving the
       // app permanently without the callback for this session.
       _tokenRefreshRegistration = null;
@@ -185,9 +176,7 @@ class GogState {
     try {
       await _backend.removeTokenRefreshCallback();
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
     }
     _tokenRefreshRegistration = null;
     final storage = FlutterSecureStorage();
@@ -198,9 +187,7 @@ class GogState {
     try {
       return await _backend.getOwnedGames();
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -209,9 +196,7 @@ class GogState {
     try {
       return await _backend.getGameBuilds(gameId);
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -223,9 +208,7 @@ class GogState {
     try {
       return await _backend.getGameTitle(gameId);
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -242,9 +225,7 @@ class GogState {
         buildName: buildName,
       );
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -268,9 +249,7 @@ class GogState {
       _verificationStreams[gameId] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -312,9 +291,7 @@ class GogState {
       _repairStreams[gameId] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -338,9 +315,7 @@ class GogState {
       _downloadStreams[gameId] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -349,9 +324,7 @@ class GogState {
     try {
       return await _backend.getProtonReleases(page);
     } on GogError catch (e) {
-      if (kDebugMode) {
-        print(e.message());
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -368,9 +341,7 @@ class GogState {
       _protonDownloadStreams[tagName] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -400,9 +371,7 @@ class GogState {
       _saveDownloadStreams[gameId] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
@@ -426,9 +395,7 @@ class GogState {
       _saveUploadStreams[gameId] = stream;
       return stream;
     } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
+      logGogError(e);
       return null;
     }
   }
