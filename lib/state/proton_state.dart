@@ -39,8 +39,9 @@ class ProtonTask {
 /// default, and any in-flight downloads. Read-only — mutations go through
 /// [ProtonNotifier] via `protonStateProvider.notifier`.
 class ProtonState {
-  /// Installed versions, tag name -> the directory Proton-GE was extracted
-  /// into (i.e. `<protonInstallDir()>/<tag>`).
+  /// Installed versions, tag name -> the directory the bridge reported
+  /// extracting into (`ProtonDownloadProgress.finished`), normally
+  /// `<targetDir>/<tag>` with the tag sanitized for the filesystem.
   final Map<String, String> installed;
   final String? defaultVersion;
   final Map<String, ProtonTask> tasks;
@@ -135,6 +136,11 @@ class ProtonNotifier extends Notifier<ProtonState> {
       return;
     }
 
+    // Set by ProtonDownloadProgress_Finished — the directory the bridge
+    // actually extracted into, which sanitizes the tag for the filesystem
+    // and so can differ from '$dir/$tag'.
+    String? extractedPath;
+
     stream.listen(
       (event) {
         switch (event) {
@@ -151,12 +157,14 @@ class ProtonNotifier extends Notifier<ProtonState> {
             // interleave with Progress for the whole transfer rather than
             // marking a phase — the byte counters above decide the stage.
             return;
+          case ProtonDownloadProgress_Finished(:final field0):
+            extractedPath = field0;
         }
         _emit();
       },
       onDone: () {
         task.status = TaskStatus.completed;
-        _install(tag, '$dir/$tag');
+        _install(tag, extractedPath ?? '$dir/$tag');
         _emit();
       },
       onError: (Object error) {
