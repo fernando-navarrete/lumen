@@ -31,9 +31,10 @@ class SavesTab extends ConsumerWidget {
     final ready =
         gamesState.getInstallPath(gameId) != null &&
         gamesState.getSelectedBuild(gameId) != null;
-    final task = ref.watch(
-      savesStateProvider.select((state) => state.taskFor(gameId)),
-    );
+    // Watch the whole state, not a `select`: SavesNotifier mutates the same
+    // SaveTask instance in place, so identity-based `select` never sees the
+    // change. Revert to `select` once tasks are immutable (v1.1.0, GAPS 4.1).
+    final task = ref.watch(savesStateProvider).taskFor(gameId);
     final syncing = task?.status == TaskStatus.running;
     final notifier = ref.read(savesStateProvider.notifier);
 

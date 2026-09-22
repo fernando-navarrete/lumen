@@ -10,11 +10,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 1. Bugs
 
-- [ ] **P0 — Saves tab progress never updates while syncing.** `saves_tab.dart:34` watches
-  `savesStateProvider.select((s) => s.taskFor(gameId))`, but `SavesNotifier` mutates the *same*
-  `SaveTask` instance and only copies the map. `select` compares by identity, so the tab rebuilds once
-  when the task is created and then freezes until something else rebuilds it. (The Downloads page is
-  fine because it watches the whole state.) Root cause is item 4.1.
+- [x] **P0 — Saves tab progress never updates while syncing.** Fixed in `v1.0.4`: the tab now
+  watches the whole `savesStateProvider` instead of a `select`, matching the Downloads page. The
+  proper fix is item 4.1 (immutable task objects).
 - [x] **P0 — Switching build wipes the game's whole config.** Fixed in `v1.0.2`: `setSelectedBuild`
   now uses `copyWith`, and switching the build of an installed game confirms first, then starts a
   repair against the new build.

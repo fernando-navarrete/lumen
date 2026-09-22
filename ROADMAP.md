@@ -28,7 +28,7 @@ or edge-case issues.
 |---|---|---|
 | `v1.0.2` ✅ | Switching build no longer wipes the game's config (`setSelectedBuild` → `copyWith`; decide on the re-download/repair flow for installed games). | §1 P0 |
 | `v1.0.3` ✅ | Re-running Import after a failed/completed Import works (dequeue the old task and clear the cached verification stream). | §1 P0 |
-| `v1.0.4` | Saves tab progress updates live. *Quick fix:* watch the whole `savesStateProvider`. The proper fix is immutable tasks in `v1.1.0`. | §1 P0 |
+| `v1.0.4` ✅ | Saves tab progress updates live. *Quick fix:* watch the whole `savesStateProvider`. The proper fix is immutable tasks in `v1.1.0`. | §1 P0 |
 | `v1.0.5` | Downloads with allocation errors are no longer marked installed. | §1 P1 |
 | `v1.0.6` | Library shows error and empty states with a Retry, instead of spinning forever. | §1 P1 |
 | `v1.0.7` | Builds tab no longer crashes when fetching builds fails. | §1 P1 |
