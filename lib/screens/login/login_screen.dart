@@ -32,11 +32,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final gogState = ref.read(gogStateProvider);
       try {
         await gogState.restoreAuthFromStorage();
-        await gogState.configureDownload(
-          minConcurrency: 128,
-          maxConcurrency: 256,
-          timeout: 10,
-        );
         if (kDebugMode) {
           print('Auth restored from storage');
         }

@@ -1,23 +1,10 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 
-/// Thrown by [GogBackend] methods that have no working implementation —
-/// currently everything, since `gogdl_flutter` is being rebuilt from
-/// scratch. See [UnimplementedBackend] in `unimplemented_backend.dart`.
-class GogUnavailable implements Exception {
-  final String message;
-
-  const GogUnavailable(this.message);
-
-  @override
-  String toString() => 'GogUnavailable: $message';
-}
-
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
-/// particular implementation. This is the seam `gogdl_flutter` used to fill
-/// directly — [GogState] talks only to this interface, so re-wiring a
-/// rebuilt bridge later is a single `GogBackend` implementation plus
-/// swapping the constructor argument in `gogStateProvider`, with no changes
-/// anywhere else in the app.
+/// particular implementation. [GogState] talks only to this interface —
+/// [GogdlBackend] (`gogdl_backend.dart`) is the implementation actually wired
+/// up in `gogStateProvider`, and the seam lets a fake implementation stand in
+/// for it in tests.
 ///
 /// Long-running operations are exposed as `Stream<T>`, matching the
 /// convention the bridge established — never `Future`.
@@ -38,12 +25,6 @@ abstract class GogBackend {
 
   /// Unregisters the callback set by [setTokenRefreshCallback], if any.
   Future<void> removeTokenRefreshCallback();
-
-  Future<void> configureDownload({
-    required int minConcurrency,
-    required int maxConcurrency,
-    required int idleTimeout,
-  });
 
   // Metadata
   Future<List<int>> getOwnedGames();

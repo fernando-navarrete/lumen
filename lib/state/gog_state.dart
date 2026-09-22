@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/gog_backend.dart';
-import 'package:lumen/state/real_gog_backend.dart';
+import 'package:lumen/state/gogdl_backend.dart';
 import 'package:lumen/common/gog_error.dart';
 
 class GogState {
@@ -45,23 +45,6 @@ class GogState {
     } on GogError catch (e) {
       logGogError(e);
       return '';
-    }
-  }
-
-  Future<void> configureDownload({
-    required int minConcurrency,
-    required int maxConcurrency,
-    required int timeout,
-  }) async {
-    try {
-      await _backend.configureDownload(
-        minConcurrency: minConcurrency,
-        maxConcurrency: maxConcurrency,
-        idleTimeout: timeout,
-      );
-    } catch (e) {
-      logGogError(e);
-      rethrow;
     }
   }
 
@@ -414,7 +397,7 @@ class GogState {
 }
 
 final gogStateProvider = Provider<GogState>((ref) {
-  final instance = GogState(RealGogBackend(GogdlApi()));
+  final instance = GogState(GogdlBackend(GogdlApi()));
   ref.onDispose(() => instance._backend.dispose());
   return instance;
 }, name: 'gogStateProvider');

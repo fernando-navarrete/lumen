@@ -2,21 +2,13 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
-import 'package:lumen/state/unimplemented_backend.dart';
 
-/// [GogBackend] backed by the rebuilt `gogdl_flutter`.
-///
-/// The new bridge is being rebuilt one feature at a time (see
-/// lumen-project's workspace `CLAUDE.md`, "The restart line"), so this class
-/// implements only what `GogdlApi` actually exposes today and delegates
-/// everything else to [UnimplementedBackend]. As each capability lands on
-/// the Rust side, replace its delegated line here with a real call — no
-/// other file in the app needs to change.
-class RealGogBackend implements GogBackend {
+/// [GogBackend] implementation backed by `gogdl_flutter`, adapting `GogdlApi`
+/// calls to the interface [GogState] talks to.
+class GogdlBackend implements GogBackend {
   final GogdlApi _api;
-  final GogBackend _stub = UnimplementedBackend();
 
-  RealGogBackend(this._api);
+  GogdlBackend(this._api);
 
   @override
   String getLoginUrl() => _api.getLoginLink();
@@ -34,17 +26,6 @@ class RealGogBackend implements GogBackend {
   @override
   Future<void> removeTokenRefreshCallback() =>
       _api.removeTokenRefreshCallback();
-
-  @override
-  Future<void> configureDownload({
-    required int minConcurrency,
-    required int maxConcurrency,
-    required int idleTimeout,
-  }) => _stub.configureDownload(
-    minConcurrency: minConcurrency,
-    maxConcurrency: maxConcurrency,
-    idleTimeout: idleTimeout,
-  );
 
   @override
   Future<List<int>> getOwnedGames() => _api.getOwnedGames();

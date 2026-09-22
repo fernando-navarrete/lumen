@@ -7,21 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Lumen is a Flutter desktop app (Linux only — see `linux/`, no other platform folders) that acts as a
 GOG game library manager, downloader, and Proton launcher.
 
-**This is the `restart` branch.** All GOG API access, downloading, verification/repair, save-cloud
-sync, and Proton-GE release fetching used to be delegated to a Rust bridge consumed as the
-`gogdl_flutter` package (via `flutter_rust_bridge`). That package is being rebuilt from scratch (see
-lumen-project's workspace-level `CLAUDE.md` for the "restart line" across all three repos), one feature
-at a time, and `pubspec.yaml` pins it at whatever `*-restart` tag has the features this branch currently
-uses. `lib/state/gog_backend.dart` declares a `GogBackend` interface with the same method set the old
-bridge exposed. `lib/state/unimplemented_backend.dart` implements it as a stub — every data/stream
-method throws or emits `GogUnavailable`, and the auth/config methods no-op successfully so login still
-falls through to `HomeScreen`. `lib/state/real_gog_backend.dart`'s `RealGogBackend` is the other
-implementation, and the one actually wired up in `gogStateProvider`: it forwards each method that has
-landed on the rebuilt bridge to `GogdlApi`, and delegates everything else to an internal
-`UnimplementedBackend`. Landing a newly-rebuilt bridge feature means replacing its delegated line in
-`RealGogBackend` with a real `_api.*` call — no other file needs to change. `lib/state/gog_state.dart` —
-the facade nearly everything else talks to — is unchanged in shape; it wraps `GogBackend` instead of the
-old bridge's `Gog`.
+All GOG API access, downloading, verification/repair, save-cloud sync, and Proton-GE release fetching
+are delegated to a Rust bridge consumed as the `gogdl_flutter` package (via `flutter_rust_bridge`),
+pinned in `pubspec.yaml`. `lib/state/gog_backend.dart` declares a `GogBackend` interface abstracting
+that bridge away from any particular implementation, and `lib/state/gog_state.dart`'s `GogState` — the
+facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogdl_backend.dart`'s
+`GogdlBackend` is the implementation wired up in `gogStateProvider`, adapting each `GogBackend` method
+to a `GogdlApi` call.
 
 Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
@@ -47,16 +39,15 @@ fvm flutter run -d linux                    # run the app (only Linux target exi
 fvm flutter build linux                     # build the Linux release binary
 ```
 
-There is no `test/` directory on this branch — it was deleted along with the bridge it mocked. Add
-tests back as features are rebuilt against `GogBackend`.
+There is no `test/` directory yet — add tests against the `GogBackend` interface.
 
 ## Architecture
 
 ### State management (Riverpod)
 
 All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `downloads_state.dart`,
-`gog_state.dart`, `gog_backend.dart`, `unimplemented_backend.dart`, `launch_state.dart`,
-`proton_state.dart`, `saves_state.dart`, `home_state.dart`). Every domain follows the same shape:
+`gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `launch_state.dart`, `proton_state.dart`,
+`saves_state.dart`, `home_state.dart`). Every domain follows the same shape:
 
 - An immutable, read-only **State** class (`GamesState`, `DownloadsState`, ...) exposing getters only.
 - A `Notifier<State>` subclass that is the *only* thing allowed to mutate state, always by
@@ -68,8 +59,7 @@ All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `d
 `gogStateProvider` (`lib/state/gog_state.dart`) wraps a `GogBackend` (see "What this is" above); nearly
 every other notifier reads it via `ref.read(gogStateProvider)`. Its methods follow a consistent
 convention: try the backend call, `print` and either `rethrow` or return `null`/empty on `kDebugMode`
-catch — callers are expected to handle `null` as "the operation failed." This convention is what makes
-`UnimplementedBackend` safe to ship: every call site already tolerates failure.
+catch — callers are expected to handle `null` as "the operation failed."
 
 **Backend streams are single-subscription.** `GogState` caches one stream per gameId (verification,
 download, repair, save download, save upload) or per Proton tag (Proton download), so only the
@@ -105,7 +95,7 @@ set to the executable's parent directory. The only env vars the tool itself inje
 If the game's `launchWrapper` config (`GameConfig.launchWrapper`) is non-empty, its tokens are
 prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `gamescope -f --`) becomes
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never
-wrapped. This subsystem never talked to the bridge and is unaffected by the restart.
+wrapped. This subsystem never talks to the bridge.
 
 Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`).
 
