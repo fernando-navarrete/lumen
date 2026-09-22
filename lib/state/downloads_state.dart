@@ -155,14 +155,26 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     state = DownloadsState({...state.tasks}..remove(gameId));
   }
 
+  /// Starts an Import verification for [gameId], or restarts one whose
+  /// previous attempt failed or completed. A still-[TaskStatus.running] task
+  /// for the same game blocks a second start; a failed/completed one is
+  /// dequeued first — same trick [startDownload] uses — since the bridge's
+  /// verification stream is single-subscription and a stale cache entry
+  /// would otherwise make a re-import silently no-op or re-listen to an
+  /// already-closed stream.
   Future<void> startVerification(
     int gameId, {
     required String path,
     required String buildName,
     required List<int> productIds,
   }) async {
-    if (state.tasks.containsKey(gameId)) {
-      return;
+    final existing = state.tasks[gameId];
+    if (existing != null) {
+      if (existing.status == TaskStatus.running) {
+        return;
+      }
+      removeTask(gameId);
+      _gogState.clearVerificationStream(gameId);
     }
     final task = ActivityTask(
       gameId: gameId,
@@ -243,12 +255,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     }
   }
 
-  /// Verifies an already-installed game. Unlike [startVerification]'s
-  /// "Import" caller, this may target a gameId whose previous verification
-  /// task is still sitting in the registry and whose bridge stream was
-  /// already fully consumed (streams are single-subscription) — both would
-  /// otherwise make a re-verify silently no-op or replay a closed stream, so
-  /// clear them first, same trick [startRepair] uses.
+  /// Verifies an already-installed game. Unconditionally dequeues any
+  /// existing task and clears the cached verification stream first — unlike
+  /// [startVerification], it doesn't check whether that task is still
+  /// running — same trick [startRepair] uses.
   Future<void> startVerificationForInstalled(
     int gameId, {
     required String path,

@@ -18,11 +18,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P0 — Switching build wipes the game's whole config.** Fixed in `v1.0.2`: `setSelectedBuild`
   now uses `copyWith`, and switching the build of an installed game confirms first, then starts a
   repair against the new build.
-- [ ] **P0 — Re-running Import after a failed Import silently does nothing.**
-  `startVerification` (`downloads_state.dart:164`) returns early if *any* task exists for the game. It
-  never clears the cached verification stream either. A failed or completed import therefore blocks
-  every later import until the app restarts. Apply the same dequeue-and-clear-stream logic
-  `startDownload` uses.
+- [x] **P0 — Re-running Import after a failed Import silently does nothing.** Fixed in `v1.0.3`:
+  `startVerification` now dequeues a failed/completed task and clears the cached verification stream
+  before starting, the same logic `startDownload` already used.
 - [ ] **P1 — A download with allocation errors is marked installed.** The download `onDone`
   (`downloads_state.dart:340`) only checks `stage == 'finished'`, not `errorFiles`. Repair does check it
   (`:443`). The Downloads page then shows a "completed with errors" row while the library says
