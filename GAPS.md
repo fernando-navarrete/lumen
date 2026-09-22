@@ -15,13 +15,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `SaveTask` instance and only copies the map. `select` compares by identity, so the tab rebuilds once
   when the task is created and then freezes until something else rebuilds it. (The Downloads page is
   fine because it watches the whole state.) Root cause is item 4.1.
-- [ ] **P0 — Switching build wipes the game's whole config.** `GamesNotifier.setSelectedBuild`
-  (`games_state.dart:172`) replaces the entry with a fresh
-  `GameConfig(status: notInstalled, selectedBuild: …)`. That drops `installPath`, `productIds`, the
-  Proton override, `protonPrefixPath`, the executable, launch args, env vars and the wrapper. Clicking
-  "Switch" on the Builds tab of an installed game leaves it "Not installed" with its settings gone. The
-  tab copy says "Switching re-downloads the changed files", but nothing downloads. Decide on the intended
-  flow (re-download/repair against the new build) and use `copyWith`.
+- [x] **P0 — Switching build wipes the game's whole config.** Fixed in `v1.0.2`: `setSelectedBuild`
+  now uses `copyWith`, and switching the build of an installed game confirms first, then starts a
+  repair against the new build.
 - [ ] **P0 — Re-running Import after a failed Import silently does nothing.**
   `startVerification` (`downloads_state.dart:164`) returns early if *any* task exists for the game. It
   never clears the cached verification stream either. A failed or completed import therefore blocks

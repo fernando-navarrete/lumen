@@ -9,8 +9,8 @@ under.
 - **Patch** (`1.0.x`): one tag per small, self-contained bugfix.
 - **Minor** (`1.x.0`): a big update, meaning a feature set or cross-cutting refactor. Patches then
   continue from `.1` under that minor.
-- Tags use the existing `vX.Y.Z` format. `v1.0.0` and `v1.0.1` already exist, so the next tag is
-  **`v1.0.2`**.
+- Tags use the existing `vX.Y.Z` format. `v1.0.0`–`v1.0.2` already exist, so the next tag is
+  **`v1.0.3`**.
 - For each release: bump `version:` in `pubspec.yaml` to match, tick the item(s) in `GAPS.md`,
   commit, then tag.
 
@@ -26,7 +26,7 @@ or edge-case issues.
 
 | Tag | Fix | GAPS ref |
 |---|---|---|
-| `v1.0.2` | Switching build no longer wipes the game's config (`setSelectedBuild` → `copyWith`; decide on the re-download/repair flow for installed games). | §1 P0 |
+| `v1.0.2` ✅ | Switching build no longer wipes the game's config (`setSelectedBuild` → `copyWith`; decide on the re-download/repair flow for installed games). | §1 P0 |
 | `v1.0.3` | Re-running Import after a failed/completed Import works (dequeue the old task and clear the cached verification stream). | §1 P0 |
 | `v1.0.4` | Saves tab progress updates live. *Quick fix:* watch the whole `savesStateProvider`. The proper fix is immutable tasks in `v1.1.0`. | §1 P0 |
 | `v1.0.5` | Downloads with allocation errors are no longer marked installed. | §1 P1 |

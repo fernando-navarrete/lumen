@@ -67,7 +67,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
 
     // Re-read gamesStateProvider after each mutation below — it's an
     // immutable snapshot, so a stale local would miss updates the notifier
-    // just made (e.g. setSelectedBuild resets productIds).
+    // just made (e.g. addProductId below).
     String? buildName = ref.read(gamesStateProvider).getSelectedBuild(gameId);
     if (buildName == null || buildName.isEmpty) {
       final builds = await gogState.getBuilds(gameId);

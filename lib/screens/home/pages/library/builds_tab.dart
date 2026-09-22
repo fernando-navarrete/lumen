@@ -6,6 +6,8 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
+import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -51,10 +53,74 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
     setState(() {});
   }
 
+  Future<void> _onBuildTap(int index, GameBuild gameBuild) async {
+    final gamesState = ref.read(gamesStateProvider);
+    final gamesNotifier = ref.read(gamesStateProvider.notifier);
+    final gameId = widget.gameId;
+    final status = gamesState.getGameStatus(gameId);
+    final runningTask = ref.read(downloadsStateProvider).tasks[gameId];
+
+    if (status == GameStatus.downloading ||
+        runningTask?.status == TaskStatus.running) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Wait for the current task to finish"),
+        ),
+      );
+      return;
+    }
+
+    if (status != GameStatus.downloaded) {
+      // Not installed yet — just record the selection, nothing to repair.
+      setState(() {
+        selectedBuild = index;
+      });
+      gamesNotifier.setSelectedBuild(gameId, gameBuild.versionName);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _SwitchBuildDialog(versionName: gameBuild.versionName),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      selectedBuild = index;
+    });
+    gamesNotifier.setSelectedBuild(gameId, gameBuild.versionName);
+
+    final installPath = gamesState.getInstallPath(gameId);
+    final productIds = gamesState.getProductIds(gameId).toList();
+    if (installPath == null || productIds.isEmpty) {
+      return;
+    }
+
+    await ref
+        .read(downloadsStateProvider.notifier)
+        .startRepairForInstalled(
+          gameId,
+          path: installPath,
+          buildName: gameBuild.versionName,
+          productIds: productIds,
+        );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Switching build — check the Downloads tab for progress",
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var size = MediaQuery.of(context).size;
-    GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -84,15 +150,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                         itemBuilder: (context, index) => _BuildListItem(
                           isSelected: index == selectedBuild,
                           gameBuild: _builds![index],
-                          onTap: (gameBuild) {
-                            setState(() {
-                              selectedBuild = index;
-                            });
-                            gamesNotifier.setSelectedBuild(
-                              widget.gameId,
-                              gameBuild.versionName,
-                            );
-                          },
+                          onTap: (gameBuild) => _onBuildTap(index, gameBuild),
                         ),
                       )
                     : const CenteredLoader(),
@@ -110,6 +168,64 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   double _getTabWidth(double width) {
     double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
     return tabWidth;
+  }
+}
+
+/// Confirmation dialog shown before switching the build of an installed
+/// game — the switch starts a repair against the new build, so it isn't a
+/// silent, free action the way selecting a build for a not-yet-installed
+/// game is.
+class _SwitchBuildDialog extends StatelessWidget {
+  const _SwitchBuildDialog({required this.versionName});
+
+  final String versionName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.card),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Switch to $versionName?', style: AppText.sectionLabel),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Lumen will re-download the files that changed for this build.',
+                style: AppText.meta(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                spacing: AppSpacing.sm,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text(
+                      'Cancel',
+                      style: AppText.button(color: AppColors.textSecondary),
+                    ),
+                  ),
+                  PrimaryButton.icon(
+                    icon: Icons.sync,
+                    label: 'Switch',
+                    glowing: true,
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -378,6 +378,48 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _gogState.clearVerificationStream(gameId);
     _gogState.clearRepairStream(gameId);
 
+    await _runRepair(
+      gameId,
+      path: path,
+      buildName: buildName,
+      productIds: productIds,
+    );
+  }
+
+  /// Repairs an already-installed game against an explicit build (e.g. after
+  /// switching builds on the Builds tab), rather than reusing a previous
+  /// task's path/build/products the way [startRepair] does. A still-running
+  /// task for the game blocks a second start; anything else is dequeued and
+  /// its streams cleared first, same trick [startVerificationForInstalled]
+  /// uses.
+  Future<void> startRepairForInstalled(
+    int gameId, {
+    required String path,
+    required String buildName,
+    required List<int> productIds,
+  }) async {
+    final existing = state.tasks[gameId];
+    if (existing != null && existing.status == TaskStatus.running) {
+      return;
+    }
+    removeTask(gameId);
+    _gogState.clearVerificationStream(gameId);
+    _gogState.clearRepairStream(gameId);
+
+    await _runRepair(
+      gameId,
+      path: path,
+      buildName: buildName,
+      productIds: productIds,
+    );
+  }
+
+  Future<void> _runRepair(
+    int gameId, {
+    required String path,
+    required String buildName,
+    required List<int> productIds,
+  }) async {
     final task = ActivityTask(
       gameId: gameId,
       kind: TaskKind.repair,
