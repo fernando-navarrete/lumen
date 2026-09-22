@@ -19,10 +19,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P0 — Re-running Import after a failed Import silently does nothing.** Fixed in `v1.0.3`:
   `startVerification` now dequeues a failed/completed task and clears the cached verification stream
   before starting, the same logic `startDownload` already used.
-- [ ] **P1 — A download with allocation errors is marked installed.** The download `onDone`
-  (`downloads_state.dart:340`) only checks `stage == 'finished'`, not `errorFiles`. Repair does check it
-  (`:443`). The Downloads page then shows a "completed with errors" row while the library says
-  Installed.
+- [x] **P1 — A download with allocation errors is marked installed.** Fixed in `v1.0.5`: the
+  download `onDone` now also checks `errorFiles`, matching repair.
 - [ ] **P1 — Hero banners refetch and flicker on every rebuild.** `getGameBackgroundLink` isn't cached
   like boxart and names are, and `library_page.dart:133` / `game_header.dart:43` call it inside
   `build()`. Each rebuild (for example any `gamesStateProvider` change) hands `FutureBuilder` a new

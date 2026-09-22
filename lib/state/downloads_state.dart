@@ -348,7 +348,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         _emitThrottled();
       },
       onDone: () {
-        if (task.stage == 'finished') {
+        if (task.stage == 'finished' && task.errorFiles.isEmpty) {
           task.status = TaskStatus.completed;
           if (task.path != null) {
             _gamesNotifier.markInstalled(gameId, task.path!);
