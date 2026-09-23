@@ -152,8 +152,13 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
 
 `LaunchNotifier.launchGame` (`lib/state/launch_state.dart`) follows gogdl-cli's `runner.rs` recipe: a
 one-time `proton run wineboot` to initialize a fresh prefix, then `proton run <exe> <args>` with cwd
-set to the executable's parent directory. The only env vars the tool itself injects are
-`STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup.
+set to the executable's parent directory. The only env vars the tool itself injects into the game
+are `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks
+setup. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the release's
+`files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are reparented
+to init, so only wineserver can reach them), then escalates to SIGTERM/SIGKILL on the spawned pid
+(never its process group, which is Lumen's own). That `WINEPREFIX` goes to `wineserver` only, never
+to the game. A game the user stopped always ends `exited`, whatever its exit code.
 If the game's `launchWrapper` config (`GameConfig.launchWrapper`) is non-empty, its tokens are
 prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `gamescope -f --`) becomes
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never

@@ -9,7 +9,7 @@ import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:path/path.dart' as p;
 
-enum LaunchStatus { launching, running, exited, failed }
+enum LaunchStatus { launching, running, stopping, exited, failed }
 
 /// Sentinel default for nullable [RunningGame.copyWith] parameters, so
 /// "argument omitted" (keep the existing value) can be distinguished from
@@ -63,11 +63,13 @@ class LaunchState {
 
   RunningGame? gameFor(int gameId) => games[gameId];
 
-  /// Whether [gameId] is currently launching or running — the Play button
-  /// should be disabled and show "Running…" while this is true.
+  /// Whether [gameId] is currently launching, running or stopping — Play
+  /// can't start another launch while this is true.
   bool isActive(int gameId) {
     final status = games[gameId]?.status;
-    return status == LaunchStatus.launching || status == LaunchStatus.running;
+    return status == LaunchStatus.launching ||
+        status == LaunchStatus.running ||
+        status == LaunchStatus.stopping;
   }
 }
 
@@ -77,8 +79,9 @@ class LaunchState {
 /// then `proton run <exe> <target args> <user args>` with the game's working
 /// directory set to the target's `workingDir` (from GOG's play task) when it
 /// has one, else the executable's parent folder. The only environment
-/// variables the tool itself sets are `STEAM_COMPAT_CLIENT_INSTALL_PATH` and
-/// `STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup. If a
+/// variables the tool itself sets for the game are
+/// `STEAM_COMPAT_CLIENT_INSTALL_PATH` and `STEAM_COMPAT_DATA_PATH` — no
+/// WINEPREFIX, no DXVK/winetricks setup. If a
 /// launch wrapper is set (e.g. `gamescope -f --`), it is prepended to the
 /// `proton run ...` invocation, becoming the process actually spawned —
 /// mirroring Steam's launch-option wrappers. The wrapper never applies to
@@ -88,6 +91,17 @@ class LaunchState {
 /// rotated to `previousGameLogPath`): a header, wineboot's output when it
 /// runs, the game's stdout/stderr, and a footer with the exit code. Game
 /// output goes only there, never to Lumen's own stdout.
+///
+/// [stopGame] stops a running game with the release's
+/// `files/bin/wineserver -k`, which takes down every Wine process in the
+/// prefix (the game's Windows processes are reparented to init, so they're
+/// never descendants of the spawned process and no signal to it can reach
+/// them); `proton run` then exits on its own. `WINEPREFIX=<prefix>/pfx` is
+/// set for that `wineserver` call only, never for the game. If the spawned
+/// process (e.g. a wrapper that outlives its child) is still alive after
+/// [stopGrace], it's sent SIGTERM, then SIGKILL after [killGrace] — its pid
+/// only, never its process group, which is Lumen's own. A game the user
+/// stopped always ends `exited`, whatever its exit code.
 class LaunchNotifier extends Notifier<LaunchState> {
   @override
   LaunchState build() => const LaunchState.empty();
@@ -99,6 +113,20 @@ class LaunchNotifier extends Notifier<LaunchState> {
   /// `exited` for the whole session.
   @visibleForTesting
   Duration pipeDrainGrace = const Duration(seconds: 2);
+
+  /// How long [stopGame] waits for the spawned process to exit after
+  /// `wineserver -k` before sending it SIGTERM.
+  @visibleForTesting
+  Duration stopGrace = const Duration(seconds: 5);
+
+  /// How long [stopGame] waits after SIGTERM before sending SIGKILL.
+  @visibleForTesting
+  Duration killGrace = const Duration(seconds: 3);
+
+  /// The handle on each spawned game process, from `Process.start` until its
+  /// exit is handled. Kept out of [LaunchState] on purpose: a `Process` in a
+  /// state snapshot would break its immutability and every `==`.
+  final Map<int, _LiveLaunch> _live = {};
 
   /// Commits [next] as the replacement for [current] if [current] is still
   /// the game registered for its gameId — a launch whose entry was replaced
@@ -229,13 +257,27 @@ class LaunchNotifier extends Notifier<LaunchState> {
         includeParentEnvironment: true,
       );
       debugPrint('[DIAG] process started pid=${process.pid}');
+      final live = _LiveLaunch(
+        process: process,
+        protonPath: protonPath,
+        prefixPath: prefixPath,
+        compatEnv: compatEnv,
+        log: log,
+        game: game,
+      );
+      _live[gameId] = live;
       final pipes = [
         process.stdout.listen(log.add),
         process.stderr.listen(log.add),
       ];
       final drained = Future.wait(pipes.map((sub) => sub.asFuture<void>()));
 
-      game = _commit(game, game.copyWith(status: LaunchStatus.running));
+      // From here on every commit goes through live.game, so the `stopping`
+      // commit from stopGame and the exit commit below share one identity.
+      live.game = _commit(
+        live.game,
+        live.game.copyWith(status: LaunchStatus.running),
+      );
 
       process.exitCode.then((code) async {
         // The footer and close come before the status commit, so whoever
@@ -253,15 +295,23 @@ class LaunchNotifier extends Notifier<LaunchState> {
         } catch (e) {
           logGogError(e);
         }
+        final stopped = live.stopRequested;
         log.writeln(
-          '--- exited with code $code after ${_formatElapsed(stopwatch)} ---',
+          '--- ${stopped ? 'stopped by user; ' : ''}exited with code $code '
+          'after ${_formatElapsed(stopwatch)} ---',
         );
         await log.close();
-        game = _commit(
-          game,
-          code == 0
-              ? game.copyWith(status: LaunchStatus.exited, exitCode: code)
-              : game.copyWith(
+        if (identical(_live[gameId], live)) {
+          _live.remove(gameId);
+        }
+        // A game the user stopped is never a failure, whatever its exit
+        // code (killed processes rarely exit 0).
+        final current = live.game;
+        live.game = _commit(
+          current,
+          code == 0 || stopped
+              ? current.copyWith(status: LaunchStatus.exited, exitCode: code)
+              : current.copyWith(
                   status: LaunchStatus.failed,
                   exitCode: code,
                   error: 'Game exited with code $code',
@@ -279,6 +329,89 @@ class LaunchNotifier extends Notifier<LaunchState> {
       );
     }
   }
+
+  /// Stops [gameId] if it's running (a no-op while launching, stopping or
+  /// finished): commits `stopping`, runs `wineserver -k` on its prefix, then
+  /// escalates to SIGTERM/SIGKILL on the spawned process if it hasn't
+  /// exited. Only ever touches this launch's own process and log, so a late
+  /// escalation can't hit a game relaunched in the meantime.
+  Future<void> stopGame(int gameId) async {
+    final live = _live[gameId];
+    if (live == null || state.gameFor(gameId)?.status != LaunchStatus.running) {
+      return;
+    }
+    live.stopRequested = true;
+    live.game = _commit(
+      live.game,
+      live.game.copyWith(status: LaunchStatus.stopping),
+    );
+    final log = live.log..writeln('--- stop requested ---');
+
+    // WINEPREFIX goes to wineserver only — it's how wineserver finds the
+    // prefix's server; the game itself never gets it.
+    final wineserver = p.join(live.protonPath, 'files', 'bin', 'wineserver');
+    var wineserverOk = false;
+    try {
+      final result = await Process.run(
+        wineserver,
+        ['-k'],
+        environment: {
+          ...live.compatEnv,
+          'WINEPREFIX': '${live.prefixPath}/pfx',
+        },
+        stdoutEncoding: null,
+        stderrEncoding: null,
+      );
+      log
+        ..add(result.stdout as List<int>)
+        ..add(result.stderr as List<int>)
+        ..writeln('wineserver -k exited with code ${result.exitCode}');
+      wineserverOk = result.exitCode == 0;
+    } catch (e) {
+      logGogError(e);
+      log.writeln('wineserver -k failed: $e');
+    }
+
+    Future<bool> exitsWithin(Duration grace) => live.process.exitCode
+        .then((_) => true)
+        .timeout(grace, onTimeout: () => false);
+
+    if (wineserverOk && await exitsWithin(stopGrace)) {
+      return;
+    }
+    log.writeln('Process still running; sending SIGTERM');
+    live.process.kill(ProcessSignal.sigterm);
+    if (await exitsWithin(killGrace)) {
+      return;
+    }
+    log.writeln('Process still running; sending SIGKILL');
+    live.process.kill(ProcessSignal.sigkill);
+  }
+}
+
+/// A spawned game's process and what [LaunchNotifier.stopGame] needs to stop
+/// it. Mutable and private — never part of [LaunchState].
+class _LiveLaunch {
+  _LiveLaunch({
+    required this.process,
+    required this.protonPath,
+    required this.prefixPath,
+    required this.compatEnv,
+    required this.log,
+    required this.game,
+  });
+
+  final Process process;
+  final String protonPath;
+  final String prefixPath;
+  final Map<String, String> compatEnv;
+  final _GameLog log;
+
+  /// The latest snapshot this launch committed — the identity
+  /// [LaunchNotifier._commit] checks against.
+  RunningGame game;
+
+  bool stopRequested = false;
 }
 
 /// `h:mm:ss` of [stopwatch]'s elapsed time.

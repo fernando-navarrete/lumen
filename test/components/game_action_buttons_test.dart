@@ -36,6 +36,24 @@ class _RecordingLaunchNotifier extends LaunchNotifier {
   }
 }
 
+/// Starts with game [gameId] in [status] and records [stopGame] calls.
+class _StatusLaunchNotifier extends LaunchNotifier {
+  _StatusLaunchNotifier(this.gameId, this.status);
+
+  final int gameId;
+  final LaunchStatus status;
+  final List<int> stopped = [];
+
+  @override
+  LaunchState build() =>
+      LaunchState({gameId: RunningGame(gameId: gameId, status: status)});
+
+  @override
+  Future<void> stopGame(int gameId) async {
+    stopped.add(gameId);
+  }
+}
+
 /// Fails every launch straight away, as a spawn error would.
 class _FailingLaunchNotifier extends LaunchNotifier {
   @override
@@ -354,6 +372,67 @@ void main() {
 
       expect(find.text('Spawn failed'), findsOneWidget);
       expect(find.text('Open log'), findsNothing);
+    });
+  });
+
+  group('Stop', () {
+    Future<_StatusLaunchNotifier> pumpWithStatus(
+      WidgetTester tester,
+      LaunchStatus status,
+    ) async {
+      final notifier = _StatusLaunchNotifier(gameId, status);
+      await pumpApp(
+        tester,
+        const GameActionButtons(gameId: gameId),
+        prefs: {
+          'games': jsonEncode({
+            'version': GamesNotifier.gamesSchemaVersion,
+            'games': {
+              '$gameId': {
+                'status': 'downloaded',
+                'selectedBuild': 'b1',
+                'productIds': [1],
+                'installPath': '/games/foo',
+              },
+            },
+          }),
+        },
+        overrides: [launchStateProvider.overrideWith(() => notifier)],
+      );
+      await tester.pump();
+      return notifier;
+    }
+
+    testWidgets('a running game shows Stop, which calls stopGame', (
+      tester,
+    ) async {
+      final notifier = await pumpWithStatus(tester, LaunchStatus.running);
+
+      expect(find.text('Play'), findsNothing);
+      await tester.tap(find.text('Stop'));
+      await tester.pump();
+
+      expect(notifier.stopped, [gameId]);
+    });
+
+    testWidgets('a stopping game shows a disabled Stopping…', (tester) async {
+      final notifier = await pumpWithStatus(tester, LaunchStatus.stopping);
+
+      await tester.tap(find.text('Stopping…'), warnIfMissed: false);
+      await tester.pump();
+
+      expect(notifier.stopped, isEmpty);
+    });
+
+    testWidgets('a launching game shows a disabled Launching…', (tester) async {
+      final notifier = await pumpWithStatus(tester, LaunchStatus.launching);
+
+      expect(find.text('Launching…'), findsOneWidget);
+      expect(find.text('Stop'), findsNothing);
+      await tester.tap(find.text('Launching…'), warnIfMissed: false);
+      await tester.pump();
+
+      expect(notifier.stopped, isEmpty);
     });
   });
 }

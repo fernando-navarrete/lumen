@@ -52,7 +52,9 @@ void main() {
   /// echoes "<$2> to-stdout"/"<$2> to-stderr" to its own stdout/stderr,
   /// creates "$STEAM_COMPAT_DATA_PATH/pfx" on a `run wineboot` call, leaves
   /// a background `sleep` holding its stdout/stderr open if `$HOLD_PIPE` is
-  /// set, and exits with `$FAKE_EXIT` (default 0).
+  /// set, and exits with `$FAKE_EXIT` (default 0). If `$PIDFILE` is set, a
+  /// game run instead writes its pid there and `exec`s a long `sleep`, so it
+  /// runs until killed and the killed pid is the spawned process itself.
   void writeFakeProton() {
     final script = File('${protonDir.path}/proton');
     script.writeAsStringSync('''
@@ -62,6 +64,10 @@ echo "<\$2> to-stdout"
 echo "<\$2> to-stderr" >&2
 if [ "\$2" = "wineboot" ]; then
   mkdir -p "\$STEAM_COMPAT_DATA_PATH/pfx"
+fi
+if [ -n "\${PIDFILE:-}" ] && [ "\$2" != "wineboot" ]; then
+  echo \$\$ > "\$PIDFILE"
+  exec sleep 30
 fi
 if [ -n "\${HOLD_PIPE:-}" ]; then
   sleep 3 &
@@ -550,6 +556,227 @@ exit "\${FAKE_EXIT:-0}"
 
       expect(game.status, LaunchStatus.failed);
       expect(gameLog().readAsStringSync(), contains('Launch failed: '));
+    });
+  });
+
+  group('LaunchNotifier.stopGame (Phase 6)', () {
+    late File pidFile;
+    late File wineserverLog;
+
+    setUp(() {
+      pidFile = File('${dataHome.path}/game.pid');
+      wineserverLog = File('${dataHome.path}/wineserver.log');
+    });
+
+    /// Writes a fake `wineserver` in the release layout that logs
+    /// "$*|$WINEPREFIX" and, if [kills], SIGTERMs the fake game, then sleeps
+    /// [linger] and exits with [exitCode]. The test's env vars never reach
+    /// wineserver, so the paths are baked in.
+    void writeFakeWineserver({
+      bool kills = true,
+      String linger = '0',
+      int exitCode = 0,
+    }) {
+      final script = File('${protonDir.path}/files/bin/wineserver')
+        ..createSync(recursive: true);
+      script.writeAsStringSync('''
+#!/usr/bin/env bash
+echo "\$*|\$WINEPREFIX" >> "${wineserverLog.path}"
+${kills ? 'kill -TERM "\$(cat "${pidFile.path}")"' : ''}
+sleep $linger
+exit $exitCode
+''');
+      Process.runSync('chmod', ['+x', script.path]);
+    }
+
+    LaunchStatus? statusOf(ProviderContainer container) =>
+        container.read(launchStateProvider).gameFor(1)?.status;
+
+    /// Launches game 1 as a long-running fake and waits until its pid file
+    /// is written.
+    Future<void> launchRunning(ProviderContainer container) async {
+      if (pidFile.existsSync()) pidFile.deleteSync();
+      await container
+          .read(launchStateProvider.notifier)
+          .launchGame(
+            1,
+            protonPath: protonDir.path,
+            installPath: installDir.path,
+            target: gameExe,
+            prefixPath: prefixDir.path,
+            envVars: {...baseEnv(), 'PIDFILE': pidFile.path},
+          );
+      expect(statusOf(container), LaunchStatus.running);
+      await waitFor(
+        () => pidFile.existsSync() && pidFile.readAsStringSync().isNotEmpty,
+      );
+    }
+
+    Future<void> waitSettled(ProviderContainer container) => waitFor(() {
+      final status = statusOf(container);
+      return status == LaunchStatus.exited || status == LaunchStatus.failed;
+    });
+
+    setUp(() {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+    });
+
+    test('runs wineserver -k on the prefix; a killed game ends exited, not '
+        'failed', () async {
+      writeFakeWineserver();
+      final container = await createContainer();
+      final seen = <LaunchStatus?>[];
+      container.listen<LaunchState>(
+        launchStateProvider,
+        (_, next) => seen.add(next.gameFor(1)?.status),
+      );
+      await launchRunning(container);
+
+      await container.read(launchStateProvider.notifier).stopGame(1);
+      await waitSettled(container);
+
+      expect(
+        wineserverLog.readAsLinesSync().single,
+        '-k|${prefixDir.path}/pfx',
+      );
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.exited);
+      expect(game.exitCode, isNot(0));
+      expect(game.error, isNull);
+      expect(seen, [
+        LaunchStatus.launching,
+        LaunchStatus.running,
+        LaunchStatus.stopping,
+        LaunchStatus.exited,
+      ]);
+      final text = File(gameLogPath(1)).readAsStringSync();
+      expect(text, contains('--- stop requested ---'));
+      expect(text, contains('--- stopped by user; exited with code'));
+      expect(text, isNot(contains('SIGTERM')));
+    });
+
+    test('a game still alive after the grace period is SIGTERMed', () async {
+      writeFakeWineserver(kills: false);
+      final container = await createContainer();
+      container.read(launchStateProvider.notifier).stopGrace = const Duration(
+        milliseconds: 100,
+      );
+      await launchRunning(container);
+
+      await container.read(launchStateProvider.notifier).stopGame(1);
+      await waitSettled(container);
+
+      expect(wineserverLog.readAsLinesSync(), hasLength(1));
+      expect(statusOf(container), LaunchStatus.exited);
+      final text = File(gameLogPath(1)).readAsStringSync();
+      expect(text, contains('sending SIGTERM'));
+      expect(text, isNot(contains('SIGKILL')));
+    });
+
+    test('a missing wineserver goes straight to SIGTERM', () async {
+      final container = await createContainer();
+      // Would take 5 s if the grace period weren't skipped.
+      final stopwatch = Stopwatch()..start();
+      await launchRunning(container);
+
+      await container.read(launchStateProvider.notifier).stopGame(1);
+      await waitSettled(container);
+
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 3)));
+      expect(statusOf(container), LaunchStatus.exited);
+      final text = File(gameLogPath(1)).readAsStringSync();
+      expect(text, contains('wineserver -k failed: '));
+      expect(text, contains('sending SIGTERM'));
+    });
+
+    test('is a no-op for a game that is not running', () async {
+      writeFakeWineserver();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      await notifier.stopGame(1);
+      expect(statusOf(container), isNull);
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+      );
+      await waitSettled(container);
+      final exited = container.read(launchStateProvider).gameFor(1);
+      await notifier.stopGame(1);
+
+      expect(
+        identical(container.read(launchStateProvider).gameFor(1), exited),
+        isTrue,
+      );
+      expect(wineserverLog.existsSync(), isFalse);
+    });
+
+    test('Play while stopping is ignored', () async {
+      writeFakeWineserver(kills: false);
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier)
+        ..stopGrace = const Duration(milliseconds: 300);
+      await launchRunning(container);
+
+      final stop = notifier.stopGame(1);
+      expect(statusOf(container), LaunchStatus.stopping);
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+      );
+      expect(statusOf(container), LaunchStatus.stopping);
+      await stop;
+      await waitSettled(container);
+
+      expect(log.readAsLinesSync(), hasLength(1));
+      expect(statusOf(container), LaunchStatus.exited);
+    });
+
+    test("a stop's late escalation can't touch a relaunched game", () async {
+      // wineserver kills game 1 but lingers, then reports failure, so the
+      // relaunch happens while that stop is still in flight, and its SIGTERM
+      // escalation runs after the new game is already running.
+      writeFakeWineserver(linger: '1', exitCode: 1);
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier)
+        ..killGrace = const Duration(milliseconds: 300);
+      await launchRunning(container);
+      final firstPid = pidFile.readAsStringSync().trim();
+
+      final stop = notifier.stopGame(1);
+      await waitSettled(container);
+      await launchRunning(container);
+      final second = container.read(launchStateProvider).gameFor(1)!;
+      final secondPid = pidFile.readAsStringSync().trim();
+      expect(secondPid, isNot(firstPid));
+      await stop;
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+
+      // The first launch's log was closed at its exit, so the late SIGTERM
+      // note goes nowhere — and certainly not into the second game's log.
+      expect(File(gameLogPath(1)).readAsStringSync(), isNot(contains('stop')));
+      // kill -0: the second game's process is still alive.
+      expect(Process.runSync('kill', ['-0', secondPid]).exitCode, 0);
+
+      expect(
+        identical(container.read(launchStateProvider).gameFor(1), second),
+        isTrue,
+      );
+      expect(second.status, LaunchStatus.running);
+
+      writeFakeWineserver();
+      await notifier.stopGame(1);
+      await waitSettled(container);
     });
   });
 }

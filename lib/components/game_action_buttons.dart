@@ -12,6 +12,7 @@ import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/launch_state.dart';
 import 'package:lumen/state/proton_state.dart';
+import 'package:lumen/theme/app_colors.dart';
 
 /// The status-driven action row for one game: nothing while installing,
 /// Play once installed, otherwise Install/Import. Owns the preload of the
@@ -125,8 +126,8 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     final GameStatus status = gamesState.getGameStatus(gameId);
     final bool installing = status == GameStatus.downloading;
     final bool installed = status == GameStatus.downloaded;
-    final bool running = ref.watch(
-      launchStateProvider.select((state) => state.isActive(gameId)),
+    final LaunchStatus? launchStatus = ref.watch(
+      launchStateProvider.select((state) => state.gameFor(gameId)?.status),
     );
     ref.listen<LaunchState>(launchStateProvider, (previous, next) {
       final prevStatus = previous?.gameFor(gameId)?.status;
@@ -157,39 +158,56 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         gamesState,
         installing: installing,
         installed: installed,
-        running: running,
+        launchStatus: launchStatus,
       ),
     );
   }
 
   /// Builds the action row based on the game's status: nothing while
-  /// installing, Play (or "Running…" while launched) once installed,
-  /// otherwise the Install/Import pair.
+  /// installing, Play (or Launching…/Stop/Stopping… while launched) once
+  /// installed, otherwise the Install/Import pair.
   List<Widget> _buildActionButtons(
     BuildContext context,
     int gameId,
     GamesState gamesState, {
     required bool installing,
     required bool installed,
-    required bool running,
+    required LaunchStatus? launchStatus,
   }) {
     if (installing) {
       return const [];
     }
     if (installed) {
       return [
-        PrimaryButton.icon(
-          enabled: !running && !_resolving,
-          onTap: () => _onPlay(context, gameId, gamesState),
-          glowing: true,
-          large: widget.large,
-          icon: running || _resolving ? Icons.hourglass_top : Icons.play_arrow,
-          label: running
-              ? "Running…"
-              : _resolving
-              ? "Resolving…"
-              : "Play",
-        ),
+        switch (launchStatus) {
+          LaunchStatus.launching => PrimaryButton.icon(
+            enabled: false,
+            onTap: () {},
+            glowing: true,
+            large: widget.large,
+            icon: Icons.hourglass_top,
+            label: "Launching…",
+          ),
+          // No confirmation: stopping the game is what the button says.
+          LaunchStatus.running || LaunchStatus.stopping => PrimaryButton.icon(
+            enabled: launchStatus == LaunchStatus.running,
+            onTap: () =>
+                ref.read(launchStateProvider.notifier).stopGame(gameId),
+            glowing: false,
+            foreground: AppColors.error,
+            large: widget.large,
+            icon: Icons.stop,
+            label: launchStatus == LaunchStatus.running ? "Stop" : "Stopping…",
+          ),
+          _ => PrimaryButton.icon(
+            enabled: !_resolving,
+            onTap: () => _onPlay(context, gameId, gamesState),
+            glowing: true,
+            large: widget.large,
+            icon: _resolving ? Icons.hourglass_top : Icons.play_arrow,
+            label: _resolving ? "Resolving…" : "Play",
+          ),
+        },
         PrimaryButton.icon(
           icon: Icons.fact_check,
           label: "Verify",
