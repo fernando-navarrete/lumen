@@ -86,6 +86,13 @@ replacements to ~10Hz with a trailing flush, so the final value in a burst is ne
 - A top-level `xStateProvider` (`Provider` or `NotifierProvider`) with an explicit `name:` for
   debugging.
 
+`GamesNotifier`'s keystroke-driven setters (`setLaunchArgs`, `setEnvVars`, `setLaunchWrapper`) update
+state immediately but debounce the SharedPreferences write by 500ms, since each call otherwise
+re-encodes and writes the *whole* `games` JSON; `flushPendingPersist` commits a pending write early
+and is called from `GameSettingsTab`'s `dispose`/game-switch and from the notifier's own
+`ref.onDispose` — the latter reads a plain mirror field rather than `state`, since Riverpod forbids
+touching `state`/`ref` from inside an `onDispose` callback.
+
 `gogStateProvider` (`lib/state/gog_state.dart`) wraps a `GogBackend` (see "What this is" above); nearly
 every other notifier reads it via `ref.read(gogStateProvider)`. Its methods follow a consistent
 convention: try the backend call, log the failure via `logGogError` (`lib/common/gog_error.dart`,

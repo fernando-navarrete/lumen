@@ -46,9 +46,14 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   late TextEditingController _launchArgsController;
   final List<_EnvVarRow> _envRows = [];
 
+  // Cached in initState rather than read from `ref` in dispose, which
+  // Riverpod disallows once the widget is unmounting.
+  late final GamesNotifier _gamesNotifier;
+
   @override
   void initState() {
     super.initState();
+    _gamesNotifier = ref.read(gamesStateProvider.notifier);
     _initFromState();
   }
 
@@ -56,6 +61,9 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   void didUpdateWidget(covariant GameSettingsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.gameId != widget.gameId) {
+      // Commit the outgoing game's edit before switching, same reasoning as
+      // dispose().
+      _gamesNotifier.flushPendingPersist();
       _launchWrapperController.dispose();
       _launchArgsController.dispose();
       for (final row in _envRows) {
@@ -81,6 +89,10 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
 
   @override
   void dispose() {
+    // Commit any edit still waiting out its debounce window (see
+    // GamesNotifier._update) rather than leaving it to fire up to
+    // persistDebounce later, after this tab/game is no longer in view.
+    _gamesNotifier.flushPendingPersist();
     _launchWrapperController.dispose();
     _launchArgsController.dispose();
     for (final row in _envRows) {

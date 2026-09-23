@@ -163,8 +163,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   event that leaves a task `running` (`Progress`, `FileStarted`, `FileFinished`). Terminal
   status-transition commits (`onDone`, `onError`, and each notifier's own "finished" event) still
   flush immediately.
-- [ ] **P2 — Game settings persist the whole games JSON on every keystroke** (`onChanged` →
-  `_persist`). Debounce it, or persist on blur/submit.
+- [x] **P2 — Game settings persist the whole games JSON on every keystroke** (`onChanged` →
+  `_persist`). Fixed in `v1.1.4`: `GamesNotifier.setLaunchArgs`/`setEnvVars`/`setLaunchWrapper` (the
+  three keystroke-driven setters) now debounce the prefs write by 500ms instead of writing on every
+  call; in-memory state still updates immediately. `GamesNotifier.flushPendingPersist` commits a
+  pending write early — called from `GameSettingsTab`'s `dispose`/game-switch and from the
+  notifier's own `ref.onDispose`, so leaving the tab or the app never drops the last edit.
 - [ ] **P2 — Add a schema version** to the persisted `games` JSON so future migrations aren't ad hoc
   type sniffing (see the productId string/int fallback).
 - [ ] **P2 — Reuse a single `FlutterSecureStorage` instance.** Also handle the Linux case where no

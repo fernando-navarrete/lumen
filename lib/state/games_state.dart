@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -163,10 +164,33 @@ class GamesState {
 class GamesNotifier extends Notifier<GamesState> {
   late final SharedPreferences _prefs;
 
+  /// How long a debounced setter (see [_update]'s `debounce` parameter)
+  /// waits for more edits before writing to prefs.
+  static const persistDebounce = Duration(milliseconds: 500);
+
+  Timer? _persistTimer;
+
+  /// Mirrors `state.games` as of the last [_update] call. [_persist] writes
+  /// from this instead of reading [state] directly, because Riverpod
+  /// forbids touching `state`/`ref` from inside an `onDispose` callback —
+  /// [flushPendingPersist] is one, registered below, to catch a debounced
+  /// edit still pending when the notifier itself is torn down — and a
+  /// plain field has no such restriction.
+  Map<int, GameConfig> _lastGames = const {};
+
+  /// Whether a debounced edit is waiting for [_persistTimer] to fire.
+  bool _hasPendingPersist = false;
+
   @override
   GamesState build() {
     _prefs = ref.read(sharedPreferencesProvider);
-    return _load();
+    final loaded = _load();
+    _lastGames = loaded.games;
+    // A debounced edit still pending when the notifier is torn down (e.g.
+    // app exit, or the container disposing in tests) must not be lost;
+    // flushPendingPersist cancels _persistTimer as part of writing it.
+    ref.onDispose(flushPendingPersist);
+    return loaded;
   }
 
   /// Changes [gameId]'s selected build, preserving the rest of its config
@@ -282,12 +306,17 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, existing.copyWith(executable: executable));
   }
 
+  // These three are driven directly by keystrokes in GameSettingsTab's text
+  // fields (one call per character typed), so their prefs write is
+  // debounced rather than immediate — see _update's `debounce` parameter.
+  // The in-memory state still updates on every call.
+
   void setLaunchArgs(int gameId, List<String> launchArgs) {
     final existing = state.games[gameId];
     if (existing == null) {
       return;
     }
-    _update(gameId, existing.copyWith(launchArgs: launchArgs));
+    _update(gameId, existing.copyWith(launchArgs: launchArgs), debounce: true);
   }
 
   void setEnvVars(int gameId, Map<String, String> envVars) {
@@ -295,7 +324,7 @@ class GamesNotifier extends Notifier<GamesState> {
     if (existing == null) {
       return;
     }
-    _update(gameId, existing.copyWith(envVars: envVars));
+    _update(gameId, existing.copyWith(envVars: envVars), debounce: true);
   }
 
   void setLaunchWrapper(int gameId, List<String> launchWrapper) {
@@ -303,7 +332,11 @@ class GamesNotifier extends Notifier<GamesState> {
     if (existing == null) {
       return;
     }
-    _update(gameId, existing.copyWith(launchWrapper: launchWrapper));
+    _update(
+      gameId,
+      existing.copyWith(launchWrapper: launchWrapper),
+      debounce: true,
+    );
   }
 
   /// Returns [gameId]'s Proton prefix directory, creating it (and the
@@ -330,8 +363,36 @@ class GamesNotifier extends Notifier<GamesState> {
     return path;
   }
 
-  void _update(int gameId, GameConfig config) {
+  /// Updates in-memory state immediately. The prefs write either happens
+  /// right away, or — with [debounce] — is delayed by [persistDebounce] so a
+  /// burst of keystroke-driven calls (see setLaunchArgs/setEnvVars/
+  /// setLaunchWrapper) collapses into a single whole-JSON write instead of
+  /// one per character. An immediate (non-debounced) call always writes the
+  /// latest state, so it carries along any edit still waiting in the
+  /// debounce window.
+  void _update(int gameId, GameConfig config, {bool debounce = false}) {
     state = GamesState({...state.games, gameId: config});
+    _lastGames = state.games;
+    debounce ? _schedulePersist() : _persist();
+  }
+
+  void _schedulePersist() {
+    _hasPendingPersist = true;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(persistDebounce, () {
+      _persistTimer = null;
+      _persist();
+    });
+  }
+
+  /// Writes a debounced edit to prefs immediately instead of waiting for
+  /// [persistDebounce] to elapse. Called when leaving the settings tab
+  /// (`GameSettingsTab.dispose`) and when this notifier itself is disposed,
+  /// so a pending edit is never silently dropped.
+  void flushPendingPersist() {
+    if (!_hasPendingPersist) {
+      return;
+    }
     _persist();
   }
 
@@ -391,8 +452,11 @@ class GamesNotifier extends Notifier<GamesState> {
   }
 
   void _persist() {
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _hasPendingPersist = false;
     try {
-      _prefs.setString('games', _encodeGames(state.games));
+      _prefs.setString('games', _encodeGames(_lastGames));
     } catch (e) {
       logGogError(e);
     }
@@ -418,6 +482,12 @@ class GamesNotifier extends Notifier<GamesState> {
   /// Wipes all SharedPreferences and the in-memory game config. Debug-only
   /// usage: see the Settings page's "Clear SharedPreferences" button.
   Future<void> clear() async {
+    // Drop any pending debounced write first, or its timer firing after
+    // prefs.clear() would resurrect the cleared games.
+    _persistTimer?.cancel();
+    _persistTimer = null;
+    _hasPendingPersist = false;
+    _lastGames = const {};
     state = const GamesState.empty();
     await _prefs.clear();
   }

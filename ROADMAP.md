@@ -67,7 +67,10 @@ Follow-up patches (`v1.1.1+`), one per tag:
 3. `v1.1.3` ✅: throttle `ProtonNotifier` and `SavesNotifier` emits (§4). The throttling logic moved
    out of `DownloadsNotifier` into a shared `ThrottledTaskBuffer`
    (`lib/state/emit_throttle.dart`), which all three notifiers now use.
-4. `v1.1.4`: debounce game-settings persistence (§4).
+4. `v1.1.4` ✅: debounce game-settings persistence (§4). `GamesNotifier`'s keystroke-driven setters
+   (`setLaunchArgs`, `setEnvVars`, `setLaunchWrapper`) now write to prefs at most once per 500ms,
+   with a `flushPendingPersist` escape hatch called on tab/game switch, app exit, and the
+   notifier's own disposal.
 5. `v1.1.5`: add a schema version to the persisted `games` JSON (§4).
 6. `v1.1.6`: reuse one `FlutterSecureStorage` instance and add a clear no-keyring message (§4).
 

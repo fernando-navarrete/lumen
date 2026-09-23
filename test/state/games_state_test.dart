@@ -4,6 +4,12 @@ import 'package:lumen/state/shared_preferences_provider.dart';
 
 import '../helpers/container.dart';
 
+// Real Future.delayed waits rather than fake_async -- same choice made in
+// emit_throttle_test.dart -- and GamesNotifier.persistDebounce is short
+// enough (500ms) that real waits stay fast.
+Future<void> settle() =>
+    Future<void>.delayed(GamesNotifier.persistDebounce + const Duration(milliseconds: 50));
+
 /// Asserts every field of [actual] matches [expected] — [GameConfig] has no
 /// `==`, so tests compare field by field instead of relying on object
 /// identity.
@@ -95,6 +101,9 @@ void main() {
       notifier.setLaunchArgs(gameId, ['-fullscreen']);
       notifier.setEnvVars(gameId, {'DXVK_HUD': '1'});
       notifier.setLaunchWrapper(gameId, ['gamescope', '-f', '--']);
+      // setLaunchArgs/setEnvVars/setLaunchWrapper debounce their prefs
+      // write -- flush it now instead of waiting persistDebounce out.
+      notifier.flushPendingPersist();
 
       final savedJson = container
           .read(sharedPreferencesProvider)
@@ -148,6 +157,116 @@ void main() {
       final container = await createContainer(prefs: {'games': 'not json'});
 
       expect(container.read(gamesStateProvider).games, isEmpty);
+    });
+  });
+
+  group('debounced persistence', () {
+    test(
+      'setLaunchArgs updates state immediately but debounces the prefs '
+      'write; a burst ends with prefs holding only the last value',
+      () async {
+        final container = await createContainer();
+        final notifier = container.read(gamesStateProvider.notifier);
+        const gameId = 1;
+        notifier.setSelectedBuild(gameId, 'build-1');
+
+        notifier.setLaunchArgs(gameId, ['-a']);
+        notifier.setLaunchArgs(gameId, ['-a', '-b']);
+        notifier.setLaunchArgs(gameId, ['-a', '-b', '-c']);
+
+        // In-memory state reflects every call immediately.
+        expect(
+          container.read(gamesStateProvider).getLaunchArgs(gameId),
+          ['-a', '-b', '-c'],
+        );
+        // But prefs still only reflect setSelectedBuild's immediate write --
+        // none of the debounced launchArgs edits have landed yet.
+        final beforeSettle = container
+            .read(sharedPreferencesProvider)
+            .getString('games');
+        expect(beforeSettle, contains('"selectedBuild":"build-1"'));
+        expect(beforeSettle, isNot(contains('-c')));
+
+        await settle();
+
+        final savedJson = container
+            .read(sharedPreferencesProvider)
+            .getString('games');
+        expect(savedJson, isNotNull);
+        final reloaded = await createContainer(prefs: {'games': savedJson!});
+        expect(
+          reloaded.read(gamesStateProvider).getLaunchArgs(gameId),
+          ['-a', '-b', '-c'],
+        );
+      },
+    );
+
+    test(
+      'an immediate mutation after a debounced edit persists both at once',
+      () async {
+        final container = await createContainer();
+        final notifier = container.read(gamesStateProvider.notifier);
+        const gameId = 1;
+        notifier.setSelectedBuild(gameId, 'build-1');
+
+        notifier.setLaunchArgs(gameId, ['-fullscreen']);
+        notifier.setProtonVersion(gameId, 'GE-Proton9-1');
+
+        // setProtonVersion is not debounced, so it wrote right away --
+        // carrying along the still-pending launchArgs edit.
+        final savedJson = container
+            .read(sharedPreferencesProvider)
+            .getString('games');
+        expect(savedJson, isNotNull);
+        final reloaded = await createContainer(prefs: {'games': savedJson!});
+        final config = reloaded.read(gamesStateProvider).games[gameId]!;
+        expect(config.launchArgs, ['-fullscreen']);
+        expect(config.protonVersion, 'GE-Proton9-1');
+      },
+    );
+
+    test('flushPendingPersist writes synchronously', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      const gameId = 1;
+      notifier.setSelectedBuild(gameId, 'build-1');
+      notifier.setLaunchArgs(gameId, ['-fullscreen']);
+
+      notifier.flushPendingPersist();
+
+      expect(
+        container.read(sharedPreferencesProvider).getString('games'),
+        isNotNull,
+      );
+    });
+
+    test('disposing the container flushes a pending write', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      final prefs = container.read(sharedPreferencesProvider);
+      const gameId = 1;
+      notifier.setSelectedBuild(gameId, 'build-1');
+      notifier.setLaunchArgs(gameId, ['-fullscreen']);
+
+      container.dispose();
+
+      expect(prefs.getString('games'), isNotNull);
+    });
+
+    test('clear cancels a pending write', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      const gameId = 1;
+      notifier.setSelectedBuild(gameId, 'build-1');
+      notifier.setLaunchArgs(gameId, ['-fullscreen']);
+
+      await notifier.clear();
+      await settle();
+
+      expect(
+        container.read(sharedPreferencesProvider).getString('games'),
+        isNull,
+      );
     });
   });
 
