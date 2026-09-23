@@ -43,7 +43,8 @@ fvm flutter test                            # run the test suite (no native libr
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
 `FakeGogBackend`, `test/helpers/fake_secure_storage.dart`'s `FakeSecureStorage` and
 `test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`,
-`secureStorageProvider` and `sharedPreferencesProvider` with a fake, so a test never needs the Rust
+`secureStorageProvider` and `sharedPreferencesProvider` with a fake (plus any extra `overrides`,
+e.g. a `launchResolverProvider` with injected scan/`.info` seams), so a test never needs the Rust
 bridge's native library loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or
 call `RustLib.init()` —
 either would require that native library, which isn't available in CI. Anything that touches
@@ -149,10 +150,32 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
   subdirectory — Proton creates it on first run).
 - A shared fake Steam client dir at `<lumenDataDir>/steam`, passed as
   `STEAM_COMPAT_CLIENT_INSTALL_PATH` (mirrors how Lutris/Heroic/non-Steam Proton launchers work).
+- Per-game launch logs at `<lumenDataDir>/logs/<gameId>.log`, rotated to `<gameId>.previous.log`
+  (one generation, overwritten) at the start of every launch.
+
+What a game launches with is decided by `LaunchResolver` (`lib/common/launch_resolver.dart`), shared
+by Play and the Settings tab, as a `LaunchTarget` (`lib/models/`: exe and optional `workingDir`, both
+relative to the install root, plus `arguments` and a `source`). The order is: the user's override
+(`GameConfig.executable`), then the primary play task from exactly `<installPath>/goggame-<gameId>.info`
+(`lib/common/goggame_info.dart` — a `category: game` primary, else the first `game` task, else the
+primary launcher; never globbed, since DLC and other products' `.info` files share the dir), then
+`findExecutablesAsync`'s scan in an isolate (one candidate is used directly, several go to a picker).
+`GameConfig.executable` is a *user override only*: set only from a picker, null means "auto", and auto
+results are re-resolved on every launch and never persisted. An override that matches a play task
+inherits that task's `workingDir`/`arguments`. A stale override (no longer on disk) is cleared and
+falls back to auto with a message; a missing install folder stops resolution with its own message
+and clears nothing. Launch args and the wrapper are stored as `List<String>` and edited as text
+through `lib/common/shell_words.dart`'s `splitShellWords`/`joinShellWords` (POSIX-ish quoting, no
+expansion).
 
 `LaunchNotifier.launchGame` (`lib/state/launch_state.dart`) follows gogdl-cli's `runner.rs` recipe: a
-one-time `proton run wineboot` to initialize a fresh prefix, then `proton run <exe> <args>` with cwd
-set to the executable's parent directory. The only env vars the tool itself injects into the game
+one-time `proton run wineboot` to initialize a fresh prefix, then `proton run <exe> <target args>
+<user args>` with cwd set to the target's `workingDir` when it has one, else the executable's parent
+directory. Every launch writes the per-game log: a header (command, cwd, the user's env vars, the
+target's source), wineboot's output, the game's stdout/stderr (only there, never Lumen's stdout) and a
+footer with the exit code. The log is closed before the `exited`/`failed` state is committed, with
+the pipe drain capped by `pipeDrainGrace`, and a log that can't be opened never blocks the launch.
+`lib/common/game_log.dart` backs the "Open log" actions. The only env vars the tool itself injects into the game
 are `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks
 setup. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the release's
 `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are reparented

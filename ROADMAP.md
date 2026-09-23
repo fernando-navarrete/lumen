@@ -81,7 +81,7 @@ Follow-up patches (`v1.1.1+`), one per tag:
    `Libsecret error`/`KeyringLocked` `PlatformException` from the Linux plugin is now mapped to a
    `KeyringUnavailableError` with actionable text instead of the raw platform message.
 
-## v1.2.0 — Launching and Proton
+## v1.2.0 ✅ — Launching and Proton
 
 - Resolve executables from `goggame-<id>.info` `playTasks`, keeping the scan as a fallback (§3).
 - Move the executable scan off the UI isolate (§3).

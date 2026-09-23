@@ -63,8 +63,14 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   A comment in `games_state.dart:341` mentions a "Pause" that doesn't exist.
 - [ ] **P1 — Resume downloads interrupted by an app exit.** A game left in `downloading` is coerced to
   `notInstalled` on load, and its partial files are orphaned.
-- [ ] **P1 — Stop a running game.** `LaunchNotifier` keeps no handle to kill the process tree (and
-  Proton/wineserver).
+- [x] **P1 — Stop a running game.** `LaunchNotifier` keeps no handle to kill the process tree (and
+  Proton/wineserver). Fixed in `v1.2.0`: `LaunchNotifier.stopGame` runs the release's
+  `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are
+  reparented to init, so no signal to the spawned process can reach them). If the spawned process
+  (e.g. a wrapper) is still alive after a grace period, it gets SIGTERM, then SIGKILL, on its pid only,
+  never its process group, which is Lumen's own. A new `LaunchStatus.stopping` shows a disabled
+  "Stopping…", and a user-stopped game always ends `exited`, whatever its exit code. The `Process`
+  handle lives in a private per-game `_LiveLaunch`, not in the immutable `RunningGame`.
 - [ ] **P1 — Sign out in release builds.** `clearAuth` is only reachable from the debug-only Settings
   card.
 - [ ] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
@@ -76,8 +82,13 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P1 — Proton version removal UI.** `removeVersion` exists but nothing calls it. It should also
   optionally delete the files, since the default install dir is Lumen-owned (the doc comment claims
   "the user picked that location", which is no longer true).
-- [ ] **P2 — Per-game logs.** Game stdout/stderr is piped into Lumen's own stdout
+- [x] **P2 — Per-game logs.** Game stdout/stderr is piped into Lumen's own stdout
   (`launch_state.dart:136`). Write it to `<lumenDataDir>/logs/<gameId>.log` and link it from the UI.
+  Fixed in `v1.2.0`: each launch rotates `<gameId>.log` to `<gameId>.previous.log`, then writes a
+  header (command, cwd, env vars, executable source), wineboot's output, the game's stdout/stderr
+  (only there, in all builds) and a footer with the exit code and duration. The log is closed before
+  the exit state is committed. A log that can't be opened never blocks the launch. "Open log" is in
+  the Settings tab's "Game log" card and on the launch-failure snackbar.
 - [ ] **P2 — Cap game log size.** Since `v1.2.0` each launch truncates `<gameId>.log` and keeps one
   `<gameId>.previous.log`, but a single chatty session (e.g. `PROTON_LOG`-level output or a game
   spamming stderr) can still grow its log without bound. Cap it per launch (stop writing, or keep
@@ -95,17 +106,29 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 3. Launching / Proton
 
-- [ ] **P1 — Resolve the executable from GOG metadata instead of heuristics.** GOG installs ship
+- [x] **P1 — Resolve the executable from GOG metadata instead of heuristics.** GOG installs ship
   `goggame-<id>.info` with `playTasks` (the primary exe, its args and its working dir).
   `executable_finder.dart` guesses with substring skip-lists that also drop legitimate executables
-  (`report`, `crash`, `install`, `support`, …).
-- [ ] **P1 — Move the executable scan off the UI isolate.** `findExecutables` does a synchronous
+  (`report`, `crash`, `install`, `support`, …). Fixed in `v1.2.0`: `LaunchResolver` tries the user's
+  override, then the play task from exactly `goggame-<gameId>.info` (a `category: game` primary, else
+  the first `game` task, else the primary launcher), and only then the scan. Only a picker choice is
+  persisted. Auto results are re-resolved on every launch, so a game update that changes its exe is
+  followed. The scan's skip-lists are unchanged, since it's now only the fallback.
+- [x] **P1 — Move the executable scan off the UI isolate.** `findExecutables` does a synchronous
   recursive `listSync` over the whole install. Large games freeze the UI; use `Isolate.run` or async
-  listing.
-- [ ] **P1 — Launch args and wrapper are split on whitespace** (`game_settings_tab.dart:93,103`), so
-  quoted arguments or paths with spaces can't be expressed. Use shell-style tokenizing.
-- [ ] **P1 — A stale executable breaks launch.** If the stored `executable` no longer exists (after an
-  update or a moved install), launch fails instead of re-scanning or prompting.
+  listing. Fixed in `v1.2.0`: `findExecutablesAsync` runs the scan in `Isolate.run`, and both Play
+  and the Settings tab's "Change" use it behind a busy state (Play ignores repeat taps meanwhile).
+- [x] **P1 — Launch args and wrapper are split on whitespace** (`game_settings_tab.dart:93,103`), so
+  quoted arguments or paths with spaces can't be expressed. Use shell-style tokenizing. Fixed in
+  `v1.2.0`: `lib/common/shell_words.dart`'s `splitShellWords`/`joinShellWords` (POSIX-ish quoting and
+  escapes, no expansion) round-trip the fields. An unterminated quote shows as the field's error and
+  keeps the last valid value saved. The command preview uses the same quoting.
+- [x] **P1 — A stale executable breaks launch.** If the stored `executable` no longer exists (after an
+  update or a moved install), launch fails instead of re-scanning or prompting. Fixed in `v1.2.0`:
+  a missing override is cleared and the game falls back to auto (play task, then scan), telling the
+  user `"<old>" is no longer in the install folder — using <new> instead` (or showing the notice in
+  the picker). A missing install folder stops with its own message. The Settings tab marks a missing
+  override before Play is pressed.
 - [ ] **P2 — Check `wineboot`'s exit code** (`launch_state.dart:110`).
 - [ ] **P2 — Validate before spawning.** Check that `$protonPath/proton` exists and that the wrapper's
   first token is on `PATH`, so failures give a clear message instead of a raw `ProcessException`.
@@ -114,7 +137,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   snackbar (`game_action_buttons.dart:111`) was dead code before `v1.1.0` — `previous` and `next`
   shared the same mutated `RunningGame`, so its `previous.status != failed` check was never true.
   Making `RunningGame` immutable fixed that, so the snackbar now actually fires, including for this
-  gap's spurious case.
+  gap's spurious case. Note (`v1.2.0`): a game the user stopped is already exempt, and always ends
+  `exited` whatever its exit code.
 - [ ] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`.
 - [ ] **P2 — Validate installed Proton versions against disk on load.** A directory deleted outside the
   app still shows as installed.
