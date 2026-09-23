@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/launch_state.dart';
 
 import '../helpers/container.dart';
@@ -23,6 +24,11 @@ Future<void> waitFor(
   }
 }
 
+const gameExe = LaunchTarget(
+  executable: 'game.exe',
+  source: LaunchTargetSource.scan,
+);
+
 void main() {
   late Directory dataHome;
   late Directory protonDir;
@@ -40,14 +46,14 @@ void main() {
   });
 
   /// Writes a fake `proton` executable at [protonDir]/proton that logs each
-  /// invocation as "$LUMEN_WRAPPED|$STEAM_COMPAT_DATA_PATH|$*" to `$LOG`,
+  /// invocation as "$LUMEN_WRAPPED|$STEAM_COMPAT_DATA_PATH|$*|$PWD" to `$LOG`,
   /// creates "$STEAM_COMPAT_DATA_PATH/pfx" on a `run wineboot` call, and
   /// exits with `$FAKE_EXIT` (default 0).
   void writeFakeProton() {
     final script = File('${protonDir.path}/proton');
     script.writeAsStringSync('''
 #!/usr/bin/env bash
-echo "\${LUMEN_WRAPPED:-}|\$STEAM_COMPAT_DATA_PATH|\$*" >> "\$LOG"
+echo "\${LUMEN_WRAPPED:-}|\$STEAM_COMPAT_DATA_PATH|\$*|\$PWD" >> "\$LOG"
 if [ "\$2" = "wineboot" ]; then
   mkdir -p "\$STEAM_COMPAT_DATA_PATH/pfx"
 fi
@@ -70,7 +76,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: baseEnv(),
         );
@@ -114,7 +120,7 @@ exit "\${FAKE_EXIT:-0}"
         1,
         protonPath: protonDir.path,
         installPath: installDir.path,
-        executable: 'game.exe',
+        target: gameExe,
         prefixPath: prefixDir.path,
         envVars: baseEnv(),
       );
@@ -139,7 +145,7 @@ exit "\${FAKE_EXIT:-0}"
         1,
         protonPath: protonDir.path,
         installPath: installDir.path,
-        executable: 'game.exe',
+        target: gameExe,
         prefixPath: prefixDir.path,
         envVars: {...baseEnv(), 'FAKE_EXIT': '3'},
       );
@@ -164,7 +170,7 @@ exit "\${FAKE_EXIT:-0}"
         1,
         protonPath: protonDir.path,
         installPath: installDir.path,
-        executable: 'game.exe',
+        target: gameExe,
         prefixPath: prefixDir.path,
         envVars: baseEnv(),
       );
@@ -185,7 +191,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: baseEnv(),
           launchWrapper: const ['env', 'LUMEN_WRAPPED=1'],
@@ -203,6 +209,74 @@ exit "\${FAKE_EXIT:-0}"
       },
     );
 
+    test("cwd defaults to the executable's parent", () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      File('${installDir.path}/bin/x64/game.exe')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('fake exe');
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: const LaunchTarget(
+          executable: 'bin/x64/game.exe',
+          source: LaunchTargetSource.scan,
+        ),
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+      );
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
+
+      final line = log.readAsLinesSync().single;
+      expect(line.split('|').last, '${installDir.path}/bin/x64');
+    });
+
+    test("the target's workingDir sets cwd, and its arguments go before the "
+        "user's", () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      File('${installDir.path}/bin/x64/game.exe')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('fake exe');
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: const LaunchTarget(
+          executable: 'bin/x64/game.exe',
+          workingDir: 'bin',
+          arguments: ['-task-arg'],
+          source: LaunchTargetSource.gogMetadata,
+        ),
+        prefixPath: prefixDir.path,
+        launchArgs: const ['-user-arg'],
+        envVars: baseEnv(),
+      );
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
+
+      final line = log.readAsLinesSync().single;
+      expect(
+        line,
+        contains('run ${installDir.path}/bin/x64/game.exe -task-arg -user-arg'),
+      );
+      expect(line.split('|').last, '${installDir.path}/bin');
+    });
+
     test(
       'isActive: a second launchGame call while running is a no-op',
       () async {
@@ -215,7 +289,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: baseEnv(),
         );
@@ -226,7 +300,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: baseEnv(),
         );
@@ -255,7 +329,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: baseEnv(),
         );
@@ -300,7 +374,7 @@ exit "\${FAKE_EXIT:-0}"
           1,
           protonPath: protonDir.path,
           installPath: installDir.path,
-          executable: 'game.exe',
+          target: gameExe,
           prefixPath: prefixDir.path,
           envVars: {...baseEnv(), 'FAKE_EXIT': '3'},
         );

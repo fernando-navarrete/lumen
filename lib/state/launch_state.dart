@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/models/launch_target.dart';
 
 enum LaunchStatus { launching, running, exited, failed }
 
@@ -70,9 +71,10 @@ class LaunchState {
 /// Launches installed games via Proton, following the same recipe as
 /// gogdl-cli's `run_game` (see `runner.rs`): a shared Steam compat client
 /// directory, a one-time `proton run wineboot` to initialize the prefix,
-/// then `proton run <exe> <args>` with the game's working directory set to
-/// the executable's parent folder. The only environment variables the tool
-/// itself sets are `STEAM_COMPAT_CLIENT_INSTALL_PATH` and
+/// then `proton run <exe> <target args> <user args>` with the game's working
+/// directory set to the target's `workingDir` (from GOG's play task) when it
+/// has one, else the executable's parent folder. The only environment
+/// variables the tool itself sets are `STEAM_COMPAT_CLIENT_INSTALL_PATH` and
 /// `STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks setup. If a
 /// launch wrapper is set (e.g. `gamescope -f --`), it is prepended to the
 /// `proton run ...` invocation, becoming the process actually spawned —
@@ -98,16 +100,18 @@ class LaunchNotifier extends Notifier<LaunchState> {
   }
 
   /// Launches [gameId] using [protonPath] (the extracted Proton-GE release
-  /// directory), the game's [installPath] and [executable] (relative to
-  /// it), and its Proton [prefixPath]. No-ops if the game is already
-  /// launching or running. If [launchWrapper] is non-empty (e.g.
+  /// directory), the game's [installPath], the resolved [target] (see
+  /// `LaunchResolver`; its executable and working dir are relative to
+  /// [installPath], and its arguments go before the user's [launchArgs]),
+  /// and its Proton [prefixPath]. No-ops if the game is already launching
+  /// or running. If [launchWrapper] is non-empty (e.g.
   /// `["gamescope", "-f", "--"]`), it is prepended to the `proton run ...`
   /// invocation so the wrapper becomes the spawned process.
   Future<void> launchGame(
     int gameId, {
     required String protonPath,
     required String installPath,
-    required String executable,
+    required LaunchTarget target,
     required String prefixPath,
     List<String> launchArgs = const [],
     Map<String, String> envVars = const {},
@@ -152,13 +156,22 @@ class LaunchNotifier extends Notifier<LaunchState> {
         debugPrint('[DIAG] wineboot init returned without throwing');
       }
 
-      final fullExe = '$installPath/$executable';
-      final cwd = File(fullExe).parent.path;
+      final fullExe = '$installPath/${target.executable}';
+      final workingDir = target.workingDir;
+      final cwd = workingDir != null
+          ? '$installPath/$workingDir'
+          : File(fullExe).parent.path;
 
       // The wrapper (e.g. `gamescope -f --`) becomes the process actually
       // spawned, with the whole Proton invocation as its arguments —
       // mirroring how Steam's launch-option wrappers work.
-      final command = [protonBinary, 'run', fullExe, ...launchArgs];
+      final command = [
+        protonBinary,
+        'run',
+        fullExe,
+        ...target.arguments,
+        ...launchArgs,
+      ];
       final wrapped = [...launchWrapper, ...command];
       debugPrint('[DIAG] starting process: ${wrapped.join(' ')} cwd=$cwd');
 

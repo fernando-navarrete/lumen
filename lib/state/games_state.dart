@@ -30,8 +30,9 @@ class GameConfig {
   /// The Proton prefix directory for this game, created on first launch.
   final String? protonPrefixPath;
 
-  /// Path to the game's executable, relative to [installPath]. Null means
-  /// "not resolved yet" — the Play flow scans [installPath] for candidates.
+  /// The user's executable override, relative to [installPath]: only ever
+  /// set from a picker. Null means "auto" — `LaunchResolver` resolves GOG's
+  /// play task, then a scan, on every launch, and never persists the result.
   final String? executable;
 
   /// Extra arguments appended after the executable path at launch.
@@ -320,9 +321,8 @@ class GamesNotifier extends Notifier<GamesState> {
     _persist();
   }
 
-  /// Sets [gameId]'s launch executable, relative to its install path; pass
-  /// null to clear it back to "not resolved yet" (the Play flow will
-  /// re-scan the install directory).
+  /// Sets [gameId]'s executable override, relative to its install path;
+  /// pass null to reset it to auto (see [GameConfig.executable]).
   void setExecutable(int gameId, String? executable) {
     final existing = state.games[gameId];
     if (existing == null) {

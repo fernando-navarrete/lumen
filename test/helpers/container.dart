@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,12 +14,14 @@ import 'fake_secure_storage.dart';
 /// overridden with [backend] (a fresh [FakeGogBackend] if omitted),
 /// [secureStorageProvider] overridden with [secureStorage] (a fresh
 /// [FakeSecureStorage] if omitted) and [sharedPreferencesProvider]
-/// overridden with an instance seeded from [prefs]. Registers
-/// `addTearDown(container.dispose)` on the current test.
+/// overridden with an instance seeded from [prefs], plus any extra
+/// [overrides]. Registers `addTearDown(container.dispose)` on the current
+/// test.
 Future<ProviderContainer> createContainer({
   FakeGogBackend? backend,
   FakeSecureStorage? secureStorage,
   Map<String, Object> prefs = const {},
+  List<Override> overrides = const [],
 }) async {
   SharedPreferences.setMockInitialValues(prefs);
   final resolvedPrefs = await SharedPreferences.getInstance();
@@ -29,6 +32,7 @@ Future<ProviderContainer> createContainer({
         secureStorage ?? FakeSecureStorage(),
       ),
       sharedPreferencesProvider.overrideWithValue(resolvedPrefs),
+      ...overrides,
     ],
   );
   addTearDown(container.dispose);

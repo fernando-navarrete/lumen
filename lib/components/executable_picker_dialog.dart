@@ -5,11 +5,14 @@ import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
 /// Shows a modal list of executable paths (relative to a game's install
-/// directory, as returned by `findExecutables`) and lets the user pick
-/// which one to use. Returns the chosen path, or null if canceled.
+/// directory, e.g. GOG play tasks and `findExecutables` results) and lets
+/// the user pick which one to use. A path with an entry in [labels] (a GOG
+/// play task's `GOG: <name>`) shows that label, with the path underneath.
+/// Returns the chosen path, or null if canceled.
 Future<String?> showExecutablePicker(
   BuildContext context, {
   required List<String> candidates,
+  Map<String, String> labels = const {},
   String title = "Choose executable",
   String confirmLabel = "Select",
 }) {
@@ -17,6 +20,7 @@ Future<String?> showExecutablePicker(
     context: context,
     builder: (_) => _ExecutablePickerDialog(
       candidates: candidates,
+      labels: labels,
       title: title,
       confirmLabel: confirmLabel,
     ),
@@ -26,11 +30,13 @@ Future<String?> showExecutablePicker(
 class _ExecutablePickerDialog extends StatefulWidget {
   const _ExecutablePickerDialog({
     required this.candidates,
+    required this.labels,
     required this.title,
     required this.confirmLabel,
   });
 
   final List<String> candidates;
+  final Map<String, String> labels;
   final String title;
   final String confirmLabel;
 
@@ -89,9 +95,17 @@ class _ExecutablePickerDialogState extends State<_ExecutablePickerDialog> {
                           RadioListTile<String>(
                             value: path,
                             title: Text(
-                              path,
+                              widget.labels[path] ?? path,
                               style: AppText.bodyMedium(color: Colors.white),
                             ),
+                            subtitle: widget.labels.containsKey(path)
+                                ? Text(
+                                    path,
+                                    style: AppText.code(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  )
+                                : null,
                             activeColor: AppColors.primary,
                           ),
                       ],

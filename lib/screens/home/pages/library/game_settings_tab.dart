@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
-import 'package:lumen/common/executable_finder.dart';
+import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/section_card.dart';
+import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -56,11 +57,33 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   // Riverpod disallows once the widget is unmounting.
   late final GamesNotifier _gamesNotifier;
 
+  // What the Executable field and the command preview show, loaded off the
+  // build path by [_refreshResolved]: the override's target (with any GOG
+  // task working dir/arguments it inherits), or what auto resolves to. Both
+  // null while pending.
+  LaunchTarget? _overrideTarget;
+  AutoPreview? _autoPreview;
+
+  // Bumped on every [_refreshResolved], so a slow earlier load can't
+  // overwrite a newer one.
+  int _resolveToken = 0;
+
+  // Whether "Change" is still collecting candidates.
+  bool _changing = false;
+
   @override
   void initState() {
     super.initState();
     _gamesNotifier = ref.read(gamesStateProvider.notifier);
     _initFromState();
+    _refreshResolved();
+    ref.listenManual(
+      gamesStateProvider.select(
+        (s) =>
+            (s.getInstallPath(widget.gameId), s.getExecutable(widget.gameId)),
+      ),
+      (_, _) => setState(_refreshResolved),
+    );
   }
 
   @override
@@ -79,7 +102,39 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
       _launchWrapperError = null;
       _launchArgsError = null;
       _initFromState();
+      _refreshResolved();
     }
+  }
+
+  /// Reloads [_overrideTarget]/[_autoPreview] for the current game. Callers
+  /// outside initState/didUpdateWidget wrap it in `setState`.
+  void _refreshResolved() {
+    final token = ++_resolveToken;
+    _overrideTarget = null;
+    _autoPreview = null;
+
+    final gameId = widget.gameId;
+    final gamesState = ref.read(gamesStateProvider);
+    final installPath = gamesState.getInstallPath(gameId);
+    if (installPath == null) {
+      return;
+    }
+    final resolver = ref.read(launchResolverProvider);
+    final hasOverride = gamesState.getExecutable(gameId) != null;
+
+    () async {
+      if (hasOverride) {
+        final target = await resolver.overrideTarget(gameId, installPath);
+        if (mounted && token == _resolveToken) {
+          setState(() => _overrideTarget = target);
+        }
+      } else {
+        final preview = await resolver.previewAuto(gameId, installPath);
+        if (mounted && token == _resolveToken) {
+          setState(() => _autoPreview = preview);
+        }
+      }
+    }();
   }
 
   void _initFromState() {
@@ -151,21 +206,35 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     ref.read(gamesStateProvider.notifier).setEnvVars(widget.gameId, vars);
   }
 
+  /// Lets the user pick an override from the install's GOG play tasks
+  /// (listed first) and the scan results, both collected off the UI isolate.
   Future<void> _changeExecutable(String installPath) async {
-    final candidates = findExecutables(installPath);
-    if (candidates.isEmpty) {
+    setState(() => _changing = true);
+    final ({List<String> candidates, Map<String, String> labels}) found;
+    try {
+      found = await ref
+          .read(launchResolverProvider)
+          .listCandidates(widget.gameId, installPath);
+    } finally {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("No .exe files found in the install directory"),
-          ),
-        );
+        setState(() => _changing = false);
       }
+    }
+    if (!mounted) {
+      return;
+    }
+    if (found.candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No .exe files found in the install directory"),
+        ),
+      );
       return;
     }
     final chosen = await showExecutablePicker(
       context,
-      candidates: candidates,
+      candidates: found.candidates,
+      labels: found.labels,
       confirmLabel: "Use",
     );
     if (chosen != null) {
@@ -175,20 +244,54 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     }
   }
 
+  /// The target the command preview shows: the loaded override target, the
+  /// bare override while that loads, or what auto resolves to.
+  LaunchTarget? _previewTarget(String? executable) {
+    if (executable != null) {
+      return _overrideTarget ??
+          LaunchTarget(
+            executable: executable,
+            source: LaunchTargetSource.userOverride,
+          );
+    }
+    return _autoPreview?.target;
+  }
+
+  /// The Executable field's text when no override is set.
+  String _autoLabel(String? installPath) {
+    if (installPath == null) {
+      return "Not set";
+    }
+    final preview = _autoPreview;
+    if (preview == null) {
+      return "Auto — resolving…";
+    }
+    final target = preview.target;
+    if (target != null) {
+      final from = target.source == LaunchTargetSource.gogMetadata
+          ? "from GOG"
+          : "scan";
+      return "Auto — ${target.executable} ($from)";
+    }
+    return preview.candidateCount > 1
+        ? "Auto — you'll choose on first play"
+        : "Auto — no .exe found";
+  }
+
   /// "ENV=VAL … wrapper -- ./game.exe -args" preview assembled from the
   /// saved config, quoted with [joinShellWords] so it shows the exact words
   /// that will run.
-  String _resolvedCommand(GamesState gamesState) {
+  String _resolvedCommand(GamesState gamesState, LaunchTarget? target) {
     final envVars = gamesState.getEnvVars(widget.gameId);
-    final executable = gamesState.getExecutable(widget.gameId);
     final wrapper = gamesState.getLaunchWrapper(widget.gameId);
     final args = gamesState.getLaunchArgs(widget.gameId);
 
-    final exeName = executable?.split(RegExp(r'[/\\]')).last;
+    final exeName = target?.executable.split(RegExp(r'[/\\]')).last;
     return joinShellWords([
       for (final entry in envVars.entries) '${entry.key}=${entry.value}',
       ...wrapper,
       './${exeName ?? '<game>'}',
+      ...?target?.arguments,
       ...args,
     ]);
   }
@@ -202,6 +305,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     final prefixPath = gamesState.getProtonPrefixPath(gameId);
     final installPath = gamesState.getInstallPath(gameId);
     final executable = gamesState.getExecutable(gameId);
+    final previewTarget = _previewTarget(executable);
 
     return SingleChildScrollView(
       child: ConstrainedBox(
@@ -234,28 +338,39 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
             SectionCard(
               title: "Executable",
               description:
-                  "Resolved automatically the first time you play unless set here.",
+                  "Chosen automatically on each launch, from GOG's metadata "
+                  "or a scan, unless set here.",
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      executable ?? "Not set",
+                      executable ?? _autoLabel(installPath),
                       style: executable != null
                           ? AppText.code(color: Colors.white)
                           : AppText.bodyMedium(color: AppColors.textSecondary),
                     ),
                   ),
                   if (installPath != null) ...[
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                    if (_changing)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 22),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    else
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        onPressed: () => _changeExecutable(installPath),
+                        child: Text(
+                          "Change",
+                          style: AppText.button(color: AppColors.primary),
+                        ),
                       ),
-                      onPressed: () => _changeExecutable(installPath),
-                      child: Text(
-                        "Change",
-                        style: AppText.button(color: AppColors.primary),
-                      ),
-                    ),
                     if (executable != null)
                       TextButton(
                         style: TextButton.styleFrom(
@@ -265,7 +380,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                             .read(gamesStateProvider.notifier)
                             .setExecutable(gameId, null),
                         child: Text(
-                          "Clear",
+                          "Reset to auto",
                           style: AppText.button(color: AppColors.textSecondary),
                         ),
                       ),
@@ -344,7 +459,8 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                     for (final row in _envRows) _buildEnvRow(row),
                   const SizedBox(height: 7),
                   _ResolvedCommandPreview(
-                    command: _resolvedCommand(gamesState),
+                    command: _resolvedCommand(gamesState, previewTarget),
+                    workingDir: previewTarget?.workingDir,
                   ),
                 ],
               ),
@@ -466,9 +582,13 @@ class _RemoveButton extends StatelessWidget {
 
 /// Mono preview of the assembled launch command.
 class _ResolvedCommandPreview extends StatelessWidget {
-  const _ResolvedCommandPreview({required this.command});
+  const _ResolvedCommandPreview({required this.command, this.workingDir});
 
   final String command;
+
+  /// The target's working dir relative to the install root, shown on its
+  /// own line; null means the executable's own folder.
+  final String? workingDir;
 
   @override
   Widget build(BuildContext context) {
@@ -490,6 +610,8 @@ class _ResolvedCommandPreview extends StatelessWidget {
             ),
           ),
           Text(command, style: AppText.monoPreview),
+          if (workingDir != null)
+            Text("(cwd: $workingDir)", style: AppText.monoPreview),
         ],
       ),
     );

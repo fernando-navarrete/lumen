@@ -1,7 +1,7 @@
 import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lumen/common/executable_finder.dart';
+import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/models/downloadable_product.dart';
@@ -43,6 +43,11 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
   /// Whether preloading the default build + products has finished, gating
   /// the Install/Import buttons so they always have something to act on.
   bool _ready = false;
+
+  /// Whether a Play press is still resolving what to launch (the scan can
+  /// take seconds on a big install). Play is disabled meanwhile, so a double
+  /// click can't start two scans or two pickers.
+  bool _resolving = false;
 
   @override
   void initState() {
@@ -164,12 +169,16 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     if (installed) {
       return [
         PrimaryButton.icon(
-          enabled: !running,
+          enabled: !running && !_resolving,
           onTap: () => _onPlay(context, gameId, gamesState),
           glowing: true,
           large: widget.large,
-          icon: running ? Icons.hourglass_top : Icons.play_arrow,
-          label: running ? "Running…" : "Play",
+          icon: running || _resolving ? Icons.hourglass_top : Icons.play_arrow,
+          label: running
+              ? "Running…"
+              : _resolving
+              ? "Resolving…"
+              : "Play",
         ),
         PrimaryButton.icon(
           icon: Icons.fact_check,
@@ -339,11 +348,31 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     showMessage("Verifying files — check the Downloads tab for progress");
   }
 
-  /// Resolves the effective Proton-GE version (per-game override, else the
-  /// global default from Settings), the game's executable, and its Proton
-  /// prefix directory (created on first launch), then hands off to
-  /// [LaunchNotifier] to actually spawn the game via Proton.
+  /// Runs [_play], ignoring presses while a previous one is still
+  /// resolving.
   Future<void> _onPlay(
+    BuildContext context,
+    int gameId,
+    GamesState gamesState,
+  ) async {
+    if (_resolving) {
+      return;
+    }
+    setState(() => _resolving = true);
+    try {
+      await _play(context, gameId, gamesState);
+    } finally {
+      if (mounted) {
+        setState(() => _resolving = false);
+      }
+    }
+  }
+
+  /// Resolves the effective Proton-GE version (per-game override, else the
+  /// global default from Settings), what to launch (via [LaunchResolver]),
+  /// and the game's Proton prefix directory (created on first launch), then
+  /// hands off to [LaunchNotifier] to actually spawn the game via Proton.
+  Future<void> _play(
     BuildContext context,
     int gameId,
     GamesState gamesState,
@@ -377,13 +406,28 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       return;
     }
 
-    final executable = await _resolveExecutable(
-      context,
-      gameId,
-      installPath,
-      gamesState,
-    );
-    if (executable == null) {
+    final resolution = await ref
+        .read(launchResolverProvider)
+        .resolve(
+          gameId,
+          installPath,
+          pick: (candidates) async {
+            if (!context.mounted) {
+              return null;
+            }
+            return showExecutablePicker(
+              context,
+              candidates: candidates,
+              confirmLabel: "Launch",
+            );
+          },
+        );
+    final message = resolution.message;
+    if (message != null) {
+      showMessage(message);
+    }
+    final target = resolution.target;
+    if (target == null || !mounted) {
       return;
     }
 
@@ -397,58 +441,11 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
           gameId,
           protonPath: protonPath,
           installPath: installPath,
-          executable: executable,
+          target: target,
           prefixPath: prefixPath,
           launchArgs: gamesState.getLaunchArgs(gameId),
           envVars: gamesState.getEnvVars(gameId),
           launchWrapper: gamesState.getLaunchWrapper(gameId),
         );
-  }
-
-  /// Resolves [gameId]'s launch executable: returns the stored override if
-  /// set, otherwise scans [installPath] for candidates, auto-picking a lone
-  /// match or prompting via [showExecutablePicker] when there's more than
-  /// one, and persists the resolved choice. Returns null (after showing a
-  /// snackbar) if nothing usable was found or the user canceled the picker.
-  Future<String?> _resolveExecutable(
-    BuildContext context,
-    int gameId,
-    String installPath,
-    GamesState gamesState,
-  ) async {
-    final existing = gamesState.getExecutable(gameId);
-    if (existing != null) {
-      return existing;
-    }
-
-    final candidates = findExecutables(installPath);
-    if (candidates.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("No launchable .exe found in $installPath")),
-        );
-      }
-      return null;
-    }
-
-    String? chosen;
-    if (candidates.length == 1) {
-      chosen = candidates.first;
-    } else {
-      if (!context.mounted) {
-        return null;
-      }
-      chosen = await showExecutablePicker(
-        context,
-        candidates: candidates,
-        confirmLabel: "Launch",
-      );
-      if (chosen == null) {
-        return null;
-      }
-    }
-
-    ref.read(gamesStateProvider.notifier).setExecutable(gameId, chosen);
-    return chosen;
   }
 }
