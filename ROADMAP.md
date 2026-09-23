@@ -51,7 +51,8 @@ This goes before any feature work so that everything after it lands with tests.
 - Resolve the `lib/models/` mismatch between CLAUDE.md and the code (§4).
 - Add `test/` covering the notifiers, `guardBridgeStream` and `findExecutables`, including
   regression tests for the 1.0.x fixes (§7 P0).
-- Add CI running analyze and test, and make `gogdl_flutter` reachable from outside the LAN (§7 P1).
+- Add CI (GitLab CI, self-hosted runner on `thinkcentre.home`) running analyze and test, reachable
+  from CI on the LAN; reachability from outside the LAN is deferred (§7 P1).
 
 Follow-up patches (`v1.1.1+`), one per tag:
 1. `v1.1.1`: simplify or remove `GogState` stream caches (§4).
