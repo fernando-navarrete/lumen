@@ -32,8 +32,10 @@ variables:
     - mkdir -p ~/.ssh
     - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
     # Flutter, pinned to the version in .fvmrc; cached in .ci/flutter/ (see cache: below).
-    - FLUTTER_VERSION=$(sed -n 's/.*"flutter": *"\([^"]*\)".*/\1/p' .fvmrc)
+    # (A literal block, not a plain list-item string: the sed script's `": *"`
+    # would otherwise parse as a YAML mapping value followed by an alias.)
     - |
+      FLUTTER_VERSION=$(sed -n 's/.*"flutter": *"\([^"]*\)".*/\1/p' .fvmrc)
       if [ ! -x "$FLUTTER_HOME/bin/flutter" ]; then
         git clone --depth 1 -b "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$FLUTTER_HOME"
       fi
