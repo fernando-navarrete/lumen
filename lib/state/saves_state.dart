@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
@@ -121,6 +123,17 @@ class SavesNotifier extends Notifier<SavesState> {
     if (buildName == null || installPath == null) {
       task.status = TaskStatus.failed;
       task.error = 'game is not installed';
+      _emit();
+      return;
+    }
+    // The bridge needs an initialized Wine prefix and fails without one, so
+    // bail out before a first launch has created it — and without creating
+    // or recording a prefix dir for a sync that can't run.
+    final prefixRoot =
+        gamesState.getProtonPrefixPath(gameId) ?? protonPrefixDir(gameId);
+    if (!Directory('$prefixRoot/pfx').existsSync()) {
+      task.status = TaskStatus.failed;
+      task.error = 'launch the game once to set up its Wine prefix';
       _emit();
       return;
     }

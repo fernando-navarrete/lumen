@@ -46,11 +46,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P1 — Removing a Proton version leaves dangling per-game overrides.** Fixed in `v1.0.12`:
   removing a version now clears the override on games pinned to it, so they fall back to the global
   default.
-- [ ] **P2 — Saves downloaded before first launch may skip prefix init (needs verification).**
-  `SavesNotifier` passes `<prefix>/pfx` to the bridge, which can create `pfx/drive_c/...` in a prefix
-  that was never initialized. `LaunchNotifier` (`launch_state.dart:104`) uses "`pfx` exists" as its
-  "already initialized" check, so it would then skip `wineboot`. Test this against a fresh game, and
-  check Proton's `version` file instead of the folder.
+- [x] **P2 — Saves downloaded before first launch may skip prefix init.** Fixed in `v1.0.14`: didn't
+  reproduce (a save sync on a never-launched game fails instead of creating `pfx`). Syncing now stops
+  early with a "launch the game once" message and no longer creates a prefix dir.
 - [x] **P2 — `TextEditingController` is never disposed.** Fixed in `v1.0.8`: the login screen now
   disposes it.
 - [x] **P2 — Proton download `onDone` always marks the task complete.** Fixed in `v1.0.13`: a
