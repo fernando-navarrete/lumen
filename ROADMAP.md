@@ -37,7 +37,7 @@ or edge-case issues.
 | `v1.0.10` ✅ | Debug and release builds follow the same error contract in `GogState` metadata getters (return empty/null in both). | §1 P1 |
 | `v1.0.11` ✅ | Hero banners stop refetching and flickering (cache `getGameBackgroundLink` like boxart). | §1 P1 |
 | `v1.0.12` ✅ | Removing a Proton version clears per-game overrides that point to it. | §1 P1 |
-| `v1.0.13` | A Proton download that closes without a `Finished` event is marked failed, not installed. | §1 P2 |
+| `v1.0.13` ✅ | A Proton download that closes without a `Finished` event is marked failed, not installed. | §1 P2 |
 | `v1.0.14` | Prefix init isn't skipped when saves were downloaded before the first launch. **Reproduce first**; if it doesn't reproduce, drop this tag and close the item. | §1 P2 |
 
 ## v1.1.0 — Foundation: tests, CI and state architecture

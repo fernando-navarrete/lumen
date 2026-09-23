@@ -139,7 +139,8 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
     // Set by ProtonDownloadProgress_Finished — the directory the bridge
     // actually extracted into, which sanitizes the tag for the filesystem
-    // and so can differ from '$dir/$tag'.
+    // and so can differ from '$dir/$tag'. A stream that closes without it
+    // is treated as a failed download, not guessed at.
     String? extractedPath;
 
     stream.listen(
@@ -164,8 +165,13 @@ class ProtonNotifier extends Notifier<ProtonState> {
         _emit();
       },
       onDone: () {
-        task.status = TaskStatus.completed;
-        _install(tag, extractedPath ?? '$dir/$tag');
+        final path = extractedPath;
+        if (path != null && task.status != TaskStatus.failed) {
+          task.status = TaskStatus.completed;
+          _install(tag, path);
+        } else {
+          task.status = TaskStatus.failed;
+        }
         _emit();
       },
       onError: (Object error) {

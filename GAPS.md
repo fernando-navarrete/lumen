@@ -53,8 +53,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   check Proton's `version` file instead of the folder.
 - [x] **P2 — `TextEditingController` is never disposed.** Fixed in `v1.0.8`: the login screen now
   disposes it.
-- [ ] **P2 — Proton download `onDone` always marks the task complete** (`proton_state.dart:165`), even
-  when no `Finished` event arrived. In that case it falls back to a guessed `'$dir/$tag'` path.
+- [x] **P2 — Proton download `onDone` always marks the task complete.** Fixed in `v1.0.13`: a
+  download that closes without a `Finished` event is now marked failed (and can be retried) instead
+  of installed.
 
 ## 2. Missing features
 
