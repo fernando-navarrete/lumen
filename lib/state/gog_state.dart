@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
@@ -61,10 +60,7 @@ class GogState {
       String link = await _backend.getBackgroundImageLink(gameId);
       return link;
     } catch (e) {
-      if (kDebugMode) {
-        logGogError(e);
-        throw Exception(gogErrorText(e));
-      }
+      logGogError(e);
       return '';
     }
   }
@@ -77,10 +73,7 @@ class GogState {
       String link = await _backend.getGameBoxartLink(gameId);
       return link;
     } catch (e) {
-      if (kDebugMode) {
-        logGogError(e);
-        throw Exception(gogErrorText(e));
-      }
+      logGogError(e);
       return '';
     }
   }
@@ -90,10 +83,7 @@ class GogState {
       String summary = await _backend.getGameSummary(gameId);
       return summary;
     } catch (e) {
-      if (kDebugMode) {
-        logGogError(e);
-        throw Exception(gogErrorText(e));
-      }
+      logGogError(e);
       return '';
     }
   }
@@ -103,10 +93,7 @@ class GogState {
       List<String> screenshots = await _backend.getGameScreenshots(gameId);
       return screenshots;
     } catch (e) {
-      if (kDebugMode) {
-        logGogError(e);
-        throw Exception(gogErrorText(e));
-      }
+      logGogError(e);
       return [];
     }
   }

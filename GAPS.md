@@ -39,11 +39,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P1 — `setState` can run after dispose in several async `initState` flows.** Fixed in
   `v1.0.8`: the login, Overview, DLC and Library flows (and `GameActionButtons`) now check
   `mounted` after every `await` before calling `setState` or `ref`.
-- [ ] **P1 — Debug and release builds handle errors differently.** In `GogState`, `getGameBackgroundLink`,
-  `getGameBoxartLink`, `getGameSummary` and `getGameScreenshots` (`gog_state.dart:51-104`) *throw* in
-  debug but return `''`/`[]` in release. Debug builds hit unhandled async errors and endless loaders
-  (for example the Overview summary) that release builds never show. Pick one contract; CLAUDE.md says
-  "return null on failure".
+- [x] **P1 — Debug and release builds handle errors differently.** Fixed in `v1.0.10`: the
+  `GogState` image, summary and screenshot getters now log and return `''`/`[]` in both builds
+  instead of throwing in debug.
 - [x] **P1 — The login flow doesn't catch non-`GogError` failures.** Fixed in `v1.0.9`: a missing
   stored token is no longer treated as an error, and any other failure (restore or sign-in, e.g. no
   keyring) now shows a snackbar instead of escaping silently.
