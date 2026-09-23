@@ -61,7 +61,12 @@ All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `d
 - An immutable, read-only **State** class (`GamesState`, `DownloadsState`, ...) exposing getters only.
 - A `Notifier<State>` subclass that is the *only* thing allowed to mutate state, always by
   constructing a new state object (`state = XState({...state.map, key: value})`) rather than mutating
-  in place — mutating a `const {}` map in place has caused real crashes.
+  in place — mutating a `const {}` map in place has caused real crashes. The task/game objects held
+  inside these states (`ActivityTask`, `SaveTask`, `ProtonTask`, `RunningGame`) are immutable too:
+  every field is `final`, and updates go through a `copyWith` using an `_unset` sentinel object (not
+  `null`) for nullable fields, so "argument omitted" (keep the existing value) can be distinguished
+  from "argument explicitly passed as `null`" (clear the field) — same pattern as
+  `GameConfig.copyWith`.
 - A top-level `xStateProvider` (`Provider` or `NotifierProvider`) with an explicit `name:` for
   debugging.
 

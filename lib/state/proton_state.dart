@@ -12,21 +12,29 @@ import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lumen/common/gog_error.dart';
 
-/// In-flight/finished progress for one Proton-GE release download, keyed by
+/// Sentinel default for nullable [ProtonTask.copyWith] parameters, so
+/// "argument omitted" (keep the existing value) can be distinguished from
+/// "argument explicitly passed as `null`" (clear the field) — same pattern
+/// as `ActivityTask.copyWith`'s `_unset` in downloads_state.dart.
+const _unset = Object();
+
+/// Immutable snapshot of one Proton-GE release download's progress, keyed by
 /// tag name in [ProtonState.tasks]. Mirrors [ActivityTask] in
-/// downloads_state.dart, but byte-only (no chunk/file bookkeeping).
+/// downloads_state.dart, but byte-only (no chunk/file bookkeeping). Updates
+/// go through [copyWith]; [ProtonNotifier] is the only thing that constructs
+/// new ones.
 class ProtonTask {
   final String tag;
-  TaskStatus status;
-  int transferred;
-  int total;
+  final TaskStatus status;
+  final int transferred;
+  final int total;
 
   /// "downloading" or "extracting" — derived from [transferred]/[total],
   /// not read directly off the bridge's `ProtonDownloadProgress` (see
   /// [ProtonNotifier.downloadRelease]): extraction runs concurrently with
   /// the download, so its `extracted` events interleave with `progress`
   /// for the whole transfer rather than marking a distinct phase.
-  String? stage;
+  final String? stage;
 
   ProtonTask({
     required this.tag,
@@ -35,6 +43,24 @@ class ProtonTask {
     this.total = 0,
     this.stage,
   });
+
+  /// Returns a copy with the given fields replaced. [stage] defaults to the
+  /// [_unset] sentinel rather than `null`, so omitting it keeps the
+  /// existing value while passing `null` explicitly clears it.
+  ProtonTask copyWith({
+    TaskStatus? status,
+    int? transferred,
+    int? total,
+    Object? stage = _unset,
+  }) {
+    return ProtonTask(
+      tag: tag,
+      status: status ?? this.status,
+      transferred: transferred ?? this.transferred,
+      total: total ?? this.total,
+      stage: identical(stage, _unset) ? this.stage : stage as String?,
+    );
+  }
 }
 
 /// Immutable snapshot of installed Proton-GE versions, the chosen global
@@ -86,12 +112,24 @@ class ProtonNotifier extends Notifier<ProtonState> {
     return _load();
   }
 
-  void _emit() {
-    state = ProtonState(
-      installed: state.installed,
-      defaultVersion: state.defaultVersion,
-      tasks: {...state.tasks},
-    );
+  /// Commits [next] as the replacement for [current] if [current] is still
+  /// the task registered for its tag — a stream whose task was replaced
+  /// (e.g. a retried download after a failure) keeps delivering events to
+  /// an orphaned closure-local task; this stops those stale events from
+  /// clobbering whatever replaced it. Returns [next] regardless, so the
+  /// caller's local variable keeps evolving for its own onDone/onError
+  /// decisions even once its updates stop landing. Mirrors
+  /// `DownloadsNotifier._commit` in downloads_state.dart (without the
+  /// throttling — Proton downloads don't throttle emits).
+  ProtonTask _commit(ProtonTask current, ProtonTask next) {
+    if (identical(state.tasks[next.tag], current)) {
+      state = ProtonState(
+        installed: state.installed,
+        defaultVersion: state.defaultVersion,
+        tasks: {...state.tasks, next.tag: next},
+      );
+    }
+    return next;
   }
 
   Future<List<ProtonRelease>?> fetchReleases(int page) {
@@ -124,7 +162,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
     }
     final dir = targetDir ?? protonInstallDir();
     Directory(dir).createSync(recursive: true);
-    final task = ProtonTask(tag: tag);
+    var task = ProtonTask(tag: tag);
     state = ProtonState(
       installed: state.installed,
       defaultVersion: state.defaultVersion,
@@ -133,8 +171,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
     final stream = await _gogState.downloadProtonRelease(tag, dir);
     if (stream == null) {
-      task.status = TaskStatus.failed;
-      _emit();
+      _commit(task, task.copyWith(status: TaskStatus.failed));
       return;
     }
 
@@ -148,13 +185,19 @@ class ProtonNotifier extends Notifier<ProtonState> {
       (event) {
         switch (event) {
           case ProtonDownloadProgress_Started(:final field0):
-            task.total = field0.toInt();
-            task.stage = 'downloading';
+            task = _commit(
+              task,
+              task.copyWith(total: field0.toInt(), stage: 'downloading'),
+            );
           case ProtonDownloadProgress_Progress(:final field0):
-            task.transferred = field0.toInt();
-            task.stage = task.total > 0 && task.transferred >= task.total
+            final transferred = field0.toInt();
+            final stage = task.total > 0 && transferred >= task.total
                 ? 'extracting'
                 : 'downloading';
+            task = _commit(
+              task,
+              task.copyWith(transferred: transferred, stage: stage),
+            );
           case ProtonDownloadProgress_Extracted():
             // Entries are extracted as the tarball streams in, so these
             // interleave with Progress for the whole transfer rather than
@@ -163,22 +206,19 @@ class ProtonNotifier extends Notifier<ProtonState> {
           case ProtonDownloadProgress_Finished(:final field0):
             extractedPath = field0;
         }
-        _emit();
       },
       onDone: () {
         final path = extractedPath;
         if (path != null && task.status != TaskStatus.failed) {
-          task.status = TaskStatus.completed;
+          task = _commit(task, task.copyWith(status: TaskStatus.completed));
           _install(tag, path);
         } else {
-          task.status = TaskStatus.failed;
+          task = _commit(task, task.copyWith(status: TaskStatus.failed));
         }
-        _emit();
       },
       onError: (Object error) {
         logGogError(error);
-        task.status = TaskStatus.failed;
-        _emit();
+        task = _commit(task, task.copyWith(status: TaskStatus.failed));
       },
     );
   }

@@ -106,7 +106,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — Validate before spawning.** Check that `$protonPath/proton` exists and that the wrapper's
   first token is on `PATH`, so failures give a clear message instead of a raw `ProcessException`.
 - [ ] **P2 — Stop treating every non-zero exit code as a failure** (`launch_state.dart:144`). Many games
-  exit non-zero normally, so this shows a spurious error snackbar.
+  exit non-zero normally, so this shows a spurious error snackbar. Note (`v1.1.0` Phase 6): this
+  snackbar (`game_action_buttons.dart:111`) was dead code before `v1.1.0` — `previous` and `next`
+  shared the same mutated `RunningGame`, so its `previous.status != failed` check was never true.
+  Making `RunningGame` immutable fixed that, so the snackbar now actually fires, including for this
+  gap's spurious case.
 - [ ] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`.
 - [ ] **P2 — Validate installed Proton versions against disk on load.** A directory deleted outside the
   app still shows as installed.

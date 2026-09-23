@@ -233,4 +233,80 @@ exit "\${FAKE_EXIT:-0}"
       expect(log.readAsLinesSync(), hasLength(1));
     });
   });
+
+  group('LaunchNotifier — immutability (Phase 6)', () {
+    test('an event produces a new game; the old snapshot keeps its old values', () async {
+      writeFakeProton();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      final future = notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        executable: 'game.exe',
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+      );
+      // The synchronous portion of launchGame (before its first `await`)
+      // already ran by the time the call returns control here.
+      final launching = container.read(launchStateProvider).gameFor(1)!;
+      expect(launching.status, LaunchStatus.launching);
+
+      await future;
+      final running = container.read(launchStateProvider).gameFor(1)!;
+
+      expect(identical(launching, running), isFalse);
+      expect(launching.status, LaunchStatus.launching);
+      expect(running.status, LaunchStatus.running);
+
+      // Wait for the process to actually exit before the test (and its
+      // container) tears down — otherwise the fire-and-forget
+      // `process.exitCode.then` callback runs after disposal and throws.
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
+    });
+
+    test(
+      'the launching -> failed transition is visible to a listener (drives the '
+      'launch-failure snackbar in game_action_buttons.dart)',
+      () async {
+        writeFakeProton();
+        Directory('${prefixDir.path}/pfx').createSync();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
+
+        final seen = <LaunchStatus?>[];
+        container.listen<LaunchState>(launchStateProvider, (previous, next) {
+          seen.add(next.gameFor(1)?.status);
+        });
+
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: {...baseEnv(), 'FAKE_EXIT': '3'},
+        );
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
+
+        // Each transition is its own event with a genuinely new object, so a
+        // listener sees `running` before `failed` rather than jumping
+        // straight from `launching` to `failed` on a shared instance.
+        expect(seen, [
+          LaunchStatus.launching,
+          LaunchStatus.running,
+          LaunchStatus.failed,
+        ]);
+      },
+    );
+  });
 }

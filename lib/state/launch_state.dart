@@ -7,13 +7,21 @@ import 'package:lumen/common/gog_error.dart';
 
 enum LaunchStatus { launching, running, exited, failed }
 
-/// In-flight/finished launch state for one game, keyed by gameId in
-/// [LaunchState.games]. Mirrors [ActivityTask] in downloads_state.dart.
+/// Sentinel default for nullable [RunningGame.copyWith] parameters, so
+/// "argument omitted" (keep the existing value) can be distinguished from
+/// "argument explicitly passed as `null`" (clear the field) — same pattern
+/// as `ActivityTask.copyWith`'s `_unset` in downloads_state.dart.
+const _unset = Object();
+
+/// Immutable snapshot of one in-flight/finished game launch, keyed by
+/// gameId in [LaunchState.games]. Mirrors [ActivityTask] in
+/// downloads_state.dart. Updates go through [copyWith]; [LaunchNotifier] is
+/// the only thing that constructs new ones.
 class RunningGame {
   final int gameId;
-  LaunchStatus status;
-  int? exitCode;
-  String? error;
+  final LaunchStatus status;
+  final int? exitCode;
+  final String? error;
 
   RunningGame({
     required this.gameId,
@@ -21,6 +29,22 @@ class RunningGame {
     this.exitCode,
     this.error,
   });
+
+  /// Returns a copy with the given fields replaced. [exitCode] and [error]
+  /// default to the [_unset] sentinel rather than `null`, so omitting them
+  /// keeps the existing value while passing `null` explicitly clears them.
+  RunningGame copyWith({
+    LaunchStatus? status,
+    Object? exitCode = _unset,
+    Object? error = _unset,
+  }) {
+    return RunningGame(
+      gameId: gameId,
+      status: status ?? this.status,
+      exitCode: identical(exitCode, _unset) ? this.exitCode : exitCode as int?,
+      error: identical(error, _unset) ? this.error : error as String?,
+    );
+  }
 }
 
 /// Immutable snapshot of in-flight/finished game launches, keyed by gameId.
@@ -58,8 +82,19 @@ class LaunchNotifier extends Notifier<LaunchState> {
   @override
   LaunchState build() => const LaunchState.empty();
 
-  void _emit() {
-    state = LaunchState({...state.games});
+  /// Commits [next] as the replacement for [current] if [current] is still
+  /// the game registered for its gameId — a launch whose entry was replaced
+  /// (e.g. a fresh launch started after this one's process already exited)
+  /// keeps delivering its exit-code/error callback to an orphaned
+  /// closure-local game; this stops that stale callback from clobbering
+  /// whatever replaced it. Returns [next] regardless. Mirrors
+  /// `DownloadsNotifier._commit` in downloads_state.dart (without the
+  /// throttling — launches don't throttle emits).
+  RunningGame _commit(RunningGame current, RunningGame next) {
+    if (identical(state.games[next.gameId], current)) {
+      state = LaunchState({...state.games, next.gameId: next});
+    }
+    return next;
   }
 
   /// Launches [gameId] using [protonPath] (the extracted Proton-GE release
@@ -83,7 +118,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
       return;
     }
 
-    final game = RunningGame(gameId: gameId, status: LaunchStatus.launching);
+    var game = RunningGame(gameId: gameId, status: LaunchStatus.launching);
     state = LaunchState({...state.games, gameId: game});
     debugPrint('[DIAG] set status=launching, emitted');
 
@@ -136,25 +171,27 @@ class LaunchNotifier extends Notifier<LaunchState> {
       process.stdout.listen(stdout.add);
       process.stderr.listen(stderr.add);
 
-      game.status = LaunchStatus.running;
-      _emit();
+      game = _commit(game, game.copyWith(status: LaunchStatus.running));
 
       process.exitCode.then((code) {
-        game.exitCode = code;
-        if (code == 0) {
-          game.status = LaunchStatus.exited;
-        } else {
-          game.status = LaunchStatus.failed;
-          game.error = 'Game exited with code $code';
-        }
-        _emit();
+        game = _commit(
+          game,
+          code == 0
+              ? game.copyWith(status: LaunchStatus.exited, exitCode: code)
+              : game.copyWith(
+                  status: LaunchStatus.failed,
+                  exitCode: code,
+                  error: 'Game exited with code $code',
+                ),
+        );
       });
     } catch (e) {
       debugPrint('[DIAG] CAUGHT EXCEPTION: $e');
       logGogError(e);
-      game.status = LaunchStatus.failed;
-      game.error = e.toString();
-      _emit();
+      game = _commit(
+        game,
+        game.copyWith(status: LaunchStatus.failed, error: e.toString()),
+      );
     }
   }
 }

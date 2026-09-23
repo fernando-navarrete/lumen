@@ -183,4 +183,74 @@ void main() {
       },
     );
   });
+
+  group('ProtonNotifier — immutability (Phase 6)', () {
+    test('a Progress event produces a new task; the old snapshot keeps its old values', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(protonStateProvider.notifier);
+      final targetDir = '${dataHome.path}/target';
+
+      await notifier.downloadRelease(_release, targetDir);
+      final controller = backend.protonDownloadController(_release.tagName);
+
+      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+      await settle();
+      final before = container.read(
+        protonStateProvider,
+      ).taskFor(_release.tagName)!;
+
+      controller.add(ProtonDownloadProgress.progress(BigInt.from(200)));
+      await settle();
+      final after = container.read(
+        protonStateProvider,
+      ).taskFor(_release.tagName)!;
+
+      expect(identical(before, after), isFalse);
+      expect(before.transferred, 0);
+      expect(after.transferred, 200);
+      expect(after.stage, 'downloading');
+    });
+
+    test('a stale stream cannot clobber the task that replaced it', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(protonStateProvider.notifier);
+      final targetDir = '${dataHome.path}/target';
+
+      await notifier.downloadRelease(_release, targetDir);
+      final staleController = backend.protonDownloadController(
+        _release.tagName,
+      );
+      staleController.addError(Exception('boom'));
+      await settle();
+
+      // Retrying a failed download drops the cached stream and starts a
+      // fresh one, without the old (errored) stream's controller ever
+      // being closed.
+      await notifier.downloadRelease(_release, targetDir);
+      final freshController = backend.protonDownloadController(
+        _release.tagName,
+      );
+      expect(identical(staleController, freshController), isFalse);
+
+      freshController.add(ProtonDownloadProgress.started(BigInt.from(500)));
+      await settle();
+      final beforeStaleEvent = container.read(
+        protonStateProvider,
+      ).taskFor(_release.tagName)!;
+
+      // An event on the orphaned stream must not overwrite the fresh task.
+      staleController.add(ProtonDownloadProgress.progress(BigInt.from(999)));
+      await settle();
+      final afterStaleEvent = container.read(
+        protonStateProvider,
+      ).taskFor(_release.tagName)!;
+
+      expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
+      expect(afterStaleEvent.total, 500);
+    });
+  });
 }

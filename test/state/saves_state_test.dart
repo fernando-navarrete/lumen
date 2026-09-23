@@ -308,4 +308,82 @@ void main() {
       );
     });
   });
+
+  group('SavesNotifier — immutability (Phase 6)', () {
+    test('an event produces a new task; the old snapshot keeps its old values', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      seedInstalledGame(container, 1);
+
+      final notifier = container.read(savesStateProvider.notifier);
+      await notifier.downloadSaves(1);
+      final controller = backend.saveDownloadController(1);
+
+      controller.add(
+        DownloadSavesProgress.started(
+          totalFiles: BigInt.from(2),
+          totalBytes: BigInt.from(100),
+        ),
+      );
+      await settle();
+      final before = container.read(savesStateProvider).taskFor(1)!;
+
+      controller.add(
+        DownloadSavesProgress.progress(
+          downloadedBytes: BigInt.from(40),
+          fileDownloadedBytes: BigInt.from(40),
+        ),
+      );
+      await settle();
+      final after = container.read(savesStateProvider).taskFor(1)!;
+
+      expect(identical(before, after), isFalse);
+      expect(before.transferred, 0);
+      expect(after.transferred, 40);
+    });
+
+    test('a stale stream cannot clobber the task that replaced it', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      seedInstalledGame(container, 1);
+
+      final notifier = container.read(savesStateProvider.notifier);
+      await notifier.downloadSaves(1);
+      final staleController = backend.saveDownloadController(1);
+
+      // `Finished` completes the task without closing the stream, so a
+      // second sync can start (`_canStart` only checks status) while the
+      // first stream is still technically open.
+      staleController.add(const DownloadSavesProgress.finished());
+      await settle();
+
+      await notifier.downloadSaves(1);
+      final freshController = backend.saveDownloadController(1);
+      expect(identical(staleController, freshController), isFalse);
+
+      freshController.add(
+        DownloadSavesProgress.started(
+          totalFiles: BigInt.from(9),
+          totalBytes: BigInt.from(900),
+        ),
+      );
+      await settle();
+      final beforeStaleEvent = container.read(savesStateProvider).taskFor(1)!;
+
+      // An event on the orphaned stream must not overwrite the fresh task.
+      staleController.add(
+        DownloadSavesProgress.progress(
+          downloadedBytes: BigInt.from(1),
+          fileDownloadedBytes: BigInt.from(1),
+        ),
+      );
+      await settle();
+      final afterStaleEvent = container.read(savesStateProvider).taskFor(1)!;
+
+      expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
+      expect(afterStaleEvent.filesTotal, 9);
+    });
+  });
 }
