@@ -1,0 +1,10 @@
+stages:
+  - test
+
+runner-test:
+  stage: test
+  image: alpine:latest
+  script:
+    - echo "The runner is working"
+    - uname -a
+    - cat /etc/os-release
