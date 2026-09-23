@@ -251,8 +251,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   the *vertical* sides too, and `SignInPanel`'s "Open GOG login" `PrimaryButton.icon` overflows its
   row at any window size once the Onest font isn't loaded (its fallback glyph metrics are wider) —
   reproduced at both 1600×1000 and 1920×4200 test surfaces, so it isn't just a small-window issue.
-  This is also why `LoginScreen` has no widget test in `test/screens/`; see the workplan's Phase 8
-  session-log entry.
+  This is also why `LoginScreen` has no widget test in `test/screens/`; see Phase 8 in
+  `devlog/v1.1.0-foundation.md`.
 - [ ] **P2 — Set a window minimum size and a proper title** ("Lumen", not "lumen") in
   `linux/runner/my_application.cc`, plus an app icon.
 - [ ] **P2 — Unify the responsive side-column widths.** `OverviewTab`, `BuildsTab` and `ProductsTab`

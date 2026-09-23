@@ -334,7 +334,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// hidden from [ProtonState.installed] for this session but kept in
   /// [_unavailable] rather than dropped from prefs, so it comes back on its
   /// own once the directory reappears (e.g. the drive gets remounted) — see
-  /// P5 in v1.2.0-LAUNCHING-AND-PROTON.md for the considered alternatives. A
+  /// P5 in devlog/v1.2.0-launching-and-proton.md for the considered alternatives. A
   /// hidden default similarly falls back to `null` in-memory (Play already
   /// reports "no Proton-GE version installed" for that) while [_unavailableDefault]
   /// remembers it for [_persist].
