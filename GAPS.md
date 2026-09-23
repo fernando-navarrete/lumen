@@ -148,7 +148,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   its exit code kept, except a non-zero exit within `immediateExitWindow` (10s) of the process being
   spawned, which is `failed` with `"The game exited immediately (code N)"`. The snackbar is no
   longer spurious — it fires only for a real crash-on-start, a Lumen-side failure, or a spawn error.
-- [ ] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`.
+- [x] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`. Fixed in `v1.2.4`: all 8
+  removed; the one piece of info they carried that wasn't already in the per-game log (the spawned
+  pid) is now written to the log itself, right under `--- game ---`.
 - [ ] **P2 — Validate installed Proton versions against disk on load.** A directory deleted outside the
   app still shows as installed.
 

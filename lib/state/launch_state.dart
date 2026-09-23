@@ -186,16 +186,12 @@ class LaunchNotifier extends Notifier<LaunchState> {
     Map<String, String> envVars = const {},
     List<String> launchWrapper = const [],
   }) async {
-    debugPrint(
-      '[DIAG] launchGame called: gameId=$gameId isActive=${state.isActive(gameId)}',
-    );
     if (state.isActive(gameId)) {
       return;
     }
 
     var game = RunningGame(gameId: gameId, status: LaunchStatus.launching);
     state = LaunchState({...state.games, gameId: game});
-    debugPrint('[DIAG] set status=launching, emitted');
 
     final protonBinary = '$protonPath/proton';
     final fullExe = '$installPath/${target.executable}';
@@ -249,7 +245,6 @@ class LaunchNotifier extends Notifier<LaunchState> {
         'STEAM_COMPAT_CLIENT_INSTALL_PATH': compatClientDir,
         'STEAM_COMPAT_DATA_PATH': prefixPath,
       };
-      debugPrint('[DIAG] protonBinary=$protonBinary compatEnv=$compatEnv');
 
       // The wrapper (e.g. `gamescope -f --`) becomes the process actually
       // spawned, with the whole Proton invocation as its arguments —
@@ -286,7 +281,6 @@ class LaunchNotifier extends Notifier<LaunchState> {
       // its absence signals this prefix hasn't been initialized yet. This
       // init run is never wrapped — it's prefix setup, not the game itself.
       if (!Directory('$prefixPath/pfx').existsSync()) {
-        debugPrint('[DIAG] running wineboot init...');
         log.writeln('--- wineboot ---');
         // Include the user's env vars here too (not just compatEnv) — some
         // (e.g. Proton/DXVK feature toggles) only take effect when the
@@ -304,7 +298,6 @@ class LaunchNotifier extends Notifier<LaunchState> {
           ..add(result.stdout as List<int>)
           ..add(result.stderr as List<int>)
           ..writeln('wineboot exited with code ${result.exitCode}');
-        debugPrint('[DIAG] wineboot init returned without throwing');
 
         if (result.exitCode != 0) {
           // pfx is Lumen's own, freshly created by this very call, so it's
@@ -338,7 +331,6 @@ class LaunchNotifier extends Notifier<LaunchState> {
         }
       }
 
-      debugPrint('[DIAG] starting process: ${wrapped.join(' ')} cwd=$cwd');
       log.writeln('--- game ---');
       final process = await Process.start(
         wrapped.first,
@@ -347,7 +339,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
         environment: {...envVars, ...compatEnv},
         includeParentEnvironment: true,
       );
-      debugPrint('[DIAG] process started pid=${process.pid}');
+      log.writeln('Pid: ${process.pid}');
       final spawnedAt = Stopwatch()..start();
       final live = _LiveLaunch(
         process: process,
@@ -418,7 +410,6 @@ class LaunchNotifier extends Notifier<LaunchState> {
         );
       });
     } catch (e) {
-      debugPrint('[DIAG] CAUGHT EXCEPTION: $e');
       logGogError(e);
       log.writeln('Launch failed: $e');
       await log.close();

@@ -671,7 +671,7 @@ exit "\${FAKE_EXIT:-0}"
       expect(text, contains('<wineboot> to-stdout\n'));
       expect(text, contains('<wineboot> to-stderr\n'));
       expect(text, contains('wineboot exited with code 0\n'));
-      expect(text, contains('--- game ---\n'));
+      expect(text, matches(RegExp(r'--- game ---\nPid: \d+\n')));
       expect(text, contains('<${installDir.path}/game.exe> to-stdout\n'));
       expect(text, contains('<${installDir.path}/game.exe> to-stderr\n'));
       expect(
