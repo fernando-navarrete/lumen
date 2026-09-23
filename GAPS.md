@@ -134,9 +134,15 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P1 — Nav state is mutable and duplicated.** Fixed in `v1.1.0`: `navBarItemProvider` is now a
   `NavBarNotifier extends Notifier<NavBarItem>` (`lib/state/home_state.dart`), the single source of
   truth; `NavBar` and `HomeScreen` both watch it instead of keeping their own copy.
-- [ ] **P2 — Simplify or remove `GogState`'s per-game stream caches.** Every owner already clears the
-  cache before starting (except the Import bug in section 1), and entries are never evicted. The cache
-  mostly acts as a trap: callers can be handed a stale, already-consumed stream.
+- [x] **P2 — Simplify or remove `GogState`'s per-game stream caches.** Fixed in `v1.1.1`: removed the
+  six stream caches (verification, repair, download, Proton download, save download, save upload)
+  along with their `clear*Stream()` methods. Every owner already cleared the cache before starting
+  (except the Import bug in section 1) and entries were never evicted, so the cache never
+  deduplicated anything — it only risked handing a caller a stale, already-consumed stream. The
+  job-starting `GogState` methods are now plain synchronous calls that start a fresh backend job and
+  return a fresh stream every time; double-start protection already lived in the owning notifiers
+  (a synchronous `running`-task check before the task is registered), so removing the cache changed
+  no observable behavior.
 - [ ] **P2 — Make error handling consistent in `GogState`.** Some methods catch only `GogError`
   (`getLoginUrl`, `getProtonReleases`), others catch everything.
   `GogdlBackend.getProtonReleases` swallows errors and returns `[]`, so the UI shows "No releases

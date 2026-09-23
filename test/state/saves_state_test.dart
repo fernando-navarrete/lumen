@@ -185,7 +185,7 @@ void main() {
       },
     );
 
-    test('a finished stream is cleared before a re-run', () async {
+    test('a re-run after a finished sync starts a fresh stream', () async {
       final backend = FakeGogBackend();
       final container = await createContainer(backend: backend);
       addTearDown(backend.closeAll);
@@ -281,7 +281,7 @@ void main() {
       expect(task.status, TaskStatus.completed);
     });
 
-    test('a finished stream is cleared before a re-run', () async {
+    test('a re-run after a finished sync starts a fresh stream', () async {
       final backend = FakeGogBackend();
       final container = await createContainer(backend: backend);
       addTearDown(backend.closeAll);

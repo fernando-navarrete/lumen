@@ -55,7 +55,7 @@ This goes before any feature work so that everything after it lands with tests.
   from CI on the LAN; reachability from outside the LAN is deferred (§7 P1).
 
 Follow-up patches (`v1.1.1+`), one per tag:
-1. `v1.1.1`: simplify or remove `GogState` stream caches (§4).
+1. `v1.1.1` ✅: simplify or remove `GogState` stream caches (§4).
 2. `v1.1.2`: make error handling consistent in `GogState` / `getProtonReleases` (§4). Also:
    in `DownloadsNotifier`, `stream.listen`'s `onError` sets a task `failed`, but
    `cancelOnError` is false, so a `finished` event followed by a late stream error still lets

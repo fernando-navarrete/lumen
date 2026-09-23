@@ -153,6 +153,120 @@ void main() {
       expect(backend.callsTo('getGameBoxartLink'), hasLength(1));
     });
   });
+
+  group('v1.1.1 — job-starting streams are never cached', () {
+    test('verifyGameFiles hits the backend and returns a fresh stream every call', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      final first = state.verifyGameFiles(1, '/path', 'build', [1]);
+      final second = state.verifyGameFiles(1, '/path', 'build', [1]);
+
+      expect(backend.callsTo('verifyDownload'), hasLength(2));
+      expect(identical(first, second), isFalse);
+    });
+
+    test('verifyGameFiles returns null on a thrown error', () async {
+      final backend = FakeGogBackend()..throwOn['verifyDownload'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.verifyGameFiles(1, '/path', 'build', [1]), isNull);
+    });
+
+    test('repairGameFiles hits the backend and returns a fresh stream every call', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      final first = state.repairGameFiles(1, '/path', 'build', [1]);
+      final second = state.repairGameFiles(1, '/path', 'build', [1]);
+
+      expect(backend.callsTo('repairDownload'), hasLength(2));
+      expect(identical(first, second), isFalse);
+    });
+
+    test('repairGameFiles returns null on a thrown error', () async {
+      final backend = FakeGogBackend()..throwOn['repairDownload'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.repairGameFiles(1, '/path', 'build', [1]), isNull);
+    });
+
+    test('downloadGameFiles hits the backend and returns a fresh stream every call', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      final first = state.downloadGameFiles(1, '/path', 'build', [1]);
+      final second = state.downloadGameFiles(1, '/path', 'build', [1]);
+
+      expect(backend.callsTo('downloadGame'), hasLength(2));
+      expect(identical(first, second), isFalse);
+    });
+
+    test('downloadGameFiles returns null on a thrown error', () async {
+      final backend = FakeGogBackend()..throwOn['downloadGame'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.downloadGameFiles(1, '/path', 'build', [1]), isNull);
+    });
+
+    test(
+      'downloadProtonRelease hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
+
+        final first = state.downloadProtonRelease('tag', '/dir');
+        final second = state.downloadProtonRelease('tag', '/dir');
+
+        expect(backend.callsTo('downloadProtonRelease'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
+
+    test('downloadProtonRelease returns null on a thrown error', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['downloadProtonRelease'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.downloadProtonRelease('tag', '/dir'), isNull);
+    });
+
+    test('downloadSaves hits the backend and returns a fresh stream every call', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      final first = state.downloadSaves(1, 'build', '/prefix', '/install');
+      final second = state.downloadSaves(1, 'build', '/prefix', '/install');
+
+      expect(backend.callsTo('downloadSaves'), hasLength(2));
+      expect(identical(first, second), isFalse);
+    });
+
+    test('downloadSaves returns null on a thrown error', () async {
+      final backend = FakeGogBackend()..throwOn['downloadSaves'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.downloadSaves(1, 'build', '/prefix', '/install'), isNull);
+    });
+
+    test('uploadSaves hits the backend and returns a fresh stream every call', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      final first = state.uploadSaves(1, 'build', '/prefix', '/install');
+      final second = state.uploadSaves(1, 'build', '/prefix', '/install');
+
+      expect(backend.callsTo('uploadSaves'), hasLength(2));
+      expect(identical(first, second), isFalse);
+    });
+
+    test('uploadSaves returns null on a thrown error', () async {
+      final backend = FakeGogBackend()..throwOn['uploadSaves'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.uploadSaves(1, 'build', '/prefix', '/install'), isNull);
+    });
+  });
 }
 
 Future<GogState> _state(FakeGogBackend backend) async =>

@@ -94,11 +94,14 @@ per-product, unordered and uncached upstream, so `GogState` caches the resolved 
 and sorts it before returning, invalidating the cache on failure or an empty result so a Retry
 re-fetches instead of replaying a stale outcome.
 
-**Backend streams are single-subscription.** `GogState` caches one stream per gameId (verification,
-download, repair, save download, save upload) or per Proton tag (Proton download), so only the
-owning notifier (`DownloadsNotifier`, `ProtonNotifier`, `SavesNotifier`) may ever `.listen()` to it. UI code must never listen to the
-raw backend stream directly — it reads live progress from the corresponding State object
-(`DownloadsState.tasks`, `ProtonState.tasks`, ...), which the owning notifier updates on every event.
+**Backend streams are single-subscription.** Each `GogState` job-starting method (verification,
+download, repair, Proton download, save download, save upload) starts a new backend job and returns
+a fresh stream on every call — none of them are cached — so only the owning notifier
+(`DownloadsNotifier`, `ProtonNotifier`, `SavesNotifier`) may ever `.listen()` to the stream it
+requests, and must not request another one for the same key while the previous stream is still in
+use. UI code must never listen to the raw backend stream directly — it reads live progress from the
+corresponding State object (`DownloadsState.tasks`, `ProtonState.tasks`, ...), which the owning
+notifier updates on every event.
 
 **`sharedPreferencesProvider`** (`lib/state/shared_preferences_provider.dart`) must be overridden in
 `main()` with an already-resolved `SharedPreferences` instance *before* `runApp` — notifiers that
@@ -138,9 +141,8 @@ locations. There is no automatic conflict resolution or timestamp comparison —
 are two explicit, user-triggered directions (`SavesNotifier.downloadSaves`/`uploadSaves`). The bridge
 never retries, so the first failure aborts the whole job. Download progress has a job byte total up
 front; upload only reports a file count up front, so `SaveTask.progress` is bytes for downloads and
-files for uploads. Because a finished stream can't be re-listened to, `SavesNotifier` clears the
-cached stream before every run. Cloud-save support isn't queryable ahead of time: a game with none
-completes with zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
+files for uploads. Cloud-save support isn't queryable ahead of time: a game with none completes with
+zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
 
 ### UI structure
 

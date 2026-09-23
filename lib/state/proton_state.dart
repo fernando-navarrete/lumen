@@ -155,11 +155,6 @@ class ProtonNotifier extends Notifier<ProtonState> {
     if (existingTask != null && existingTask.status != TaskStatus.failed) {
       return;
     }
-    if (existingTask != null) {
-      // Bridge streams are single-subscription, so a failed attempt's
-      // stream can't be re-listened to — drop the cache before retrying.
-      _gogState.clearProtonDownloadStream(tag);
-    }
     final dir = targetDir ?? protonInstallDir();
     Directory(dir).createSync(recursive: true);
     var task = ProtonTask(tag: tag);
@@ -169,7 +164,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
       tasks: {...state.tasks, tag: task},
     );
 
-    final stream = await _gogState.downloadProtonRelease(tag, dir);
+    final stream = _gogState.downloadProtonRelease(tag, dir);
     if (stream == null) {
       _commit(task, task.copyWith(status: TaskStatus.failed));
       return;

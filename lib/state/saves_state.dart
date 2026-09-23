@@ -122,8 +122,9 @@ class SavesState {
 /// these are two explicit, user-triggered directions rather than a single
 /// merge. The bridge doesn't retry, so a failure aborts the whole job.
 ///
-/// Sole owner of the per-game save streams cached in [GogState] — bridge
-/// streams are single-subscription, so nothing else may listen to them.
+/// Sole listener of the per-game save streams it requests from [GogState] —
+/// bridge streams are single-subscription, so nothing else may listen to
+/// them.
 class SavesNotifier extends Notifier<SavesState> {
   late final GogState _gogState;
   late final GamesNotifier _gamesNotifier;
@@ -201,25 +202,11 @@ class SavesNotifier extends Notifier<SavesState> {
     // compat data dir itself.
     final prefix = '${_gamesNotifier.ensureProtonPrefix(gameId)}/pfx';
 
-    // A finished or failed stream can't be re-listened to, so drop the
-    // cached one before every run.
     final Stream<Object?>? stream;
     if (direction == SaveDirection.download) {
-      _gogState.clearSaveDownloadStream(gameId);
-      stream = await _gogState.downloadSaves(
-        gameId,
-        buildName,
-        prefix,
-        installPath,
-      );
+      stream = _gogState.downloadSaves(gameId, buildName, prefix, installPath);
     } else {
-      _gogState.clearSaveUploadStream(gameId);
-      stream = await _gogState.uploadSaves(
-        gameId,
-        buildName,
-        prefix,
-        installPath,
-      );
+      stream = _gogState.uploadSaves(gameId, buildName, prefix, installPath);
     }
     if (stream == null) {
       _commit(

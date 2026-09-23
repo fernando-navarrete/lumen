@@ -182,10 +182,10 @@ class DownloadsState {
       tasks.values.where((task) => task.kind == TaskKind.repair).toList();
 }
 
-/// The bridge's verification stream is single-subscription, and [GogState]
-/// caches one stream per game, so this must be the sole listener — any UI
-/// that needs progress reads it from [DownloadsState] instead of the raw
-/// stream.
+/// The bridge's verification, download and repair streams are
+/// single-subscription, so this must be the sole listener for whatever
+/// stream it requests from [GogState] — any UI that needs progress reads it
+/// from [DownloadsState] instead of the raw stream.
 class DownloadsNotifier extends Notifier<DownloadsState> {
   late final GogState _gogState;
   late final GamesNotifier _gamesNotifier;
@@ -266,10 +266,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// Starts an Import verification for [gameId], or restarts one whose
   /// previous attempt failed or completed. A still-[TaskStatus.running] task
   /// for the same game blocks a second start; a failed/completed one is
-  /// dequeued first — same trick [startDownload] uses — since the bridge's
-  /// verification stream is single-subscription and a stale cache entry
-  /// would otherwise make a re-import silently no-op or re-listen to an
-  /// already-closed stream.
+  /// dequeued first — same trick [startDownload] uses — so a re-import
+  /// registers a fresh task instead of silently no-oping against the old
+  /// one.
   Future<void> startVerification(
     int gameId, {
     required String path,
@@ -282,7 +281,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         return;
       }
       removeTask(gameId);
-      _gogState.clearVerificationStream(gameId);
     }
     var task = ActivityTask(
       gameId: gameId,
@@ -294,7 +292,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _pending.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
-    final stream = await _gogState.verifyGameFiles(
+    final stream = _gogState.verifyGameFiles(
       gameId,
       path,
       buildName,
@@ -364,9 +362,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   }
 
   /// Verifies an already-installed game. Unconditionally dequeues any
-  /// existing task and clears the cached verification stream first — unlike
-  /// [startVerification], it doesn't check whether that task is still
-  /// running — same trick [startRepair] uses.
+  /// existing task first — unlike [startVerification], it doesn't check
+  /// whether that task is still running — same trick [startRepair] uses.
   Future<void> startVerificationForInstalled(
     int gameId, {
     required String path,
@@ -374,7 +371,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     required List<int> productIds,
   }) async {
     removeTask(gameId);
-    _gogState.clearVerificationStream(gameId);
     await startVerification(
       gameId,
       path: path,
@@ -386,9 +382,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// Starts a download for [gameId], or restarts one whose previous attempt
   /// failed. A still-[TaskStatus.running] task for the same game blocks a
   /// second start; a failed/completed one is dequeued first — same trick
-  /// [startRepair] uses — since the bridge's download stream is
-  /// single-subscription and a stale cache entry would otherwise make the
-  /// retry silently no-op or re-listen to an already-closed stream.
+  /// [startRepair] uses — so a retry registers a fresh task instead of
+  /// silently no-oping against the old one.
   Future<void> startDownload(
     int gameId, {
     required String path,
@@ -401,7 +396,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         return;
       }
       removeTask(gameId);
-      _gogState.clearDownloadStream(gameId);
     }
 
     var task = ActivityTask(
@@ -415,7 +409,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     state = DownloadsState({...state.tasks, gameId: task});
     _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
 
-    final stream = await _gogState.downloadGameFiles(
+    final stream = _gogState.downloadGameFiles(
       gameId,
       path,
       buildName,
@@ -503,8 +497,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     final productIds = existing.productIds;
 
     removeTask(gameId);
-    _gogState.clearVerificationStream(gameId);
-    _gogState.clearRepairStream(gameId);
 
     await _runRepair(
       gameId,
@@ -517,9 +509,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// Repairs an already-installed game against an explicit build (e.g. after
   /// switching builds on the Builds tab), rather than reusing a previous
   /// task's path/build/products the way [startRepair] does. A still-running
-  /// task for the game blocks a second start; anything else is dequeued and
-  /// its streams cleared first, same trick [startVerificationForInstalled]
-  /// uses.
+  /// task for the game blocks a second start; anything else is dequeued
+  /// first, same trick [startVerificationForInstalled] uses.
   Future<void> startRepairForInstalled(
     int gameId, {
     required String path,
@@ -531,8 +522,6 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       return;
     }
     removeTask(gameId);
-    _gogState.clearVerificationStream(gameId);
-    _gogState.clearRepairStream(gameId);
 
     await _runRepair(
       gameId,
@@ -558,7 +547,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _pending.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
-    final stream = await _gogState.repairGameFiles(
+    final stream = _gogState.repairGameFiles(
       gameId,
       path,
       buildName,

@@ -14,17 +14,6 @@ import 'package:lumen/common/gog_error.dart';
 
 class GogState {
   final GogBackend _backend;
-  final HashMap<int, Stream<VerifyDownloadProgress>> _verificationStreams =
-      HashMap();
-  final HashMap<int, Stream<RepairGameProgress>> _repairStreams = HashMap();
-  final HashMap<int, Stream<DownloadGameProgress>> _downloadStreams =
-      HashMap();
-  final HashMap<String, Stream<ProtonDownloadProgress>> _protonDownloadStreams =
-      HashMap();
-  final HashMap<int, Stream<DownloadSavesProgress>> _saveDownloadStreams =
-      HashMap();
-  final HashMap<int, Stream<UploadSavesProgress>> _saveUploadStreams =
-      HashMap();
 
   /// Names, boxart and background links are static for a session, but
   /// callers (e.g. the Downloads page task cards, the library and game hero
@@ -242,90 +231,64 @@ class GogState {
     }
   }
 
-  Future<Stream<VerifyDownloadProgress>?> verifyGameFiles(
+  /// The six stream-starting methods below (verify/repair/download game
+  /// files, download a Proton release, download/upload saves) each start a
+  /// new backend job on every call and return a fresh single-subscription
+  /// stream — nothing here is cached or deduplicated. The caller (the one
+  /// owning notifier for that job kind) must be the stream's only listener,
+  /// and must not call the method again for the same key while a previous
+  /// stream from it is still in use.
+  Stream<VerifyDownloadProgress>? verifyGameFiles(
     int gameId,
     String path,
     String buildName,
     List<int> productIds,
-  ) async {
+  ) {
     try {
-      if (_verificationStreams.containsKey(gameId)) {
-        return _verificationStreams[gameId];
-      }
-      var stream = _backend.verifyDownload(
+      return _backend.verifyDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
       );
-      _verificationStreams[gameId] = stream;
-      return stream;
     } catch (e) {
       logGogError(e);
       return null;
     }
   }
 
-  /// Drops the cached verification stream for [gameId] so the game can be
-  /// re-verified (e.g. after a repair completes).
-  void clearVerificationStream(int gameId) {
-    _verificationStreams.remove(gameId);
-  }
-
-  /// Drops the cached download stream for [gameId] so the game can be
-  /// downloaded again, e.g. after a failed attempt.
-  void clearDownloadStream(int gameId) {
-    _downloadStreams.remove(gameId);
-  }
-
-  /// Drops the cached repair stream for [gameId] so the game can be
-  /// repaired again, e.g. after a failed attempt.
-  void clearRepairStream(int gameId) {
-    _repairStreams.remove(gameId);
-  }
-
-  Future<Stream<RepairGameProgress>?> repairGameFiles(
+  Stream<RepairGameProgress>? repairGameFiles(
     int gameId,
     String path,
     String buildName,
     List<int> productIds,
-  ) async {
+  ) {
     try {
-      if (_repairStreams.containsKey(gameId)) {
-        return _repairStreams[gameId];
-      }
-      var stream = _backend.repairDownload(
+      return _backend.repairDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
       );
-      _repairStreams[gameId] = stream;
-      return stream;
     } catch (e) {
       logGogError(e);
       return null;
     }
   }
 
-  Future<Stream<DownloadGameProgress>?> downloadGameFiles(
+  Stream<DownloadGameProgress>? downloadGameFiles(
     int gameId,
     String path,
     String buildName,
     List<int> productIds,
-  ) async {
+  ) {
     try {
-      if (_downloadStreams.containsKey(gameId)) {
-        return _downloadStreams[gameId];
-      }
-      var stream = _backend.downloadGame(
+      return _backend.downloadGame(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
       );
-      _downloadStreams[gameId] = stream;
-      return stream;
     } catch (e) {
       logGogError(e);
       return null;
@@ -341,87 +304,54 @@ class GogState {
     }
   }
 
-  Future<Stream<ProtonDownloadProgress>?> downloadProtonRelease(
+  Stream<ProtonDownloadProgress>? downloadProtonRelease(
     String tagName,
     String path,
-  ) async {
+  ) {
     try {
-      if (_protonDownloadStreams.containsKey(tagName)) {
-        return _protonDownloadStreams[tagName];
-      }
-      var stream = _backend.downloadProtonRelease(tagName: tagName, path: path);
-      _protonDownloadStreams[tagName] = stream;
-      return stream;
+      return _backend.downloadProtonRelease(tagName: tagName, path: path);
     } catch (e) {
       logGogError(e);
       return null;
     }
   }
 
-  /// Drops the cached download stream for [tag] so the same release can be
-  /// downloaded again, e.g. after a failed attempt.
-  void clearProtonDownloadStream(String tag) {
-    _protonDownloadStreams.remove(tag);
-  }
-
-  Future<Stream<DownloadSavesProgress>?> downloadSaves(
+  Stream<DownloadSavesProgress>? downloadSaves(
     int gameId,
     String buildName,
     String prefix,
     String installPath,
-  ) async {
+  ) {
     try {
-      if (_saveDownloadStreams.containsKey(gameId)) {
-        return _saveDownloadStreams[gameId];
-      }
-      var stream = _backend.downloadSaves(
+      return _backend.downloadSaves(
         gameId: gameId,
         buildName: buildName,
         prefix: prefix,
         installPath: installPath,
       );
-      _saveDownloadStreams[gameId] = stream;
-      return stream;
     } catch (e) {
       logGogError(e);
       return null;
     }
   }
 
-  Future<Stream<UploadSavesProgress>?> uploadSaves(
+  Stream<UploadSavesProgress>? uploadSaves(
     int gameId,
     String buildName,
     String prefix,
     String installPath,
-  ) async {
+  ) {
     try {
-      if (_saveUploadStreams.containsKey(gameId)) {
-        return _saveUploadStreams[gameId];
-      }
-      var stream = _backend.uploadSaves(
+      return _backend.uploadSaves(
         gameId: gameId,
         buildName: buildName,
         prefix: prefix,
         installPath: installPath,
       );
-      _saveUploadStreams[gameId] = stream;
-      return stream;
     } catch (e) {
       logGogError(e);
       return null;
     }
-  }
-
-  /// Drops the cached save download stream so [downloadSaves] starts a fresh
-  /// sync — needed before every re-run, since a finished stream can't be
-  /// listened to again.
-  void clearSaveDownloadStream(int gameId) {
-    _saveDownloadStreams.remove(gameId);
-  }
-
-  /// Drops the cached save upload stream. See [clearSaveDownloadStream].
-  void clearSaveUploadStream(int gameId) {
-    _saveUploadStreams.remove(gameId);
   }
 }
 

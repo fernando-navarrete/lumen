@@ -109,7 +109,7 @@ void main() {
       );
     });
 
-    test('retry after a failure clears the cached stream and can succeed', () async {
+    test('retry after a failure starts a fresh stream and can succeed', () async {
       final backend = FakeGogBackend();
       final container = await createContainer(backend: backend);
       addTearDown(backend.closeAll);
@@ -227,9 +227,8 @@ void main() {
       staleController.addError(Exception('boom'));
       await settle();
 
-      // Retrying a failed download drops the cached stream and starts a
-      // fresh one, without the old (errored) stream's controller ever
-      // being closed.
+      // Retrying a failed download starts a fresh stream, without the old
+      // (errored) stream's controller ever being closed.
       await notifier.downloadRelease(_release, targetDir);
       final freshController = backend.protonDownloadController(
         _release.tagName,
