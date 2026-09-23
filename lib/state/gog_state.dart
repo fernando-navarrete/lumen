@@ -57,11 +57,8 @@ class GogState {
     }
   }
 
-  Future<String> getGameBackgroundLink(int gameId) =>
-      _backgroundLinkCache.putIfAbsent(
-        gameId,
-        () => _fetchGameBackgroundLink(gameId),
-      );
+  Future<String> getGameBackgroundLink(int gameId) => _backgroundLinkCache
+      .putIfAbsent(gameId, () => _fetchGameBackgroundLink(gameId));
 
   Future<String> _fetchGameBackgroundLink(int gameId) async {
     try {
@@ -212,8 +209,7 @@ class GogState {
     }
   }
 
-  Future<List<int>?> getOwnedGames() =>
-      _ownedGamesCache ??= _fetchOwnedGames();
+  Future<List<int>?> getOwnedGames() => _ownedGamesCache ??= _fetchOwnedGames();
 
   /// Drops the cached owned-games list so the next [getOwnedGames] call
   /// re-fetches, for a manual Retry.

@@ -135,7 +135,11 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// evolving for its own onDone/onError decisions even once its updates
   /// stop landing. Mirrors `DownloadsNotifier._commit` in
   /// downloads_state.dart.
-  ProtonTask _commit(ProtonTask current, ProtonTask next, {bool throttle = false}) {
+  ProtonTask _commit(
+    ProtonTask current,
+    ProtonTask next, {
+    bool throttle = false,
+  }) {
     final registered = _buffer[next.tag] ?? state.tasks[next.tag];
     if (identical(registered, current)) {
       _buffer.put(next.tag, next, throttle: throttle);

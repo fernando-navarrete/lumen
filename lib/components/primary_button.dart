@@ -37,7 +37,10 @@ class PrimaryButton extends StatelessWidget {
         spacing: AppSpacing.xs,
         children: [
           Icon(icon, color: color, size: large ? 20 : 24),
-          Text(label, style: _labelStyle(color, glowing: glowing, large: large)),
+          Text(
+            label,
+            style: _labelStyle(color, glowing: glowing, large: large),
+          ),
         ],
       ),
     );
@@ -84,7 +87,10 @@ class PrimaryButton extends StatelessWidget {
         ),
         child: Padding(
           padding: large
-              ? EdgeInsets.symmetric(horizontal: glowing ? 30.0 : 20.0, vertical: 13.0)
+              ? EdgeInsets.symmetric(
+                  horizontal: glowing ? 30.0 : 20.0,
+                  vertical: 13.0,
+                )
               : const EdgeInsets.symmetric(horizontal: 20.0, vertical: 11.0),
           child: child,
         ),

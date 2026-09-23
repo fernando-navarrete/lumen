@@ -17,7 +17,8 @@ import '../helpers/temp_data_home.dart';
 // SavesNotifier). Tests wait past that window before asserting on a value
 // that arrived via a throttled emit — same as downloads_state_test.dart's
 // settle().
-Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 150));
+Future<void> settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 150));
 
 void main() {
   setUp(() {
@@ -38,75 +39,78 @@ void main() {
     notifier.setSelectedBuild(gameId, buildName);
     notifier.markInstalled(gameId, installPath);
     if (withPfx) {
-      Directory(
-        '${protonPrefixDir(gameId)}/pfx',
-      ).createSync(recursive: true);
+      Directory('${protonPrefixDir(gameId)}/pfx').createSync(recursive: true);
     }
   }
 
   group('SavesNotifier — download', () {
-    test('progress is byte-counted, and prefix/installPath are passed through', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      seedInstalledGame(container, 1);
+    test(
+      'progress is byte-counted, and prefix/installPath are passed through',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        seedInstalledGame(container, 1);
 
-      final notifier = container.read(savesStateProvider.notifier);
-      await notifier.downloadSaves(1);
-      final controller = backend.saveDownloadController(1);
+        final notifier = container.read(savesStateProvider.notifier);
+        await notifier.downloadSaves(1);
+        final controller = backend.saveDownloadController(1);
 
-      final call = backend.callsTo('downloadSaves').single;
-      expect(call.args['prefix'], '${protonPrefixDir(1)}/pfx');
-      expect(call.args['installPath'], '/games/foo');
-      expect(call.args['buildName'], 'build-1');
+        final call = backend.callsTo('downloadSaves').single;
+        expect(call.args['prefix'], '${protonPrefixDir(1)}/pfx');
+        expect(call.args['installPath'], '/games/foo');
+        expect(call.args['buildName'], 'build-1');
 
-      controller.add(
-        DownloadSavesProgress.started(
-          totalFiles: BigInt.from(2),
-          totalBytes: BigInt.from(100),
-        ),
-      );
-      await settle();
-      var task = container.read(savesStateProvider).taskFor(1)!;
-      expect(task.filesTotal, 2);
-      expect(task.total, 100);
-      expect(task.progress, 0.0);
+        controller.add(
+          DownloadSavesProgress.started(
+            totalFiles: BigInt.from(2),
+            totalBytes: BigInt.from(100),
+          ),
+        );
+        await settle();
+        var task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.filesTotal, 2);
+        expect(task.total, 100);
+        expect(task.progress, 0.0);
 
-      controller.add(
-        DownloadSavesProgress.fileStarted(
-          name: 'save1.dat',
-          destination: '/whatever',
-          totalBytes: BigInt.from(50),
-        ),
-      );
-      await settle();
-      task = container.read(savesStateProvider).taskFor(1)!;
-      expect(task.currentFile, 'save1.dat');
-      expect(task.fileTotal, 50);
+        controller.add(
+          DownloadSavesProgress.fileStarted(
+            name: 'save1.dat',
+            destination: '/whatever',
+            totalBytes: BigInt.from(50),
+          ),
+        );
+        await settle();
+        task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.currentFile, 'save1.dat');
+        expect(task.fileTotal, 50);
 
-      controller.add(
-        DownloadSavesProgress.progress(
-          downloadedBytes: BigInt.from(50),
-          fileDownloadedBytes: BigInt.from(50),
-        ),
-      );
-      await settle();
-      task = container.read(savesStateProvider).taskFor(1)!;
-      expect(task.transferred, 50);
-      expect(task.progress, 0.5);
+        controller.add(
+          DownloadSavesProgress.progress(
+            downloadedBytes: BigInt.from(50),
+            fileDownloadedBytes: BigInt.from(50),
+          ),
+        );
+        await settle();
+        task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.transferred, 50);
+        expect(task.progress, 0.5);
 
-      controller.add(const DownloadSavesProgress.fileFinished(name: 'save1.dat'));
-      await settle();
-      task = container.read(savesStateProvider).taskFor(1)!;
-      expect(task.filesProcessed, 1);
-      expect(task.currentFile, null);
+        controller.add(
+          const DownloadSavesProgress.fileFinished(name: 'save1.dat'),
+        );
+        await settle();
+        task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.filesProcessed, 1);
+        expect(task.currentFile, null);
 
-      controller.add(const DownloadSavesProgress.finished());
-      await controller.close();
-      await settle();
-      task = container.read(savesStateProvider).taskFor(1)!;
-      expect(task.status, TaskStatus.completed);
-    });
+        controller.add(const DownloadSavesProgress.finished());
+        await controller.close();
+        await settle();
+        task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.status, TaskStatus.completed);
+      },
+    );
 
     test('isEmpty: zero-file finish', () async {
       final backend = FakeGogBackend();
@@ -181,10 +185,7 @@ void main() {
         expect(task.status, TaskStatus.failed);
         expect(task.error, 'launch the game once to set up its Wine prefix');
         expect(Directory(protonPrefixDir(1)).existsSync(), false);
-        expect(
-          container.read(gamesStateProvider).getProtonPrefixPath(1),
-          null,
-        );
+        expect(container.read(gamesStateProvider).getProtonPrefixPath(1), null);
         expect(backend.callsTo('downloadSaves'), isEmpty);
         expect(backend.callsTo('uploadSaves'), isEmpty);
       },
@@ -227,44 +228,41 @@ void main() {
       expect(task.filesTotal, 1);
     });
 
-    test(
-      'rapid progress events collapse under the throttle, but the final '
-      'terminal event always lands',
-      () async {
-        final backend = FakeGogBackend();
-        final container = await createContainer(backend: backend);
-        addTearDown(backend.closeAll);
-        seedInstalledGame(container, 1);
+    test('rapid progress events collapse under the throttle, but the final '
+        'terminal event always lands', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      seedInstalledGame(container, 1);
 
-        final notifier = container.read(savesStateProvider.notifier);
-        await notifier.downloadSaves(1);
-        final controller = backend.saveDownloadController(1);
+      final notifier = container.read(savesStateProvider.notifier);
+      await notifier.downloadSaves(1);
+      final controller = backend.saveDownloadController(1);
 
-        // No settle() between these -- all but the last should be coalesced
-        // by the throttle, and the terminal finished event must still flush.
+      // No settle() between these -- all but the last should be coalesced
+      // by the throttle, and the terminal finished event must still flush.
+      controller.add(
+        DownloadSavesProgress.started(
+          totalFiles: BigInt.from(1),
+          totalBytes: BigInt.from(1000),
+        ),
+      );
+      for (var i = 1; i <= 5; i++) {
         controller.add(
-          DownloadSavesProgress.started(
-            totalFiles: BigInt.from(1),
-            totalBytes: BigInt.from(1000),
+          DownloadSavesProgress.progress(
+            downloadedBytes: BigInt.from(i * 100),
+            fileDownloadedBytes: BigInt.from(i * 100),
           ),
         );
-        for (var i = 1; i <= 5; i++) {
-          controller.add(
-            DownloadSavesProgress.progress(
-              downloadedBytes: BigInt.from(i * 100),
-              fileDownloadedBytes: BigInt.from(i * 100),
-            ),
-          );
-        }
-        controller.add(const DownloadSavesProgress.finished());
-        await controller.close();
-        await settle();
+      }
+      controller.add(const DownloadSavesProgress.finished());
+      await controller.close();
+      await settle();
 
-        final task = container.read(savesStateProvider).taskFor(1)!;
-        expect(task.status, TaskStatus.completed);
-        expect(task.transferred, 500);
-      },
-    );
+      final task = container.read(savesStateProvider).taskFor(1)!;
+      expect(task.status, TaskStatus.completed);
+      expect(task.transferred, 500);
+    });
 
     test('a second sync while one is running is a no-op', () async {
       final backend = FakeGogBackend();
@@ -310,9 +308,7 @@ void main() {
       // progress never numerically applies to `progress` for uploads.
       expect(task.progress, 0.0);
 
-      controller.add(
-        const UploadSavesProgress.fileFinished(name: 'save1.dat'),
-      );
+      controller.add(const UploadSavesProgress.fileFinished(name: 'save1.dat'));
       await settle();
       task = container.read(savesStateProvider).taskFor(1)!;
       expect(task.filesProcessed, 1);
@@ -354,38 +350,41 @@ void main() {
   });
 
   group('SavesNotifier — immutability (Phase 6)', () {
-    test('an event produces a new task; the old snapshot keeps its old values', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      seedInstalledGame(container, 1);
+    test(
+      'an event produces a new task; the old snapshot keeps its old values',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        seedInstalledGame(container, 1);
 
-      final notifier = container.read(savesStateProvider.notifier);
-      await notifier.downloadSaves(1);
-      final controller = backend.saveDownloadController(1);
+        final notifier = container.read(savesStateProvider.notifier);
+        await notifier.downloadSaves(1);
+        final controller = backend.saveDownloadController(1);
 
-      controller.add(
-        DownloadSavesProgress.started(
-          totalFiles: BigInt.from(2),
-          totalBytes: BigInt.from(100),
-        ),
-      );
-      await settle();
-      final before = container.read(savesStateProvider).taskFor(1)!;
+        controller.add(
+          DownloadSavesProgress.started(
+            totalFiles: BigInt.from(2),
+            totalBytes: BigInt.from(100),
+          ),
+        );
+        await settle();
+        final before = container.read(savesStateProvider).taskFor(1)!;
 
-      controller.add(
-        DownloadSavesProgress.progress(
-          downloadedBytes: BigInt.from(40),
-          fileDownloadedBytes: BigInt.from(40),
-        ),
-      );
-      await settle();
-      final after = container.read(savesStateProvider).taskFor(1)!;
+        controller.add(
+          DownloadSavesProgress.progress(
+            downloadedBytes: BigInt.from(40),
+            fileDownloadedBytes: BigInt.from(40),
+          ),
+        );
+        await settle();
+        final after = container.read(savesStateProvider).taskFor(1)!;
 
-      expect(identical(before, after), isFalse);
-      expect(before.transferred, 0);
-      expect(after.transferred, 40);
-    });
+        expect(identical(before, after), isFalse);
+        expect(before.transferred, 0);
+        expect(after.transferred, 40);
+      },
+    );
 
     test('a stale stream cannot clobber the task that replaced it', () async {
       final backend = FakeGogBackend();

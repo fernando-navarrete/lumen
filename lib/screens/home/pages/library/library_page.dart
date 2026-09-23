@@ -147,7 +147,8 @@ class _GameGridState extends ConsumerState<_GameGrid> {
       (id) => gamesState.getGameStatus(id) == GameStatus.downloaded,
     );
     final int featuredId = ownedGames[featuredIndex < 0 ? 0 : featuredIndex];
-    final String featuredName = _gameNames[featuredIndex < 0 ? 0 : featuredIndex];
+    final String featuredName =
+        _gameNames[featuredIndex < 0 ? 0 : featuredIndex];
     final bool featuredInstalled = featuredIndex >= 0;
 
     return Center(
@@ -227,22 +228,19 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                   mainAxisSpacing: AppSpacing.md,
                   crossAxisSpacing: AppSpacing.md,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final int i = visible[index];
-                    if (_gameNames[i].isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    return GameCard(
-                      gameId: ownedGames[i],
-                      gameName: _gameNames[i],
-                      onTap: () {
-                        widget.onGameTap(ownedGames[i]);
-                      },
-                    );
-                  },
-                  childCount: visible.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final int i = visible[index];
+                  if (_gameNames[i].isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return GameCard(
+                    gameId: ownedGames[i],
+                    gameName: _gameNames[i],
+                    onTap: () {
+                      widget.onGameTap(ownedGames[i]);
+                    },
+                  );
+                }, childCount: visible.length),
               ),
             ),
           ],

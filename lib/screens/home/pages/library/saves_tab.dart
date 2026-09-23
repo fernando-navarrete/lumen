@@ -31,9 +31,7 @@ class SavesTab extends ConsumerWidget {
     final ready =
         gamesState.getInstallPath(gameId) != null &&
         gamesState.getSelectedBuild(gameId) != null;
-    final task = ref.watch(
-      savesStateProvider.select((s) => s.taskFor(gameId)),
-    );
+    final task = ref.watch(savesStateProvider.select((s) => s.taskFor(gameId)));
     final syncing = task?.status == TaskStatus.running;
     final notifier = ref.read(savesStateProvider.notifier);
 

@@ -44,9 +44,7 @@ class SectionCard extends StatelessWidget {
                 if (title != null)
                   Row(
                     children: [
-                      Expanded(
-                        child: Text(title!, style: AppText.cardTitle()),
-                      ),
+                      Expanded(child: Text(title!, style: AppText.cardTitle())),
                       ?trailing,
                     ],
                   ),

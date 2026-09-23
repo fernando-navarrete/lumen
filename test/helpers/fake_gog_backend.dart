@@ -78,14 +78,13 @@ class FakeGogBackend implements GogBackend {
   // ---- Streams ----
   final Map<int, StreamController<DownloadGameProgress>> _downloadControllers =
       {};
-  final Map<int, StreamController<VerifyDownloadProgress>>
-  _verifyControllers = {};
-  final Map<int, StreamController<RepairGameProgress>> _repairControllers =
+  final Map<int, StreamController<VerifyDownloadProgress>> _verifyControllers =
       {};
+  final Map<int, StreamController<RepairGameProgress>> _repairControllers = {};
   final Map<int, StreamController<DownloadSavesProgress>>
   _saveDownloadControllers = {};
-  final Map<int, StreamController<UploadSavesProgress>>
-  _saveUploadControllers = {};
+  final Map<int, StreamController<UploadSavesProgress>> _saveUploadControllers =
+      {};
   final Map<String, StreamController<ProtonDownloadProgress>>
   _protonDownloadControllers = {};
 
@@ -95,9 +94,8 @@ class FakeGogBackend implements GogBackend {
       _verifyControllers[gameId]!;
   StreamController<RepairGameProgress> repairController(int gameId) =>
       _repairControllers[gameId]!;
-  StreamController<DownloadSavesProgress> saveDownloadController(
-    int gameId,
-  ) => _saveDownloadControllers[gameId]!;
+  StreamController<DownloadSavesProgress> saveDownloadController(int gameId) =>
+      _saveDownloadControllers[gameId]!;
   StreamController<UploadSavesProgress> saveUploadController(int gameId) =>
       _saveUploadControllers[gameId]!;
   StreamController<ProtonDownloadProgress> protonDownloadController(

@@ -223,7 +223,10 @@ class SavesNotifier extends Notifier<SavesState> {
     if (stream == null) {
       _commit(
         task,
-        task.copyWith(status: TaskStatus.failed, error: 'could not start the sync'),
+        task.copyWith(
+          status: TaskStatus.failed,
+          error: 'could not start the sync',
+        ),
       );
       return;
     }

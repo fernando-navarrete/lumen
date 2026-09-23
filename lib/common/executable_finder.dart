@@ -47,10 +47,9 @@ List<String> findExecutables(String installPath) {
       continue;
     }
 
-    final relative = entity.path.substring(root.path.length).replaceFirst(
-      RegExp(r'^[/\\]+'),
-      '',
-    );
+    final relative = entity.path
+        .substring(root.path.length)
+        .replaceFirst(RegExp(r'^[/\\]+'), '');
     final relativeLower = relative.toLowerCase();
 
     final inSkippedDir = _skippedDirSubstrings.any(

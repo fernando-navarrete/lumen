@@ -1,6 +1,7 @@
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
-import 'package:gogdl_flutter/gogdl_flutter.dart' as bridge
+import 'package:gogdl_flutter/gogdl_flutter.dart'
+    as bridge
     show GameBuild, DownloadableProduct, ProtonRelease;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';

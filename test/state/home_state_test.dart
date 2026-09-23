@@ -21,25 +21,22 @@ void main() {
       expect(container.read(navBarItemProvider), NavBarItem.settings);
     });
 
-    test(
-      'a listener sees each change once, and reselecting the same item '
-      'sends no notification',
-      () async {
-        final container = await createContainer();
-        final notifier = container.read(navBarItemProvider.notifier);
-        final seen = <NavBarItem>[];
-        container.listen(
-          navBarItemProvider,
-          (previous, next) => seen.add(next),
-          fireImmediately: false,
-        );
+    test('a listener sees each change once, and reselecting the same item '
+        'sends no notification', () async {
+      final container = await createContainer();
+      final notifier = container.read(navBarItemProvider.notifier);
+      final seen = <NavBarItem>[];
+      container.listen(
+        navBarItemProvider,
+        (previous, next) => seen.add(next),
+        fireImmediately: false,
+      );
 
-        notifier.select(NavBarItem.downloads);
-        notifier.select(NavBarItem.downloads);
-        notifier.select(NavBarItem.settings);
+      notifier.select(NavBarItem.downloads);
+      notifier.select(NavBarItem.downloads);
+      notifier.select(NavBarItem.settings);
 
-        expect(seen, [NavBarItem.downloads, NavBarItem.settings]);
-      },
-    );
+      expect(seen, [NavBarItem.downloads, NavBarItem.settings]);
+    });
   });
 }

@@ -14,7 +14,8 @@ String? xdgDataHomeOverride;
 /// Resolves under `$XDG_DATA_HOME` when set (the XDG Base Directory spec),
 /// falling back to `$HOME/.local/share` otherwise.
 String lumenDataDir() {
-  final xdgDataHome = xdgDataHomeOverride ?? Platform.environment['XDG_DATA_HOME'];
+  final xdgDataHome =
+      xdgDataHomeOverride ?? Platform.environment['XDG_DATA_HOME'];
   final base = (xdgDataHome != null && xdgDataHome.isNotEmpty)
       ? xdgDataHome
       : '${Platform.environment['HOME']}/.local/share';

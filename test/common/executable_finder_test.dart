@@ -22,23 +22,26 @@ void main() {
   });
 
   group('findExecutables', () {
-    test('finds real launch candidates and skips installers/redistributables', () {
-      touch('Game.exe');
-      touch('bin/x64/Game64.exe');
-      touch('LAUNCHER.EXE'); // extension check is case-insensitive
-      touch('readme.txt');
-      touch('unins000.exe');
-      touch('setup.exe');
-      touch('__support/app/foo.exe');
-      touch('_CommonRedist/vcredist_x64.exe');
-      touch('DirectX/dxsetup.exe');
+    test(
+      'finds real launch candidates and skips installers/redistributables',
+      () {
+        touch('Game.exe');
+        touch('bin/x64/Game64.exe');
+        touch('LAUNCHER.EXE'); // extension check is case-insensitive
+        touch('readme.txt');
+        touch('unins000.exe');
+        touch('setup.exe');
+        touch('__support/app/foo.exe');
+        touch('_CommonRedist/vcredist_x64.exe');
+        touch('DirectX/dxsetup.exe');
 
-      final result = findExecutables(root.path);
+        final result = findExecutables(root.path);
 
-      // Sorted by code unit, so uppercase ('G', 'L') sorts before lowercase
-      // ('b').
-      expect(result, ['Game.exe', 'LAUNCHER.EXE', 'bin/x64/Game64.exe']);
-    });
+        // Sorted by code unit, so uppercase ('G', 'L') sorts before lowercase
+        // ('b').
+        expect(result, ['Game.exe', 'LAUNCHER.EXE', 'bin/x64/Game64.exe']);
+      },
+    );
 
     test('returns an empty list for a missing directory', () {
       final missing = '${root.path}/does_not_exist';

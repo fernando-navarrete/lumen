@@ -18,30 +18,37 @@ void main() {
       expect(result, [10, 20, 30]);
     });
 
-    test('caches the sorted list — a second call hits the backend once', () async {
-      final backend = FakeGogBackend()..ownedGames = [2, 1];
-      final container = await createContainer(backend: backend);
-      final state = container.read(gogStateProvider);
+    test(
+      'caches the sorted list — a second call hits the backend once',
+      () async {
+        final backend = FakeGogBackend()..ownedGames = [2, 1];
+        final container = await createContainer(backend: backend);
+        final state = container.read(gogStateProvider);
 
-      await state.getOwnedGames();
-      await state.getOwnedGames();
+        await state.getOwnedGames();
+        await state.getOwnedGames();
 
-      expect(backend.callsTo('getOwnedGames'), hasLength(1));
-    });
+        expect(backend.callsTo('getOwnedGames'), hasLength(1));
+      },
+    );
 
-    test('an empty result is not cached, so a retry hits the backend again', () async {
-      final backend = FakeGogBackend()..ownedGames = [];
-      final container = await createContainer(backend: backend);
-      final state = container.read(gogStateProvider);
+    test(
+      'an empty result is not cached, so a retry hits the backend again',
+      () async {
+        final backend = FakeGogBackend()..ownedGames = [];
+        final container = await createContainer(backend: backend);
+        final state = container.read(gogStateProvider);
 
-      await state.getOwnedGames();
-      await state.getOwnedGames();
+        await state.getOwnedGames();
+        await state.getOwnedGames();
 
-      expect(backend.callsTo('getOwnedGames'), hasLength(2));
-    });
+        expect(backend.callsTo('getOwnedGames'), hasLength(2));
+      },
+    );
 
     test('a thrown error returns null and is not cached', () async {
-      final backend = FakeGogBackend()..throwOn['getOwnedGames'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['getOwnedGames'] = Exception('boom');
       final container = await createContainer(backend: backend);
       final state = container.read(gogStateProvider);
 
@@ -72,15 +79,18 @@ void main() {
     });
   });
 
-  test('gogStateProvider resolves through gogBackendProvider with no native library', () async {
-    final container = await createContainer();
+  test(
+    'gogStateProvider resolves through gogBackendProvider with no native library',
+    () async {
+      final container = await createContainer();
 
-    // If this reaches the fake instead of trying to dlopen the bridge, the
-    // provider wiring (gogStateProvider -> gogBackendProvider) is correct.
-    final result = await container.read(gogStateProvider).getOwnedGames();
+      // If this reaches the fake instead of trying to dlopen the bridge, the
+      // provider wiring (gogStateProvider -> gogBackendProvider) is correct.
+      final result = await container.read(gogStateProvider).getOwnedGames();
 
-    expect(result, isEmpty);
-  });
+      expect(result, isEmpty);
+    },
+  );
 
   group('v1.0.10 — metadata getters fall back on a thrown error', () {
     // Debug and release builds must behave the same: none of these getters
@@ -151,25 +161,32 @@ void main() {
     });
   });
 
-  group('v1.1.2 — getProtonReleases distinguishes failure from end-of-list', () {
-    test('an empty page returns an empty list, not null', () async {
-      final backend = FakeGogBackend()..protonReleases = [];
-      final state = await _state(backend);
+  group(
+    'v1.1.2 — getProtonReleases distinguishes failure from end-of-list',
+    () {
+      test('an empty page returns an empty list, not null', () async {
+        final backend = FakeGogBackend()..protonReleases = [];
+        final state = await _state(backend);
 
-      expect(await state.getProtonReleases(1), isEmpty);
-    });
-  });
+        expect(await state.getProtonReleases(1), isEmpty);
+      });
+    },
+  );
 
   group('v1.0.11 — banner links are cached, not refetched on every call', () {
-    test('getGameBackgroundLink hits the backend once for the same id', () async {
-      final backend = FakeGogBackend()..backgroundLinks[1] = 'https://a/bg.jpg';
-      final state = await _state(backend);
+    test(
+      'getGameBackgroundLink hits the backend once for the same id',
+      () async {
+        final backend = FakeGogBackend()
+          ..backgroundLinks[1] = 'https://a/bg.jpg';
+        final state = await _state(backend);
 
-      await state.getGameBackgroundLink(1);
-      await state.getGameBackgroundLink(1);
+        await state.getGameBackgroundLink(1);
+        await state.getGameBackgroundLink(1);
 
-      expect(backend.callsTo('getBackgroundImageLink'), hasLength(1));
-    });
+        expect(backend.callsTo('getBackgroundImageLink'), hasLength(1));
+      },
+    );
 
     test('getGameBoxartLink hits the backend once for the same id', () async {
       final backend = FakeGogBackend()..boxartLinks[1] = 'https://a/box.jpg';
@@ -183,55 +200,67 @@ void main() {
   });
 
   group('v1.1.1 — job-starting streams are never cached', () {
-    test('verifyGameFiles hits the backend and returns a fresh stream every call', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend);
+    test(
+      'verifyGameFiles hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
 
-      final first = state.verifyGameFiles(1, '/path', 'build', [1]);
-      final second = state.verifyGameFiles(1, '/path', 'build', [1]);
+        final first = state.verifyGameFiles(1, '/path', 'build', [1]);
+        final second = state.verifyGameFiles(1, '/path', 'build', [1]);
 
-      expect(backend.callsTo('verifyDownload'), hasLength(2));
-      expect(identical(first, second), isFalse);
-    });
+        expect(backend.callsTo('verifyDownload'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
 
     test('verifyGameFiles returns null on a thrown error', () async {
-      final backend = FakeGogBackend()..throwOn['verifyDownload'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['verifyDownload'] = Exception('boom');
       final state = await _state(backend);
 
       expect(state.verifyGameFiles(1, '/path', 'build', [1]), isNull);
     });
 
-    test('repairGameFiles hits the backend and returns a fresh stream every call', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend);
+    test(
+      'repairGameFiles hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
 
-      final first = state.repairGameFiles(1, '/path', 'build', [1]);
-      final second = state.repairGameFiles(1, '/path', 'build', [1]);
+        final first = state.repairGameFiles(1, '/path', 'build', [1]);
+        final second = state.repairGameFiles(1, '/path', 'build', [1]);
 
-      expect(backend.callsTo('repairDownload'), hasLength(2));
-      expect(identical(first, second), isFalse);
-    });
+        expect(backend.callsTo('repairDownload'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
 
     test('repairGameFiles returns null on a thrown error', () async {
-      final backend = FakeGogBackend()..throwOn['repairDownload'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['repairDownload'] = Exception('boom');
       final state = await _state(backend);
 
       expect(state.repairGameFiles(1, '/path', 'build', [1]), isNull);
     });
 
-    test('downloadGameFiles hits the backend and returns a fresh stream every call', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend);
+    test(
+      'downloadGameFiles hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
 
-      final first = state.downloadGameFiles(1, '/path', 'build', [1]);
-      final second = state.downloadGameFiles(1, '/path', 'build', [1]);
+        final first = state.downloadGameFiles(1, '/path', 'build', [1]);
+        final second = state.downloadGameFiles(1, '/path', 'build', [1]);
 
-      expect(backend.callsTo('downloadGame'), hasLength(2));
-      expect(identical(first, second), isFalse);
-    });
+        expect(backend.callsTo('downloadGame'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
 
     test('downloadGameFiles returns null on a thrown error', () async {
-      final backend = FakeGogBackend()..throwOn['downloadGame'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['downloadGame'] = Exception('boom');
       final state = await _state(backend);
 
       expect(state.downloadGameFiles(1, '/path', 'build', [1]), isNull);
@@ -259,37 +288,45 @@ void main() {
       expect(state.downloadProtonRelease('tag', '/dir'), isNull);
     });
 
-    test('downloadSaves hits the backend and returns a fresh stream every call', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend);
+    test(
+      'downloadSaves hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
 
-      final first = state.downloadSaves(1, 'build', '/prefix', '/install');
-      final second = state.downloadSaves(1, 'build', '/prefix', '/install');
+        final first = state.downloadSaves(1, 'build', '/prefix', '/install');
+        final second = state.downloadSaves(1, 'build', '/prefix', '/install');
 
-      expect(backend.callsTo('downloadSaves'), hasLength(2));
-      expect(identical(first, second), isFalse);
-    });
+        expect(backend.callsTo('downloadSaves'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
 
     test('downloadSaves returns null on a thrown error', () async {
-      final backend = FakeGogBackend()..throwOn['downloadSaves'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['downloadSaves'] = Exception('boom');
       final state = await _state(backend);
 
       expect(state.downloadSaves(1, 'build', '/prefix', '/install'), isNull);
     });
 
-    test('uploadSaves hits the backend and returns a fresh stream every call', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend);
+    test(
+      'uploadSaves hits the backend and returns a fresh stream every call',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend);
 
-      final first = state.uploadSaves(1, 'build', '/prefix', '/install');
-      final second = state.uploadSaves(1, 'build', '/prefix', '/install');
+        final first = state.uploadSaves(1, 'build', '/prefix', '/install');
+        final second = state.uploadSaves(1, 'build', '/prefix', '/install');
 
-      expect(backend.callsTo('uploadSaves'), hasLength(2));
-      expect(identical(first, second), isFalse);
-    });
+        expect(backend.callsTo('uploadSaves'), hasLength(2));
+        expect(identical(first, second), isFalse);
+      },
+    );
 
     test('uploadSaves returns null on a thrown error', () async {
-      final backend = FakeGogBackend()..throwOn['uploadSaves'] = Exception('boom');
+      final backend = FakeGogBackend()
+        ..throwOn['uploadSaves'] = Exception('boom');
       final state = await _state(backend);
 
       expect(state.uploadSaves(1, 'build', '/prefix', '/install'), isNull);
@@ -297,37 +334,49 @@ void main() {
   });
 
   group('v1.1.6 — secure storage', () {
-    test('loginWithCode writes to storage; restoreAuthFromStorage reads it back', () async {
-      final backend = FakeGogBackend()..loginResult = 'auth-json';
-      final storage = FakeSecureStorage();
-      final state = await _state(backend, secureStorage: storage);
+    test(
+      'loginWithCode writes to storage; restoreAuthFromStorage reads it back',
+      () async {
+        final backend = FakeGogBackend()..loginResult = 'auth-json';
+        final storage = FakeSecureStorage();
+        final state = await _state(backend, secureStorage: storage);
 
-      await state.loginWithCode('code');
-      final restored = await state.restoreAuthFromStorage();
+        await state.loginWithCode('code');
+        final restored = await state.restoreAuthFromStorage();
 
-      expect(restored, isTrue);
-      expect(backend.callsTo('restoreAuth').single.args['token'], 'auth-json');
-    });
+        expect(restored, isTrue);
+        expect(
+          backend.callsTo('restoreAuth').single.args['token'],
+          'auth-json',
+        );
+      },
+    );
 
-    test('restoreAuthFromStorage returns false when nothing is stored', () async {
-      final backend = FakeGogBackend();
-      final state = await _state(backend, secureStorage: FakeSecureStorage());
+    test(
+      'restoreAuthFromStorage returns false when nothing is stored',
+      () async {
+        final backend = FakeGogBackend();
+        final state = await _state(backend, secureStorage: FakeSecureStorage());
 
-      expect(await state.restoreAuthFromStorage(), isFalse);
-      expect(backend.callsTo('restoreAuth'), isEmpty);
-    });
+        expect(await state.restoreAuthFromStorage(), isFalse);
+        expect(backend.callsTo('restoreAuth'), isEmpty);
+      },
+    );
 
-    test('the token-refresh callback persists to the same storage key', () async {
-      final backend = FakeGogBackend();
-      final storage = FakeSecureStorage();
-      final state = await _state(backend, secureStorage: storage);
+    test(
+      'the token-refresh callback persists to the same storage key',
+      () async {
+        final backend = FakeGogBackend();
+        final storage = FakeSecureStorage();
+        final state = await _state(backend, secureStorage: storage);
 
-      // Trigger callback registration.
-      await state.restoreAuthFromStorage();
-      await backend.onTokenRefresh!('refreshed-json');
+        // Trigger callback registration.
+        await state.restoreAuthFromStorage();
+        await backend.onTokenRefresh!('refreshed-json');
 
-      expect(await storage.read(key: 'auth'), 'refreshed-json');
-    });
+        expect(await storage.read(key: 'auth'), 'refreshed-json');
+      },
+    );
 
     test('clearAuth deletes the stored token', () async {
       final backend = FakeGogBackend()..loginResult = 'auth-json';
@@ -340,44 +389,53 @@ void main() {
       expect(await storage.read(key: 'auth'), isNull);
     });
 
-    test('a missing Secret Service surfaces a friendly KeyringUnavailableError', () async {
-      final backend = FakeGogBackend();
-      final storage = FakeSecureStorage()
-        ..throwOnNext = PlatformException(
-          code: 'Libsecret error',
-          message: 'The name org.freedesktop.secrets was not provided',
+    test(
+      'a missing Secret Service surfaces a friendly KeyringUnavailableError',
+      () async {
+        final backend = FakeGogBackend();
+        final storage = FakeSecureStorage()
+          ..throwOnNext = PlatformException(
+            code: 'Libsecret error',
+            message: 'The name org.freedesktop.secrets was not provided',
+          );
+        final state = await _state(backend, secureStorage: storage);
+
+        await expectLater(
+          () => state.restoreAuthFromStorage(),
+          throwsA(
+            isA<KeyringUnavailableError>().having(
+              (e) => e.message,
+              'message',
+              contains('No system keyring available'),
+            ),
+          ),
         );
-      final state = await _state(backend, secureStorage: storage);
+      },
+    );
 
-      await expectLater(
-        () => state.restoreAuthFromStorage(),
-        throwsA(
-          isA<KeyringUnavailableError>().having(
-            (e) => e.message,
-            'message',
-            contains('No system keyring available'),
+    test(
+      'a locked keyring surfaces a friendly KeyringUnavailableError',
+      () async {
+        final backend = FakeGogBackend()..loginResult = 'auth-json';
+        final storage = FakeSecureStorage()
+          ..throwOnNext = PlatformException(
+            code: 'KeyringLocked',
+            message: 'locked',
+          );
+        final state = await _state(backend, secureStorage: storage);
+
+        await expectLater(
+          () => state.loginWithCode('code'),
+          throwsA(
+            isA<KeyringUnavailableError>().having(
+              (e) => e.message,
+              'message',
+              contains('locked'),
+            ),
           ),
-        ),
-      );
-    });
-
-    test('a locked keyring surfaces a friendly KeyringUnavailableError', () async {
-      final backend = FakeGogBackend()..loginResult = 'auth-json';
-      final storage = FakeSecureStorage()
-        ..throwOnNext = PlatformException(code: 'KeyringLocked', message: 'locked');
-      final state = await _state(backend, secureStorage: storage);
-
-      await expectLater(
-        () => state.loginWithCode('code'),
-        throwsA(
-          isA<KeyringUnavailableError>().having(
-            (e) => e.message,
-            'message',
-            contains('locked'),
-          ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('an unrelated PlatformException passes through unchanged', () async {
       final backend = FakeGogBackend()..loginResult = 'auth-json';
@@ -391,18 +449,24 @@ void main() {
       );
     });
 
-    test('a keyring failure in the refresh callback is logged, not thrown', () async {
-      final backend = FakeGogBackend();
-      final storage = FakeSecureStorage();
-      final state = await _state(backend, secureStorage: storage);
-      await state.restoreAuthFromStorage();
+    test(
+      'a keyring failure in the refresh callback is logged, not thrown',
+      () async {
+        final backend = FakeGogBackend();
+        final storage = FakeSecureStorage();
+        final state = await _state(backend, secureStorage: storage);
+        await state.restoreAuthFromStorage();
 
-      storage.throwOnNext = PlatformException(code: 'Libsecret error', message: 'no keyring');
+        storage.throwOnNext = PlatformException(
+          code: 'Libsecret error',
+          message: 'no keyring',
+        );
 
-      // Must not throw — GogBackend.setTokenRefreshCallback's contract is a
-      // fire-and-forget notification, not something the bridge awaits/retries.
-      await backend.onTokenRefresh!('refreshed-json');
-    });
+        // Must not throw — GogBackend.setTokenRefreshCallback's contract is a
+        // fire-and-forget notification, not something the bridge awaits/retries.
+        await backend.onTokenRefresh!('refreshed-json');
+      },
+    );
   });
 }
 

@@ -195,10 +195,14 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                             style: AppText.button(color: Colors.white),
                           ),
                         )
-                      else if (_loadedOnce && _reachedEnd && _releases.isNotEmpty)
+                      else if (_loadedOnce &&
+                          _reachedEnd &&
+                          _releases.isNotEmpty)
                         Text(
                           "No more releases",
-                          style: AppText.caption(color: AppColors.textSecondary),
+                          style: AppText.caption(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                     ],
                   ),

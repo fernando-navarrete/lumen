@@ -113,7 +113,9 @@ class LaunchNotifier extends Notifier<LaunchState> {
     Map<String, String> envVars = const {},
     List<String> launchWrapper = const [],
   }) async {
-    debugPrint('[DIAG] launchGame called: gameId=$gameId isActive=${state.isActive(gameId)}');
+    debugPrint(
+      '[DIAG] launchGame called: gameId=$gameId isActive=${state.isActive(gameId)}',
+    );
     if (state.isActive(gameId)) {
       return;
     }

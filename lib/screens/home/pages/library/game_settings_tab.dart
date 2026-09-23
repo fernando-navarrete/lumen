@@ -224,9 +224,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                       executable ?? "Not set",
                       style: executable != null
                           ? AppText.code(color: Colors.white)
-                          : AppText.bodyMedium(
-                              color: AppColors.textSecondary,
-                            ),
+                          : AppText.bodyMedium(color: AppColors.textSecondary),
                     ),
                   ),
                   if (installPath != null) ...[
@@ -325,7 +323,9 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                   else
                     for (final row in _envRows) _buildEnvRow(row),
                   const SizedBox(height: 7),
-                  _ResolvedCommandPreview(command: _resolvedCommand(gamesState)),
+                  _ResolvedCommandPreview(
+                    command: _resolvedCommand(gamesState),
+                  ),
                 ],
               ),
             ),
@@ -434,7 +434,11 @@ class _RemoveButton extends StatelessWidget {
           border: Border.all(color: AppColors.border08),
           borderRadius: BorderRadius.circular(AppRadii.chip),
         ),
-        child: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+        child: const Icon(
+          Icons.close,
+          size: 16,
+          color: AppColors.textSecondary,
+        ),
       ),
     );
   }

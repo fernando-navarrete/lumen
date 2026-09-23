@@ -17,7 +17,10 @@ import 'dart:async';
 /// this) so `ProtonNotifier` and `SavesNotifier` could reuse the same
 /// buffering/timer logic instead of copying it.
 class ThrottledTaskBuffer<K, T> {
-  ThrottledTaskBuffer(this._flushCallback, {this.interval = const Duration(milliseconds: 100)});
+  ThrottledTaskBuffer(
+    this._flushCallback, {
+    this.interval = const Duration(milliseconds: 100),
+  });
 
   final void Function(Map<K, T> pending) _flushCallback;
   final Duration interval;

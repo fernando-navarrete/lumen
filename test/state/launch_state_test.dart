@@ -59,47 +59,50 @@ exit "\${FAKE_EXIT:-0}"
   Map<String, String> baseEnv() => {'LOG': log.path};
 
   group('LaunchNotifier.launchGame', () {
-    test('fresh prefix: launching -> running -> exited, wineboot runs first', () async {
-      writeFakeProton();
-      final container = await createContainer();
-      final notifier = container.read(launchStateProvider.notifier);
+    test(
+      'fresh prefix: launching -> running -> exited, wineboot runs first',
+      () async {
+        writeFakeProton();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
 
-      final future = notifier.launchGame(
-        1,
-        protonPath: protonDir.path,
-        installPath: installDir.path,
-        executable: 'game.exe',
-        prefixPath: prefixDir.path,
-        envVars: baseEnv(),
-      );
-      // The synchronous portion of launchGame (before its first `await`)
-      // already ran by the time the call returns control here.
-      expect(
-        container.read(launchStateProvider).gameFor(1)!.status,
-        LaunchStatus.launching,
-      );
+        final future = notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+        // The synchronous portion of launchGame (before its first `await`)
+        // already ran by the time the call returns control here.
+        expect(
+          container.read(launchStateProvider).gameFor(1)!.status,
+          LaunchStatus.launching,
+        );
 
-      await future;
-      expect(
-        container.read(launchStateProvider).gameFor(1)!.status,
-        LaunchStatus.running,
-      );
+        await future;
+        expect(
+          container.read(launchStateProvider).gameFor(1)!.status,
+          LaunchStatus.running,
+        );
 
-      await waitFor(
-        () =>
-            container.read(launchStateProvider).gameFor(1)!.status !=
-            LaunchStatus.running,
-      );
-      final game = container.read(launchStateProvider).gameFor(1)!;
-      expect(game.status, LaunchStatus.exited);
-      expect(game.exitCode, 0);
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
+        final game = container.read(launchStateProvider).gameFor(1)!;
+        expect(game.status, LaunchStatus.exited);
+        expect(game.exitCode, 0);
 
-      final lines = log.readAsLinesSync();
-      expect(lines, hasLength(2));
-      expect(lines[0], contains('run wineboot'));
-      expect(lines[1], contains('run ${installDir.path}/game.exe'));
-      expect(Directory('${prefixDir.path}/pfx').existsSync(), true);
-    });
+        final lines = log.readAsLinesSync();
+        expect(lines, hasLength(2));
+        expect(lines[0], contains('run wineboot'));
+        expect(lines[1], contains('run ${installDir.path}/game.exe'));
+        expect(Directory('${prefixDir.path}/pfx').existsSync(), true);
+      },
+    );
 
     test('existing pfx: no wineboot run', () async {
       writeFakeProton();
@@ -171,104 +174,113 @@ exit "\${FAKE_EXIT:-0}"
       expect(game.error, isNotNull);
     });
 
-    test('launchWrapper applies to the game but not to wineboot init', () async {
-      writeFakeProton();
-      final container = await createContainer();
-      final notifier = container.read(launchStateProvider.notifier);
+    test(
+      'launchWrapper applies to the game but not to wineboot init',
+      () async {
+        writeFakeProton();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
 
-      await notifier.launchGame(
-        1,
-        protonPath: protonDir.path,
-        installPath: installDir.path,
-        executable: 'game.exe',
-        prefixPath: prefixDir.path,
-        envVars: baseEnv(),
-        launchWrapper: const ['env', 'LUMEN_WRAPPED=1'],
-      );
-      await waitFor(
-        () =>
-            container.read(launchStateProvider).gameFor(1)!.status !=
-            LaunchStatus.running,
-      );
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+          launchWrapper: const ['env', 'LUMEN_WRAPPED=1'],
+        );
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
 
-      final lines = log.readAsLinesSync();
-      expect(lines, hasLength(2));
-      expect(lines[0], startsWith('|')); // wineboot: no LUMEN_WRAPPED prefix
-      expect(lines[1], startsWith('1|')); // game: LUMEN_WRAPPED=1 set
-    });
+        final lines = log.readAsLinesSync();
+        expect(lines, hasLength(2));
+        expect(lines[0], startsWith('|')); // wineboot: no LUMEN_WRAPPED prefix
+        expect(lines[1], startsWith('1|')); // game: LUMEN_WRAPPED=1 set
+      },
+    );
 
-    test('isActive: a second launchGame call while running is a no-op', () async {
-      writeFakeProton();
-      Directory('${prefixDir.path}/pfx').createSync();
-      final container = await createContainer();
-      final notifier = container.read(launchStateProvider.notifier);
+    test(
+      'isActive: a second launchGame call while running is a no-op',
+      () async {
+        writeFakeProton();
+        Directory('${prefixDir.path}/pfx').createSync();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
 
-      final first = notifier.launchGame(
-        1,
-        protonPath: protonDir.path,
-        installPath: installDir.path,
-        executable: 'game.exe',
-        prefixPath: prefixDir.path,
-        envVars: baseEnv(),
-      );
-      // Still "launching" (synchronous portion only) — isActive is already
-      // true, so a concurrent call right now must no-op too.
-      expect(container.read(launchStateProvider).isActive(1), true);
-      await notifier.launchGame(
-        1,
-        protonPath: protonDir.path,
-        installPath: installDir.path,
-        executable: 'game.exe',
-        prefixPath: prefixDir.path,
-        envVars: baseEnv(),
-      );
-      await first;
+        final first = notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+        // Still "launching" (synchronous portion only) — isActive is already
+        // true, so a concurrent call right now must no-op too.
+        expect(container.read(launchStateProvider).isActive(1), true);
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+        await first;
 
-      await waitFor(
-        () =>
-            container.read(launchStateProvider).gameFor(1)!.status !=
-            LaunchStatus.running,
-      );
-      // Only one invocation logged — the second call was a no-op.
-      expect(log.readAsLinesSync(), hasLength(1));
-    });
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
+        // Only one invocation logged — the second call was a no-op.
+        expect(log.readAsLinesSync(), hasLength(1));
+      },
+    );
   });
 
   group('LaunchNotifier — immutability (Phase 6)', () {
-    test('an event produces a new game; the old snapshot keeps its old values', () async {
-      writeFakeProton();
-      final container = await createContainer();
-      final notifier = container.read(launchStateProvider.notifier);
+    test(
+      'an event produces a new game; the old snapshot keeps its old values',
+      () async {
+        writeFakeProton();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
 
-      final future = notifier.launchGame(
-        1,
-        protonPath: protonDir.path,
-        installPath: installDir.path,
-        executable: 'game.exe',
-        prefixPath: prefixDir.path,
-        envVars: baseEnv(),
-      );
-      // The synchronous portion of launchGame (before its first `await`)
-      // already ran by the time the call returns control here.
-      final launching = container.read(launchStateProvider).gameFor(1)!;
-      expect(launching.status, LaunchStatus.launching);
+        final future = notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          executable: 'game.exe',
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+        // The synchronous portion of launchGame (before its first `await`)
+        // already ran by the time the call returns control here.
+        final launching = container.read(launchStateProvider).gameFor(1)!;
+        expect(launching.status, LaunchStatus.launching);
 
-      await future;
-      final running = container.read(launchStateProvider).gameFor(1)!;
+        await future;
+        final running = container.read(launchStateProvider).gameFor(1)!;
 
-      expect(identical(launching, running), isFalse);
-      expect(launching.status, LaunchStatus.launching);
-      expect(running.status, LaunchStatus.running);
+        expect(identical(launching, running), isFalse);
+        expect(launching.status, LaunchStatus.launching);
+        expect(running.status, LaunchStatus.running);
 
-      // Wait for the process to actually exit before the test (and its
-      // container) tears down — otherwise the fire-and-forget
-      // `process.exitCode.then` callback runs after disposal and throws.
-      await waitFor(
-        () =>
-            container.read(launchStateProvider).gameFor(1)!.status !=
-            LaunchStatus.running,
-      );
-    });
+        // Wait for the process to actually exit before the test (and its
+        // container) tears down — otherwise the fire-and-forget
+        // `process.exitCode.then` callback runs after disposal and throws.
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
+      },
+    );
 
     test(
       'the launching -> failed transition is visible to a listener (drives the '

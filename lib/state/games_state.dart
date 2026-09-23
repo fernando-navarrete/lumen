@@ -55,15 +55,11 @@ class GameConfig {
     List<String>? launchArgs,
     Map<String, String>? envVars,
     List<String>? launchWrapper,
-  }) : productIds = productIds != null
-           ? Set<int>.from(productIds)
-           : <int>{},
+  }) : productIds = productIds != null ? Set<int>.from(productIds) : <int>{},
        launchArgs = launchArgs != null
            ? List<String>.from(launchArgs)
            : const [],
-       envVars = envVars != null
-           ? Map<String, String>.from(envVars)
-           : const {},
+       envVars = envVars != null ? Map<String, String>.from(envVars) : const {},
        launchWrapper = launchWrapper != null
            ? List<String>.from(launchWrapper)
            : const [];
@@ -155,9 +151,7 @@ class GamesState {
   }
 
   List<String> getLaunchWrapper(int gameId) {
-    return List<String>.from(
-      games[gameId]?.launchWrapper ?? const <String>[],
-    );
+    return List<String>.from(games[gameId]?.launchWrapper ?? const <String>[]);
   }
 }
 

@@ -48,10 +48,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
       children: [
         Expanded(child: SingleChildScrollView(child: _summaryColumn())),
         const SizedBox(width: AppSpacing.lg),
-        SizedBox(
-          width: _getTabWidth(size.width),
-          child: _detailsColumn(size),
-        ),
+        SizedBox(width: _getTabWidth(size.width), child: _detailsColumn(size)),
       ],
     );
   }

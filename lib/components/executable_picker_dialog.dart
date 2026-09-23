@@ -69,7 +69,10 @@ class _ExecutablePickerDialogState extends State<_ExecutablePickerDialog> {
                     child: Text(widget.title, style: AppText.sectionLabel),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.textSecondary,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],

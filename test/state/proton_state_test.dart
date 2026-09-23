@@ -19,7 +19,8 @@ import '../helpers/temp_data_home.dart';
 // ProtonNotifier). Tests wait past that window before asserting on a value
 // that arrived via a throttled emit — same as downloads_state_test.dart's
 // settle().
-Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 150));
+Future<void> settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 150));
 
 const _release = ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000);
 
@@ -31,70 +32,79 @@ void main() {
   });
 
   group('ProtonNotifier — downloadRelease', () {
-    test('Finished marks the task completed, installed at the reported path, persisted', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(protonStateProvider.notifier);
-      final targetDir = '${dataHome.path}/target';
+    test(
+      'Finished marks the task completed, installed at the reported path, persisted',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(protonStateProvider.notifier);
+        final targetDir = '${dataHome.path}/target';
 
-      await notifier.downloadRelease(_release, targetDir);
-      final controller = backend.protonDownloadController(_release.tagName);
+        await notifier.downloadRelease(_release, targetDir);
+        final controller = backend.protonDownloadController(_release.tagName);
 
-      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
-      await settle();
-      var task = container.read(protonStateProvider).taskFor(_release.tagName)!;
-      expect(task.stage, 'downloading');
+        controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+        await settle();
+        var task = container
+            .read(protonStateProvider)
+            .taskFor(_release.tagName)!;
+        expect(task.stage, 'downloading');
 
-      controller.add(ProtonDownloadProgress.progress(BigInt.from(1000)));
-      await settle();
-      task = container.read(protonStateProvider).taskFor(_release.tagName)!;
-      expect(task.stage, 'extracting');
+        controller.add(ProtonDownloadProgress.progress(BigInt.from(1000)));
+        await settle();
+        task = container.read(protonStateProvider).taskFor(_release.tagName)!;
+        expect(task.stage, 'extracting');
 
-      // Deliberately different from '$targetDir/$tag', since the bridge
-      // sanitizes the tag for the filesystem.
-      final reportedPath = '$targetDir/GE-Proton9_1';
-      controller.add(ProtonDownloadProgress.finished(reportedPath));
-      await controller.close();
-      await settle();
+        // Deliberately different from '$targetDir/$tag', since the bridge
+        // sanitizes the tag for the filesystem.
+        final reportedPath = '$targetDir/GE-Proton9_1';
+        controller.add(ProtonDownloadProgress.finished(reportedPath));
+        await controller.close();
+        await settle();
 
-      final state = container.read(protonStateProvider);
-      expect(state.taskFor(_release.tagName)!.status, TaskStatus.completed);
-      expect(state.isInstalled(_release.tagName), true);
-      expect(state.pathFor(_release.tagName), reportedPath);
-      // First install with no prior default becomes the default.
-      expect(state.defaultVersion, _release.tagName);
+        final state = container.read(protonStateProvider);
+        expect(state.taskFor(_release.tagName)!.status, TaskStatus.completed);
+        expect(state.isInstalled(_release.tagName), true);
+        expect(state.pathFor(_release.tagName), reportedPath);
+        // First install with no prior default becomes the default.
+        expect(state.defaultVersion, _release.tagName);
 
-      final prefs = container.read(sharedPreferencesProvider);
-      final installedJson =
-          jsonDecode(prefs.getString('protonInstalled')!) as Map<String, dynamic>;
-      expect(installedJson[_release.tagName], reportedPath);
-      expect(prefs.getString('protonDefault'), _release.tagName);
-    });
+        final prefs = container.read(sharedPreferencesProvider);
+        final installedJson =
+            jsonDecode(prefs.getString('protonInstalled')!)
+                as Map<String, dynamic>;
+        expect(installedJson[_release.tagName], reportedPath);
+        expect(prefs.getString('protonDefault'), _release.tagName);
+      },
+    );
 
-    test('v1.0.13: a stream closed without Finished is failed, not installed', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(protonStateProvider.notifier);
-      final targetDir = '${dataHome.path}/target';
+    test(
+      'v1.0.13: a stream closed without Finished is failed, not installed',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(protonStateProvider.notifier);
+        final targetDir = '${dataHome.path}/target';
 
-      await notifier.downloadRelease(_release, targetDir);
-      final controller = backend.protonDownloadController(_release.tagName);
+        await notifier.downloadRelease(_release, targetDir);
+        final controller = backend.protonDownloadController(_release.tagName);
 
-      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
-      controller.add(ProtonDownloadProgress.progress(BigInt.from(500)));
-      await controller.close();
-      await settle();
+        controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+        controller.add(ProtonDownloadProgress.progress(BigInt.from(500)));
+        await controller.close();
+        await settle();
 
-      final state = container.read(protonStateProvider);
-      expect(state.taskFor(_release.tagName)!.status, TaskStatus.failed);
-      expect(state.isInstalled(_release.tagName), false);
-      expect(state.defaultVersion, null);
+        final state = container.read(protonStateProvider);
+        expect(state.taskFor(_release.tagName)!.status, TaskStatus.failed);
+        expect(state.isInstalled(_release.tagName), false);
+        expect(state.defaultVersion, null);
 
-      final prefs = container.read(sharedPreferencesProvider);
-      expect(prefs.getString('protonInstalled'), null);
-    });
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(prefs.getString('protonInstalled'), null);
+      },
+    );
 
     test('an error sets the task failed', () async {
       final backend = FakeGogBackend();
@@ -114,36 +124,39 @@ void main() {
       );
     });
 
-    test('retry after a failure starts a fresh stream and can succeed', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(protonStateProvider.notifier);
-      final targetDir = '${dataHome.path}/target';
+    test(
+      'retry after a failure starts a fresh stream and can succeed',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(protonStateProvider.notifier);
+        final targetDir = '${dataHome.path}/target';
 
-      await notifier.downloadRelease(_release, targetDir);
-      final first = backend.protonDownloadController(_release.tagName);
-      first.addError(Exception('boom'));
-      await settle();
-      expect(
-        container.read(protonStateProvider).taskFor(_release.tagName)!.status,
-        TaskStatus.failed,
-      );
+        await notifier.downloadRelease(_release, targetDir);
+        final first = backend.protonDownloadController(_release.tagName);
+        first.addError(Exception('boom'));
+        await settle();
+        expect(
+          container.read(protonStateProvider).taskFor(_release.tagName)!.status,
+          TaskStatus.failed,
+        );
 
-      await notifier.downloadRelease(_release, targetDir);
-      expect(backend.callsTo('downloadProtonRelease'), hasLength(2));
-      final second = backend.protonDownloadController(_release.tagName);
-      expect(identical(first, second), false);
+        await notifier.downloadRelease(_release, targetDir);
+        expect(backend.callsTo('downloadProtonRelease'), hasLength(2));
+        final second = backend.protonDownloadController(_release.tagName);
+        expect(identical(first, second), false);
 
-      final reportedPath = '$targetDir/GE-Proton9_1';
-      second.add(ProtonDownloadProgress.finished(reportedPath));
-      await second.close();
-      await settle();
+        final reportedPath = '$targetDir/GE-Proton9_1';
+        second.add(ProtonDownloadProgress.finished(reportedPath));
+        await second.close();
+        await settle();
 
-      final state = container.read(protonStateProvider);
-      expect(state.taskFor(_release.tagName)!.status, TaskStatus.completed);
-      expect(state.isInstalled(_release.tagName), true);
-    });
+        final state = container.read(protonStateProvider);
+        expect(state.taskFor(_release.tagName)!.status, TaskStatus.completed);
+        expect(state.isInstalled(_release.tagName), true);
+      },
+    );
 
     test(
       'v1.0.12: removeVersion clears per-game overrides pointing at it',
@@ -181,7 +194,8 @@ void main() {
 
         final prefs = container.read(sharedPreferencesProvider);
         final installedJson =
-            jsonDecode(prefs.getString('protonInstalled')!) as Map<String, dynamic>;
+            jsonDecode(prefs.getString('protonInstalled')!)
+                as Map<String, dynamic>;
         expect(installedJson.containsKey('A'), false);
         expect(installedJson.containsKey('B'), true);
         expect(prefs.getString('protonDefault'), null);
@@ -190,37 +204,8 @@ void main() {
   });
 
   group('ProtonNotifier — immutability (Phase 6)', () {
-    test('a Progress event produces a new task; the old snapshot keeps its old values', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(protonStateProvider.notifier);
-      final targetDir = '${dataHome.path}/target';
-
-      await notifier.downloadRelease(_release, targetDir);
-      final controller = backend.protonDownloadController(_release.tagName);
-
-      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
-      await settle();
-      final before = container.read(
-        protonStateProvider,
-      ).taskFor(_release.tagName)!;
-
-      controller.add(ProtonDownloadProgress.progress(BigInt.from(200)));
-      await settle();
-      final after = container.read(
-        protonStateProvider,
-      ).taskFor(_release.tagName)!;
-
-      expect(identical(before, after), isFalse);
-      expect(before.transferred, 0);
-      expect(after.transferred, 200);
-      expect(after.stage, 'downloading');
-    });
-
     test(
-      'rapid progress events collapse under the throttle, but the final '
-      'terminal event always lands',
+      'a Progress event produces a new task; the old snapshot keeps its old values',
       () async {
         final backend = FakeGogBackend();
         final container = await createContainer(backend: backend);
@@ -231,24 +216,53 @@ void main() {
         await notifier.downloadRelease(_release, targetDir);
         final controller = backend.protonDownloadController(_release.tagName);
 
-        // No settle() between these -- all but the last should be coalesced
-        // by the throttle, and the terminal finished+close must still flush.
         controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
-        for (var i = 1; i <= 5; i++) {
-          controller.add(ProtonDownloadProgress.progress(BigInt.from(i * 100)));
-        }
-        final reportedPath = '$targetDir/GE-Proton9_1';
-        controller.add(ProtonDownloadProgress.finished(reportedPath));
-        await controller.close();
         await settle();
+        final before = container
+            .read(protonStateProvider)
+            .taskFor(_release.tagName)!;
 
-        final state = container.read(protonStateProvider);
-        final task = state.taskFor(_release.tagName)!;
-        expect(task.status, TaskStatus.completed);
-        expect(task.transferred, 500);
-        expect(state.isInstalled(_release.tagName), true);
+        controller.add(ProtonDownloadProgress.progress(BigInt.from(200)));
+        await settle();
+        final after = container
+            .read(protonStateProvider)
+            .taskFor(_release.tagName)!;
+
+        expect(identical(before, after), isFalse);
+        expect(before.transferred, 0);
+        expect(after.transferred, 200);
+        expect(after.stage, 'downloading');
       },
     );
+
+    test('rapid progress events collapse under the throttle, but the final '
+        'terminal event always lands', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(protonStateProvider.notifier);
+      final targetDir = '${dataHome.path}/target';
+
+      await notifier.downloadRelease(_release, targetDir);
+      final controller = backend.protonDownloadController(_release.tagName);
+
+      // No settle() between these -- all but the last should be coalesced
+      // by the throttle, and the terminal finished+close must still flush.
+      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+      for (var i = 1; i <= 5; i++) {
+        controller.add(ProtonDownloadProgress.progress(BigInt.from(i * 100)));
+      }
+      final reportedPath = '$targetDir/GE-Proton9_1';
+      controller.add(ProtonDownloadProgress.finished(reportedPath));
+      await controller.close();
+      await settle();
+
+      final state = container.read(protonStateProvider);
+      final task = state.taskFor(_release.tagName)!;
+      expect(task.status, TaskStatus.completed);
+      expect(task.transferred, 500);
+      expect(state.isInstalled(_release.tagName), true);
+    });
 
     test('a stale stream cannot clobber the task that replaced it', () async {
       final backend = FakeGogBackend();
@@ -274,16 +288,16 @@ void main() {
 
       freshController.add(ProtonDownloadProgress.started(BigInt.from(500)));
       await settle();
-      final beforeStaleEvent = container.read(
-        protonStateProvider,
-      ).taskFor(_release.tagName)!;
+      final beforeStaleEvent = container
+          .read(protonStateProvider)
+          .taskFor(_release.tagName)!;
 
       // An event on the orphaned stream must not overwrite the fresh task.
       staleController.add(ProtonDownloadProgress.progress(BigInt.from(999)));
       await settle();
-      final afterStaleEvent = container.read(
-        protonStateProvider,
-      ).taskFor(_release.tagName)!;
+      final afterStaleEvent = container
+          .read(protonStateProvider)
+          .taskFor(_release.tagName)!;
 
       expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
       expect(afterStaleEvent.total, 500);

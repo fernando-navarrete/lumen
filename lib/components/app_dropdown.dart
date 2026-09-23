@@ -56,10 +56,16 @@ class AppDropdown<T> extends StatelessWidget {
               child: DropdownButton<T>(
                 value: value,
                 isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                icon: const Icon(
+                  Icons.keyboard_arrow_down,
+                  color: AppColors.primary,
+                ),
                 dropdownColor: AppColors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.control),
-                style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w500),
+                style: AppText.bodyMedium(
+                  color: Colors.white,
+                  weight: FontWeight.w500,
+                ),
                 onChanged: enabled ? onChanged : null,
                 items: [
                   for (final entry in entries)
@@ -67,13 +73,18 @@ class AppDropdown<T> extends StatelessWidget {
                       value: entry.value,
                       child: Text(
                         entry.label,
-                        style: AppText.bodyMedium(color: Colors.white, weight: FontWeight.w500),
+                        style: AppText.bodyMedium(
+                          color: Colors.white,
+                          weight: FontWeight.w500,
+                        ),
                       ),
                     ),
                 ],
               ),
             ),
     );
-    return enabled || entries.isEmpty ? content : Opacity(opacity: 0.5, child: content);
+    return enabled || entries.isEmpty
+        ? content
+        : Opacity(opacity: 0.5, child: content);
   }
 }

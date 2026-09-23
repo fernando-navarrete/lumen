@@ -53,6 +53,7 @@ abstract class GogBackend {
     required String buildName,
     required List<int> selectedProducts,
   });
+
   /// Bridge-owned freezed union, like [downloadProtonRelease]'s
   /// `ProtonDownloadProgress` — not an app-owned model. [DownloadsNotifier]
   /// adapts it directly.
@@ -62,6 +63,7 @@ abstract class GogBackend {
     required String buildName,
     required List<int> selectedProducts,
   });
+
   /// Bridge-owned freezed union, like [downloadProtonRelease]'s
   /// `ProtonDownloadProgress` — not an app-owned model. [DownloadsNotifier]
   /// adapts it directly.

@@ -9,8 +9,9 @@ import '../helpers/container.dart';
 // Real Future.delayed waits rather than fake_async -- same choice made in
 // emit_throttle_test.dart -- and GamesNotifier.persistDebounce is short
 // enough (500ms) that real waits stay fast.
-Future<void> settle() =>
-    Future<void>.delayed(GamesNotifier.persistDebounce + const Duration(milliseconds: 50));
+Future<void> settle() => Future<void>.delayed(
+  GamesNotifier.persistDebounce + const Duration(milliseconds: 50),
+);
 
 /// Asserts every field of [actual] matches [expected] — [GameConfig] has no
 /// `==`, so tests compare field by field instead of relying on object
@@ -138,21 +139,18 @@ void main() {
       );
     });
 
-    test(
-      'a "downloading" status is coerced to notInstalled on load',
-      () async {
-        const json =
-            '{"version": 1, "games": {"1": {"status": "downloading", '
-            '"selectedBuild": "b", "productIds": []}}}';
+    test('a "downloading" status is coerced to notInstalled on load', () async {
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloading", '
+          '"selectedBuild": "b", "productIds": []}}}';
 
-        final container = await createContainer(prefs: {'games': json});
+      final container = await createContainer(prefs: {'games': json});
 
-        expect(
-          container.read(gamesStateProvider).getGameStatus(1),
-          GameStatus.notInstalled,
-        );
-      },
-    );
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.notInstalled,
+      );
+    });
 
     test('corrupt JSON loads as empty state instead of throwing', () async {
       final container = await createContainer(prefs: {'games': 'not json'});
@@ -186,102 +184,98 @@ void main() {
 
         final container = await createContainer(prefs: {'games': json});
 
-        expect(
-          container.read(gamesStateProvider).getProductIds(1),
-          {123, 456},
-        );
+        expect(container.read(gamesStateProvider).getProductIds(1), {123, 456});
       },
     );
 
-    test('legacy data is re-saved in the current envelope after a mutation', () async {
-      const json =
-          '{"1": {"status": "downloaded", "selectedBuild": "b", '
-          '"productIds": ["123"]}}';
-
-      final container = await createContainer(prefs: {'games': json});
-      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'c');
-
-      final savedJson = container
-          .read(sharedPreferencesProvider)
-          .getString('games');
-      final decoded = jsonDecode(savedJson!) as Map<String, dynamic>;
-      expect(decoded['version'], GamesNotifier.gamesSchemaVersion);
-
-      final games = decoded['games'] as Map<String, dynamic>;
-      final entry = games['1'] as Map<String, dynamic>;
-      // Migrated to an int alongside the version bump.
-      expect(entry['productIds'], [123]);
-    });
-
     test(
-      'a stored version newer than the app is decoded on a best-effort '
-      'basis instead of being rejected',
+      'legacy data is re-saved in the current envelope after a mutation',
       () async {
-        final json = jsonEncode({
-          'version': GamesNotifier.gamesSchemaVersion + 1,
-          'games': {
-            '1': {
-              'status': 'downloaded',
-              'selectedBuild': 'b',
-              'productIds': [1, 2],
-              // A hypothetical future field this app version doesn't know
-              // about; it must simply be ignored, not crash the load.
-              'someFutureField': 'value',
-            },
-          },
-        });
+        const json =
+            '{"1": {"status": "downloaded", "selectedBuild": "b", '
+            '"productIds": ["123"]}}';
 
         final container = await createContainer(prefs: {'games': json});
-
-        expect(
-          container.read(gamesStateProvider).getGameStatus(1),
-          GameStatus.downloaded,
-        );
-        expect(container.read(gamesStateProvider).getProductIds(1), {1, 2});
-      },
-    );
-  });
-
-  group('debounced persistence', () {
-    test(
-      'setLaunchArgs updates state immediately but debounces the prefs '
-      'write; a burst ends with prefs holding only the last value',
-      () async {
-        final container = await createContainer();
-        final notifier = container.read(gamesStateProvider.notifier);
-        const gameId = 1;
-        notifier.setSelectedBuild(gameId, 'build-1');
-
-        notifier.setLaunchArgs(gameId, ['-a']);
-        notifier.setLaunchArgs(gameId, ['-a', '-b']);
-        notifier.setLaunchArgs(gameId, ['-a', '-b', '-c']);
-
-        // In-memory state reflects every call immediately.
-        expect(
-          container.read(gamesStateProvider).getLaunchArgs(gameId),
-          ['-a', '-b', '-c'],
-        );
-        // But prefs still only reflect setSelectedBuild's immediate write --
-        // none of the debounced launchArgs edits have landed yet.
-        final beforeSettle = container
-            .read(sharedPreferencesProvider)
-            .getString('games');
-        expect(beforeSettle, contains('"selectedBuild":"build-1"'));
-        expect(beforeSettle, isNot(contains('-c')));
-
-        await settle();
+        container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'c');
 
         final savedJson = container
             .read(sharedPreferencesProvider)
             .getString('games');
-        expect(savedJson, isNotNull);
-        final reloaded = await createContainer(prefs: {'games': savedJson!});
-        expect(
-          reloaded.read(gamesStateProvider).getLaunchArgs(gameId),
-          ['-a', '-b', '-c'],
-        );
+        final decoded = jsonDecode(savedJson!) as Map<String, dynamic>;
+        expect(decoded['version'], GamesNotifier.gamesSchemaVersion);
+
+        final games = decoded['games'] as Map<String, dynamic>;
+        final entry = games['1'] as Map<String, dynamic>;
+        // Migrated to an int alongside the version bump.
+        expect(entry['productIds'], [123]);
       },
     );
+
+    test('a stored version newer than the app is decoded on a best-effort '
+        'basis instead of being rejected', () async {
+      final json = jsonEncode({
+        'version': GamesNotifier.gamesSchemaVersion + 1,
+        'games': {
+          '1': {
+            'status': 'downloaded',
+            'selectedBuild': 'b',
+            'productIds': [1, 2],
+            // A hypothetical future field this app version doesn't know
+            // about; it must simply be ignored, not crash the load.
+            'someFutureField': 'value',
+          },
+        },
+      });
+
+      final container = await createContainer(prefs: {'games': json});
+
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.downloaded,
+      );
+      expect(container.read(gamesStateProvider).getProductIds(1), {1, 2});
+    });
+  });
+
+  group('debounced persistence', () {
+    test('setLaunchArgs updates state immediately but debounces the prefs '
+        'write; a burst ends with prefs holding only the last value', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      const gameId = 1;
+      notifier.setSelectedBuild(gameId, 'build-1');
+
+      notifier.setLaunchArgs(gameId, ['-a']);
+      notifier.setLaunchArgs(gameId, ['-a', '-b']);
+      notifier.setLaunchArgs(gameId, ['-a', '-b', '-c']);
+
+      // In-memory state reflects every call immediately.
+      expect(container.read(gamesStateProvider).getLaunchArgs(gameId), [
+        '-a',
+        '-b',
+        '-c',
+      ]);
+      // But prefs still only reflect setSelectedBuild's immediate write --
+      // none of the debounced launchArgs edits have landed yet.
+      final beforeSettle = container
+          .read(sharedPreferencesProvider)
+          .getString('games');
+      expect(beforeSettle, contains('"selectedBuild":"build-1"'));
+      expect(beforeSettle, isNot(contains('-c')));
+
+      await settle();
+
+      final savedJson = container
+          .read(sharedPreferencesProvider)
+          .getString('games');
+      expect(savedJson, isNotNull);
+      final reloaded = await createContainer(prefs: {'games': savedJson!});
+      expect(reloaded.read(gamesStateProvider).getLaunchArgs(gameId), [
+        '-a',
+        '-b',
+        '-c',
+      ]);
+    });
 
     test(
       'an immediate mutation after a debounced edit persists both at once',

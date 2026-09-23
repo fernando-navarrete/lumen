@@ -69,9 +69,9 @@ class SettingsPage extends ConsumerWidget {
     await ref.read(gamesStateProvider.notifier).clear();
     ref.read(protonStateProvider.notifier).resetToEmpty();
     if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("SharedPreferences cleared")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("SharedPreferences cleared")),
+      );
     }
   }
 

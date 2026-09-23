@@ -40,8 +40,11 @@ class AppText {
       monospace(size: 12.0, weight: FontWeight.w500, color: color);
 
   /// Uppercase section headers, e.g. "MEDIA" / "DETAILS".
-  static TextStyle get sectionLabel =>
-      monospace(size: 13.0, weight: FontWeight.w500, color: AppColors.textMuted);
+  static TextStyle get sectionLabel => monospace(
+    size: 13.0,
+    weight: FontWeight.w500,
+    color: AppColors.textMuted,
+  );
 
   /// Standard 14px body text (summaries, status rows, tab labels).
   static TextStyle bodyMedium({
