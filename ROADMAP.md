@@ -40,7 +40,7 @@ or edge-case issues.
 | `v1.0.13` ✅ | A Proton download that closes without a `Finished` event is marked failed, not installed. | §1 P2 |
 | `v1.0.14` ✅ | Save syncing before the first launch fails with a clear message (the skipped-prefix-init bug didn't reproduce). | §1 P2 |
 
-## v1.1.0 — Foundation: tests, CI and state architecture
+## v1.1.0 ✅ — Foundation: tests, CI and state architecture
 
 This goes before any feature work so that everything after it lands with tests.
 
@@ -62,7 +62,7 @@ Follow-up patches (`v1.1.1+`), one per tag:
    `onDone` run afterward and re-derive `completed`/installed from `stage`/`errorFiles` —
    the error is effectively swallowed. Characterized (not fixed) in
    `test/state/downloads_state_test.dart`'s "known gap" test (Phase 4a,
-   `v1.1.0-FOUNDATION_WORKPLAN.md`).
+   `devlog/v1.1.0-foundation.md`).
 3. `v1.1.3`: throttle `ProtonNotifier` and `SavesNotifier` emits (§4).
 4. `v1.1.4`: debounce game-settings persistence (§4).
 5. `v1.1.5`: add a schema version to the persisted `games` JSON (§4).

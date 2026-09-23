@@ -30,7 +30,7 @@ through an app-owned model.
 
 This project uses **fvm** (Flutter Version Management) — always prefix Flutter/Dart commands with
 `fvm`, not the bare `flutter`/`dart` binaries, so the pinned SDK version from `.fvm/fvm_config.json`
-is used.
+is used (CI reads the same pin from `.fvmrc`).
 
 ```bash
 fvm flutter pub get                        # install dependencies
@@ -65,7 +65,10 @@ CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
 
 All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `downloads_state.dart`,
 `gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `launch_state.dart`, `proton_state.dart`,
-`saves_state.dart`, `home_state.dart`). Every domain follows the same shape:
+`saves_state.dart`, `home_state.dart`), plus two supporting files that aren't domains themselves:
+`bridge_stream.dart` (`guardBridgeStream`, which every `GogdlBackend` stream is wrapped in so that an
+error thrown after `onDone`, within a short grace period, still arrives as a stream error instead of
+being silently dropped) and `shared_preferences_provider.dart`. Every domain follows the same shape:
 
 - An immutable, read-only **State** class (`GamesState`, `DownloadsState`, ...) exposing getters only.
 - A `Notifier<State>` subclass that is the *only* thing allowed to mutate state, always by
@@ -81,8 +84,9 @@ All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `d
 
 `gogStateProvider` (`lib/state/gog_state.dart`) wraps a `GogBackend` (see "What this is" above); nearly
 every other notifier reads it via `ref.read(gogStateProvider)`. Its methods follow a consistent
-convention: try the backend call, `print` and either `rethrow` or return `null`/empty on `kDebugMode`
-catch — callers are expected to handle `null` as "the operation failed."
+convention: try the backend call, log the failure via `logGogError` (`lib/common/gog_error.dart`,
+which only prints in debug builds) and either `rethrow` or return `null`/empty — the same in debug
+and release — callers are expected to handle `null` as "the operation failed."
 
 `GogState.getOwnedGames` is filtered to real games by the bridge (`gogdl_flutter` v1.1.3+): DLC and
 other non-game products the account owns no longer come back in the list. That filtering is
@@ -101,10 +105,6 @@ raw backend stream directly — it reads live progress from the corresponding St
 persist to prefs (`GamesNotifier`, `ProtonNotifier`) load their persisted state synchronously inside
 `build()`. Don't reintroduce an async `SharedPreferences.getInstance().then(...)` load path; that
 previously raced app startup and let the UI read/clobber empty state.
-
-`GameConfig.copyWith` (`games_state.dart`) uses an `_unset` sentinel object (not `null`) as the default
-for nullable fields, so "argument omitted" (keep existing value) can be distinguished from "argument
-explicitly passed as `null`" (clear the field).
 
 ### Proton / launching games
 
@@ -145,7 +145,10 @@ completes with zero files (`SaveTask.isEmpty`), or errors if it declares no clou
 ### UI structure
 
 `login_screen.dart` → `home_screen.dart` (top nav bar switches between `library`, `downloads`,
-`settings` pages via `navBarItemProvider`) → `library_page.dart` → `game_details_view.dart`, which
+`settings` pages via `navBarItemProvider`, a `NavBarNotifier extends Notifier<NavBarItem>` in
+`lib/state/home_state.dart` — the single source of truth for the selected tab; `NavBar` and
+`HomeScreen` both watch it rather than keeping their own copy) → `library_page.dart` →
+`game_details_view.dart`, which
 tabs between Overview / Builds / Settings / DLC / Saves for a single game. `game_action_buttons.dart`
 is the shared status-driven action row (Install/Import while not installed, Play/Running once
 installed) reused in both the library hero and the game header.

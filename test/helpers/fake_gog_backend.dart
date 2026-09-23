@@ -21,7 +21,7 @@ class FakeCall {
 
 /// In-memory [GogBackend] for tests. Never touches `GogdlApi`/`RustLib`, so
 /// tests using it need no native library loaded (see Phase 0 of
-/// `v1.1.0-FOUNDATION_WORKPLAN.md`).
+/// `devlog/v1.1.0-foundation.md`).
 ///
 /// - Canned return values for the metadata getters are public fields, settable
 ///   per test.

@@ -1,5 +1,5 @@
 # CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker
-# executor) — see v1.1.0-FOUNDATION_WORKPLAN.md Phase 0/8.
+# executor) — see devlog/v1.1.0-foundation.md Phase 0/8.
 #
 # `gogdl_flutter` is a private git dependency reachable only over the LAN
 # (ssh://git@thinkcentre.home:2200). `pub get` authenticates with a read-only

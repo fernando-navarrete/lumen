@@ -10,9 +10,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 1. Bugs
 
-- [x] **P0 — Saves tab progress never updates while syncing.** Fixed in `v1.0.4`: the tab now
-  watches the whole `savesStateProvider` instead of a `select`, matching the Downloads page. The
-  proper fix is item 4.1 (immutable task objects).
+- [x] **P0 — Saves tab progress never updates while syncing.** Fixed in `v1.0.4` with a stopgap
+  (watch the whole `savesStateProvider`); the proper fix landed in `v1.1.0` (item 4.1 — immutable
+  task objects), and `saves_tab.dart` went back to a `select`.
 - [x] **P0 — Switching build wipes the game's whole config.** Fixed in `v1.0.2`: `setSelectedBuild`
   now uses `copyWith`, and switching the build of an installed game confirms first, then starts a
   repair against the new build.
@@ -117,20 +117,23 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 4. State management / architecture
 
-- [ ] **P1 — Make task objects immutable (4.1).** `ActivityTask`, `SaveTask`, `ProtonTask` and
-  `RunningGame` have mutable fields and are mutated in place inside "immutable" state objects. This
-  contradicts the CLAUDE.md convention and causes the Saves tab bug in section 1. Give them `copyWith`
-  and replace the map entry on every event.
-- [ ] **P1 — Add a `gogBackendProvider`.** `gogStateProvider` hardwires `GogdlBackend(GogdlApi())`
-  (`gog_state.dart:400`); a separate provider would let tests override it with a fake `GogBackend`.
-- [ ] **P1 — Fix the CLAUDE.md and code mismatch about models.** The docs say `GameBuild`,
-  `DownloadableProduct` and `ProtonRelease` are app-owned classes under `lib/models/`. That directory
-  doesn't exist; `GogBackend` returns the bridge's own types, so fakes and tests still depend on
-  `gogdl_flutter`. Either add the models and adapt them in `GogdlBackend`, or correct the docs.
-- [ ] **P1 — Nav state is mutable and duplicated.** `NavBarState` is a mutable object inside a plain
-  `Provider`, driven by `setState` in `HomeScreen`. `NavBar` also keeps its own `_selectedItem`
-  (`nav_bar.dart:24`), and the two can drift apart. Convert it to a `Notifier<NavBarItem>` with one
-  source of truth.
+- [x] **P1 — Make task objects immutable (4.1).** Fixed in `v1.1.0`: `ActivityTask`, `SaveTask`,
+  `ProtonTask` and `RunningGame` all got `copyWith` (an `_unset` sentinel for nullable fields), and
+  each owning notifier replaces the map entry on every event instead of mutating in place. Doing
+  this surfaced a latent bug — a stream whose task had been dequeued/replaced could still clobber
+  the task that replaced it — fixed with a stale-stream guard in each notifier's `_commit`. It also
+  turned up dead code: the launch-failure snackbar in `game_action_buttons.dart` compared
+  `previous`/`next` off what used to be the same mutated `RunningGame` instance, so its guard was
+  never true; it now fires correctly.
+- [x] **P1 — Add a `gogBackendProvider`.** Fixed in `v1.1.0`: `gogBackendProvider` constructs the
+  `GogdlBackend(GogdlApi())` and owns its dispose; `gogStateProvider` watches it. Tests override it
+  with `FakeGogBackend` via `test/helpers/container.dart`'s `createContainer()`.
+- [x] **P1 — Fix the CLAUDE.md and code mismatch about models.** Fixed in `v1.1.0`: added
+  `lib/models/{game_build,downloadable_product,proton_release}.dart` as plain immutable app-owned
+  classes, and `GogdlBackend` adapts the bridge's own types into them.
+- [x] **P1 — Nav state is mutable and duplicated.** Fixed in `v1.1.0`: `navBarItemProvider` is now a
+  `NavBarNotifier extends Notifier<NavBarItem>` (`lib/state/home_state.dart`), the single source of
+  truth; `NavBar` and `HomeScreen` both watch it instead of keeping their own copy.
 - [ ] **P2 — Simplify or remove `GogState`'s per-game stream caches.** Every owner already clears the
   cache before starting (except the Import bug in section 1), and entries are never evicted. The cache
   mostly acts as a trap: callers can be handed a stale, already-consumed stream.
@@ -171,7 +174,7 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   message that matches the actual failure, not always "code looks incomplete". Replace the
   `MediaQuery` width/height arithmetic in `SignInPanel` with a layout that works at small window
   sizes. Found while writing Phase 8's widget-test harness
-  (`v1.1.0-FOUNDATION_WORKPLAN.md`): `login_screen.dart`'s outer `Container` uses
+  (`devlog/v1.1.0-foundation.md`): `login_screen.dart`'s outer `Container` uses
   `EdgeInsets.all(size.width * 0.1)`, so a wide-but-short window applies a width-derived margin to
   the *vertical* sides too, and `SignInPanel`'s "Open GOG login" `PrimaryButton.icon` overflows its
   row at any window size once the Onest font isn't loaded (its fallback glyph metrics are wider) —
@@ -192,14 +195,18 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 7. Testing, tooling and docs
 
-- [ ] **P0 — No tests at all.** Add `test/` with a fake `GogBackend`, starting with `GamesNotifier`
-  persistence round-trip and `copyWith` sentinel, the `DownloadsNotifier` event→state mapping
-  (including the section 1 bugs), `SavesNotifier`, `guardBridgeStream` (late error after `onDone`) and
-  `findExecutables`.
-- [ ] **P1 — No CI.** Add at least `fvm flutter analyze` and `fvm flutter test`.
-- [ ] **P1 — The build isn't reproducible outside your LAN.** `gogdl_flutter` is pulled over SSH from
-  `thinkcentre.home:2200`, which blocks CI and other contributors. Mirror it to a reachable remote or
-  document the setup.
+- [x] **P0 — No tests at all.** Fixed in `v1.1.0`: 102 tests under `test/`, built against a fake
+  `GogBackend` (`test/helpers/fake_gog_backend.dart`) so none of them need the Rust bridge's native
+  library. Covers `GamesNotifier` persistence/`copyWith`, the stream-owning notifiers' event→state
+  mapping (including every section 1 regression), `guardBridgeStream` and `findExecutables`, plus
+  widget tests for the Library/Builds error states and nav.
+- [x] **P1 — No CI.** Fixed in `v1.1.0`: GitLab CI on a self-hosted runner (`thinkcentre.home`),
+  `.gitlab-ci.yml` running `flutter analyze --fatal-infos` and `flutter test` on every branch.
+  Confirmed to go red on a failing test.
+- [x] **P1 — The build isn't reproducible outside your LAN.** Addressed in `v1.1.0` by documenting
+  the setup (README "Building" note) rather than mirroring: `gogdl_flutter` stays LAN-only
+  (`ssh://git@thinkcentre.home:2200`), and CI runs on the same LAN via the self-hosted runner.
+  Reachability from outside the LAN is deliberately deferred, not fixed.
 - [ ] **P1 — README is the Flutter template.** Document what Lumen is, the system requirements
   (libsecret/keyring, the Rust toolchain for the bridge?), fvm setup, and build/run steps.
 - [ ] **P2 — Clean up `pubspec.yaml`.** It still has the template description ("A new Flutter
