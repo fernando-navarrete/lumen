@@ -57,7 +57,8 @@ window; it doesn't call `pumpAndSettle()` itself because several screens show an
 spinning `CenteredLoader` while their first fetch is pending.
 
 CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
-`flutter analyze --fatal-infos` and `flutter test` on every branch.
+`flutter analyze --fatal-infos` and `flutter test` on every tag push (branch pushes don't
+trigger a pipeline).
 
 ## Architecture
 

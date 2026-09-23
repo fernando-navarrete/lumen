@@ -15,6 +15,12 @@
 #   extra_hosts = ["thinkcentre.home:192.168.8.234"]
 # then restart the runner (`sudo gitlab-runner restart`).
 
+# Pipelines run only for tag pushes (e.g. v1.2.0), not on every branch push,
+# to keep load off the self-hosted runner. Tag a commit to run analyze + test.
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+
 stages:
   - check
 
