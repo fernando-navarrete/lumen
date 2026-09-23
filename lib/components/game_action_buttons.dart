@@ -1,6 +1,7 @@
 import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/game_log.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/primary_button.dart';
@@ -133,7 +134,16 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       if (game?.status == LaunchStatus.failed &&
           prevStatus != LaunchStatus.failed) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(game?.error ?? "Failed to launch game")),
+          SnackBar(
+            content: Text(game?.error ?? "Failed to launch game"),
+            // No log when the launch failed before it could be opened.
+            action: gameLogExists(gameId)
+                ? SnackBarAction(
+                    label: "Open log",
+                    onPressed: () => openGameLog(context, gameId),
+                  )
+                : null,
+          ),
         );
       }
     });

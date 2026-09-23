@@ -34,3 +34,13 @@ String protonInstallDir() => '${lumenDataDir()}/proton';
 /// directory here, not a real Steam install — mirrors how gogdl-cli and
 /// other non-Steam Proton launchers (Lutris, Heroic) configure this.
 String steamCompatClientDir() => '${lumenDataDir()}/steam';
+
+/// Directory holding each game's launch log (see `LaunchNotifier`).
+String logsDir() => '${lumenDataDir()}/logs';
+
+/// The log of [gameId]'s most recent launch, rewritten on every launch.
+String gameLogPath(int gameId) => '${logsDir()}/$gameId.log';
+
+/// The log of the launch before the most recent one: [gameLogPath] is
+/// rotated here (one generation, overwritten) when a new launch starts.
+String previousGameLogPath(int gameId) => '${logsDir()}/$gameId.previous.log';

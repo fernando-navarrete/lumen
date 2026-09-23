@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/clickable_container.dart';
+import 'package:lumen/common/game_log.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/components/app_dropdown.dart';
@@ -8,6 +10,7 @@ import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/section_card.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/launch_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
@@ -315,6 +318,10 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     final installPath = gamesState.getInstallPath(gameId);
     final executable = gamesState.getExecutable(gameId);
     final previewTarget = _previewTarget(executable);
+    // Rebuilt on every launch status change, so "Open log" enables as soon
+    // as the first launch creates the file.
+    ref.watch(launchStateProvider.select((s) => s.gameFor(gameId)?.status));
+    final hasLog = gameLogExists(gameId);
 
     return SingleChildScrollView(
       child: ConstrainedBox(
@@ -502,6 +509,38 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                 style: prefixPath != null
                     ? AppText.code(color: Colors.white)
                     : AppText.bodyMedium(color: AppColors.textSecondary),
+              ),
+            ),
+            SectionCard(
+              title: "Game log",
+              description:
+                  "Output of the last launch. The one before is kept as "
+                  "$gameId.previous.log.",
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      gameLogPath(gameId),
+                      style: AppText.code(
+                        color: hasLog ? Colors.white : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    onPressed: hasLog
+                        ? () => openGameLog(context, gameId)
+                        : null,
+                    child: Text(
+                      "Open log",
+                      style: AppText.button(
+                        color: hasLog ? AppColors.primary : AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpacing.lg),

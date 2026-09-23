@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/components/game_action_buttons.dart';
 import 'package:lumen/models/game_build.dart';
@@ -12,6 +15,7 @@ import 'package:lumen/state/launch_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
 import '../helpers/pump_app.dart';
+import '../helpers/temp_data_home.dart';
 
 /// Records [launchGame] calls instead of spawning anything.
 class _RecordingLaunchNotifier extends LaunchNotifier {
@@ -29,6 +33,29 @@ class _RecordingLaunchNotifier extends LaunchNotifier {
     List<String> launchWrapper = const [],
   }) async {
     launched.add(target);
+  }
+}
+
+/// Fails every launch straight away, as a spawn error would.
+class _FailingLaunchNotifier extends LaunchNotifier {
+  @override
+  Future<void> launchGame(
+    int gameId, {
+    required String protonPath,
+    required String installPath,
+    required LaunchTarget target,
+    required String prefixPath,
+    List<String> launchArgs = const [],
+    Map<String, String> envVars = const {},
+    List<String> launchWrapper = const [],
+  }) async {
+    state = LaunchState({
+      gameId: RunningGame(
+        gameId: gameId,
+        status: LaunchStatus.failed,
+        error: 'Spawn failed',
+      ),
+    });
   }
 }
 
@@ -264,4 +291,69 @@ void main() {
       expect(recorder.launched, isEmpty);
     },
   );
+  group('launch-failure snackbar', () {
+    Future<void> playAndFail(WidgetTester tester) async {
+      await pumpApp(
+        tester,
+        const GameActionButtons(gameId: gameId),
+        prefs: {
+          'games': jsonEncode({
+            'version': GamesNotifier.gamesSchemaVersion,
+            'games': {
+              '$gameId': {
+                'status': 'downloaded',
+                'selectedBuild': 'b1',
+                'productIds': [1],
+                'installPath': '/games/foo',
+                'protonPrefixPath': '/games/prefix',
+              },
+            },
+          }),
+          'protonInstalled': jsonEncode({'GE-1': '/proton/GE-1'}),
+          'protonDefault': 'GE-1',
+        },
+        overrides: [
+          launchStateProvider.overrideWith(_FailingLaunchNotifier.new),
+          launchResolverProvider.overrideWith(
+            (ref) => LaunchResolver(
+              ref,
+              scan: (_) async => const [],
+              readPrimary: (_, _) async => const LaunchTarget(
+                executable: 'game.exe',
+                source: LaunchTargetSource.gogMetadata,
+              ),
+              listTasks: (_, _) async => const [],
+              fileExists: (_) async => true,
+              dirExists: (_) async => true,
+            ),
+          ),
+        ],
+      );
+      await tester.pump();
+      await tester.tap(find.text('Play'));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('offers Open log when the launch wrote a log', (tester) async {
+      useTempDataHome();
+      File(gameLogPath(gameId))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('log');
+
+      await playAndFail(tester);
+
+      expect(find.text('Spawn failed'), findsOneWidget);
+      expect(find.widgetWithText(SnackBarAction, 'Open log'), findsOneWidget);
+    });
+
+    testWidgets('has no Open log action without a log', (tester) async {
+      useTempDataHome();
+
+      await playAndFail(tester);
+
+      expect(find.text('Spawn failed'), findsOneWidget);
+      expect(find.text('Open log'), findsNothing);
+    });
+  });
 }

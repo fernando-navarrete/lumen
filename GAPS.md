@@ -78,6 +78,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   "the user picked that location", which is no longer true).
 - [ ] **P2 — Per-game logs.** Game stdout/stderr is piped into Lumen's own stdout
   (`launch_state.dart:136`). Write it to `<lumenDataDir>/logs/<gameId>.log` and link it from the UI.
+- [ ] **P2 — Cap game log size.** Since `v1.2.0` each launch truncates `<gameId>.log` and keeps one
+  `<gameId>.previous.log`, but a single chatty session (e.g. `PROTON_LOG`-level output or a game
+  spamming stderr) can still grow its log without bound. Cap it per launch (stop writing, or keep
+  the head and tail) if that turns up in practice.
 - [ ] **P2 — Prefix tools.** Add "open prefix folder", "reset prefix", winecfg and winetricks, plus an
   "open install folder" action.
 - [ ] **P2 — Disk space check** before installing, using the download size.

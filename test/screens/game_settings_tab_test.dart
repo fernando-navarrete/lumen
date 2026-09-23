@@ -1,17 +1,24 @@
 import 'dart:convert';
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/screens/home/pages/library/game_settings_tab.dart';
 import 'package:lumen/state/games_state.dart';
 
 import '../helpers/pump_app.dart';
+import '../helpers/temp_data_home.dart';
 
 void main() {
   const gameId = 1;
+
+  // The tab checks for the game's log under lumenDataDir().
+  setUp(useTempDataHome);
 
   // Launch-args field, identified by its hint text.
   Finder argsField() => find.widgetWithText(TextField, '-skipintro -windowed');
@@ -213,6 +220,38 @@ void main() {
         container.read(gamesStateProvider).getExecutable(gameId),
         'other.exe',
       );
+    });
+  });
+  group('GameSettingsTab game log', () {
+    TextButton openLogButton(WidgetTester tester) => tester.widget(
+      find.ancestor(
+        of: find.text('Open log'),
+        matching: find.byType(TextButton),
+      ),
+    );
+
+    testWidgets('Open log is disabled until the log exists', (tester) async {
+      await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: seededPrefs(const []),
+      );
+
+      expect(find.text(gameLogPath(gameId)), findsOneWidget);
+      expect(openLogButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('Open log is enabled once the log exists', (tester) async {
+      File(gameLogPath(gameId))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('log');
+      await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: seededPrefs(const []),
+      );
+
+      expect(openLogButton(tester).onPressed, isNotNull);
     });
   });
 }

@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/launch_state.dart';
 
@@ -47,15 +49,22 @@ void main() {
 
   /// Writes a fake `proton` executable at [protonDir]/proton that logs each
   /// invocation as "$LUMEN_WRAPPED|$STEAM_COMPAT_DATA_PATH|$*|$PWD" to `$LOG`,
-  /// creates "$STEAM_COMPAT_DATA_PATH/pfx" on a `run wineboot` call, and
-  /// exits with `$FAKE_EXIT` (default 0).
+  /// echoes "<$2> to-stdout"/"<$2> to-stderr" to its own stdout/stderr,
+  /// creates "$STEAM_COMPAT_DATA_PATH/pfx" on a `run wineboot` call, leaves
+  /// a background `sleep` holding its stdout/stderr open if `$HOLD_PIPE` is
+  /// set, and exits with `$FAKE_EXIT` (default 0).
   void writeFakeProton() {
     final script = File('${protonDir.path}/proton');
     script.writeAsStringSync('''
 #!/usr/bin/env bash
 echo "\${LUMEN_WRAPPED:-}|\$STEAM_COMPAT_DATA_PATH|\$*|\$PWD" >> "\$LOG"
+echo "<\$2> to-stdout"
+echo "<\$2> to-stderr" >&2
 if [ "\$2" = "wineboot" ]; then
   mkdir -p "\$STEAM_COMPAT_DATA_PATH/pfx"
+fi
+if [ -n "\${HOLD_PIPE:-}" ]; then
+  sleep 3 &
 fi
 exit "\${FAKE_EXIT:-0}"
 ''');
@@ -394,5 +403,153 @@ exit "\${FAKE_EXIT:-0}"
         ]);
       },
     );
+  });
+  group('LaunchNotifier — game log (Phase 5)', () {
+    File gameLog() => File(gameLogPath(1));
+
+    /// Launches game 1 with [gameExe] and returns it once it has settled
+    /// (neither launching nor running).
+    Future<RunningGame> launchAndSettle(
+      ProviderContainer container, {
+      Map<String, String> env = const {},
+    }) async {
+      await container
+          .read(launchStateProvider.notifier)
+          .launchGame(
+            1,
+            protonPath: protonDir.path,
+            installPath: installDir.path,
+            target: gameExe,
+            prefixPath: prefixDir.path,
+            launchArgs: const ['-user-arg'],
+            envVars: {...baseEnv(), ...env},
+          );
+      await waitFor(() {
+        final status = container.read(launchStateProvider).gameFor(1)!.status;
+        return status != LaunchStatus.launching &&
+            status != LaunchStatus.running;
+      });
+      return container.read(launchStateProvider).gameFor(1)!;
+    }
+
+    test('has the header, the wineboot section, the game output and the '
+        'footer, complete as soon as the game exits', () async {
+      writeFakeProton();
+      final container = await createContainer();
+
+      final game = await launchAndSettle(container);
+      expect(game.status, LaunchStatus.exited);
+
+      // Read right at the status change: the log must already be closed.
+      final text = gameLog().readAsStringSync();
+      expect(text, contains('Proton: proton_bin (${protonDir.path})'));
+      expect(text, contains('Executable source: scan'));
+      expect(
+        text,
+        contains(
+          'Command: ${protonDir.path}/proton run '
+          '${installDir.path}/game.exe -user-arg',
+        ),
+      );
+      expect(text, contains('Working directory: ${installDir.path}\n'));
+      expect(text, contains('  STEAM_COMPAT_DATA_PATH=${prefixDir.path}\n'));
+      expect(text, contains('  LOG=${log.path}\n'));
+      expect(text, contains('--- wineboot ---\n'));
+      expect(text, contains('<wineboot> to-stdout\n'));
+      expect(text, contains('<wineboot> to-stderr\n'));
+      expect(text, contains('wineboot exited with code 0\n'));
+      expect(text, contains('--- game ---\n'));
+      expect(text, contains('<${installDir.path}/game.exe> to-stdout\n'));
+      expect(text, contains('<${installDir.path}/game.exe> to-stderr\n'));
+      expect(
+        text,
+        matches(RegExp(r'--- exited with code 0 after \d+:\d\d:\d\d ---\n$')),
+      );
+      expect(
+        text.indexOf('--- wineboot ---'),
+        lessThan(text.indexOf('--- game ---')),
+      );
+    });
+
+    test('existing pfx: no wineboot section', () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      final container = await createContainer();
+
+      await launchAndSettle(container);
+
+      final text = gameLog().readAsStringSync();
+      expect(text, isNot(contains('wineboot')));
+      expect(text, contains('--- game ---\n'));
+    });
+
+    test('a non-zero exit is in the footer', () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      final container = await createContainer();
+
+      final game = await launchAndSettle(container, env: {'FAKE_EXIT': '3'});
+
+      expect(game.status, LaunchStatus.failed);
+      expect(gameLog().readAsStringSync(), contains('exited with code 3'));
+    });
+
+    test('a second launch rotates the first log to .previous.log', () async {
+      writeFakeProton();
+      final container = await createContainer();
+
+      await launchAndSettle(container);
+      final first = gameLog().readAsStringSync();
+      await launchAndSettle(container);
+
+      expect(File(previousGameLogPath(1)).readAsStringSync(), first);
+      final second = gameLog().readAsStringSync();
+      // The second launch found pfx already there, so no wineboot.
+      expect(first, contains('--- wineboot ---'));
+      expect(second, isNot(contains('--- wineboot ---')));
+    });
+
+    test('an unwritable logs dir still launches', () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      File(logsDir())
+        ..createSync(recursive: true)
+        ..writeAsStringSync('not a directory');
+      final container = await createContainer();
+
+      final game = await launchAndSettle(container);
+
+      expect(game.status, LaunchStatus.exited);
+      expect(log.readAsLinesSync(), hasLength(1));
+    });
+
+    test('output held open past the exit is cut off after the grace '
+        'period', () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      final container = await createContainer();
+      container.read(launchStateProvider.notifier).pipeDrainGrace =
+          const Duration(milliseconds: 100);
+
+      final stopwatch = Stopwatch()..start();
+      final game = await launchAndSettle(container, env: {'HOLD_PIPE': '1'});
+
+      // The background sleep holds the pipes for 3 s.
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)));
+      expect(game.status, LaunchStatus.exited);
+      final text = gameLog().readAsStringSync();
+      expect(text, contains('stopped logging it'));
+      expect(text, contains('--- exited with code 0 after'));
+    });
+
+    test('a launch that fails to spawn logs why', () async {
+      // protonDir exists but has no `proton` executable in it.
+      final container = await createContainer();
+
+      final game = await launchAndSettle(container);
+
+      expect(game.status, LaunchStatus.failed);
+      expect(gameLog().readAsStringSync(), contains('Launch failed: '));
+    });
   });
 }
