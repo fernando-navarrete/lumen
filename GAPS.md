@@ -21,10 +21,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   before starting, the same logic `startDownload` already used.
 - [x] **P1 — A download with allocation errors is marked installed.** Fixed in `v1.0.5`: the
   download `onDone` now also checks `errorFiles`, matching repair.
-- [ ] **P1 — Hero banners refetch and flicker on every rebuild.** `getGameBackgroundLink` isn't cached
-  like boxart and names are, and `library_page.dart:133` / `game_header.dart:43` call it inside
-  `build()`. Each rebuild (for example any `gamesStateProvider` change) hands `FutureBuilder` a new
-  Future, which resets it to the loader and re-issues the bridge call.
+- [x] **P1 — Hero banners refetch and flicker on every rebuild.** Fixed in `v1.0.11`: background
+  links are now cached per game like boxart, so rebuilds reuse the same Future instead of reloading.
 - [x] **P1 — The library never leaves the loading spinner on error or when empty.** Fixed in
   `v1.0.6`: `_GameGrid` now distinguishes loading, a failed fetch (`null`) and an empty library
   (`[]`), showing a message with a Retry button for the latter two. This also relies on

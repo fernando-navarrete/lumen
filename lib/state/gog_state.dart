@@ -22,14 +22,16 @@ class GogState {
   final HashMap<int, Stream<UploadSavesProgress>> _saveUploadStreams =
       HashMap();
 
-  /// Names and boxart links are static for a session, but callers (e.g. the
-  /// Downloads page task cards) call these getters on every rebuild —
-  /// several times a second while a download is in flight. Caching the
+  /// Names, boxart and background links are static for a session, but
+  /// callers (e.g. the Downloads page task cards, the library and game hero
+  /// banners) call these getters on every rebuild — several times a second
+  /// while a download is in flight. Caching the
   /// Future itself (not just its resolved value) means a FutureBuilder fed
   /// the same Future instance across rebuilds stays in its "has data" state
   /// instead of resetting to pending and re-issuing the bridge call.
   final HashMap<int, Future<String?>> _gameNameCache = HashMap();
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
+  final HashMap<int, Future<String>> _backgroundLinkCache = HashMap();
 
   /// The bridge's owned-games list is filtered to real games server-side
   /// (since `gogdl_flutter` v1.1.3) by looking up every owned product on
@@ -55,7 +57,13 @@ class GogState {
     }
   }
 
-  Future<String> getGameBackgroundLink(int gameId) async {
+  Future<String> getGameBackgroundLink(int gameId) =>
+      _backgroundLinkCache.putIfAbsent(
+        gameId,
+        () => _fetchGameBackgroundLink(gameId),
+      );
+
+  Future<String> _fetchGameBackgroundLink(int gameId) async {
     try {
       String link = await _backend.getBackgroundImageLink(gameId);
       return link;
