@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/section_card.dart';
 import 'package:lumen/screens/home/pages/settings/proton_manager.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/proton_state.dart';
@@ -75,11 +76,23 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Future<void> _clearAuthToken(BuildContext context, WidgetRef ref) async {
-    await ref.read(gogStateProvider).clearAuth();
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Auth token cleared")));
+    try {
+      await ref.read(gogStateProvider).clearAuth();
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Auth token cleared")));
+      }
+    } catch (e) {
+      logGogError(e);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Couldn't clear auth token: ${gogErrorText(e)}"),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
     }
   }
 }

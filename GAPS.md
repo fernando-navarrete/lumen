@@ -175,8 +175,13 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   anything older through a `_migrations` step list (the productId string/int fallback became the
   v0→v1 step) before decoding, and a stored version newer than the app is decoded best-effort
   instead of rejected. A bare pre-`v1.1.5` `games` map with no envelope is treated as version 0.
-- [ ] **P2 — Reuse a single `FlutterSecureStorage` instance.** Also handle the Linux case where no
-  Secret Service or keyring is available (common on minimal WMs) with a clear message.
+- [x] **P2 — Reuse a single `FlutterSecureStorage` instance.** Also handle the Linux case where no
+  Secret Service or keyring is available (common on minimal WMs) with a clear message. Fixed in
+  `v1.1.6`: `GogState` now takes a `FlutterSecureStorage` via the new `secureStorageProvider`
+  instead of constructing one per call, and every storage call maps
+  `flutter_secure_storage_linux`'s `Libsecret error`/`KeyringLocked` `PlatformException`s to a new
+  `KeyringUnavailableError` with actionable text, surfaced through the existing `gogErrorText`
+  snackbars.
 - [ ] **P2 — `LibraryPage` loses the selected game** when switching nav tabs and back.
 
 ## 5. Performance

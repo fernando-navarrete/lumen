@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
@@ -10,10 +11,16 @@ import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
+import 'package:lumen/state/secure_storage_provider.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/keyring_error.dart';
+
+/// The secure-storage key that stores the serialized GOG auth JSON.
+const _authStorageKey = 'auth';
 
 class GogState {
   final GogBackend _backend;
+  final FlutterSecureStorage _storage;
 
   /// Names, boxart and background links are static for a session, but
   /// callers (e.g. the Downloads page task cards, the library and game hero
@@ -39,7 +46,7 @@ class GogState {
   /// once per [GogState], no matter how many auth calls trigger it.
   Future<void>? _tokenRefreshRegistration;
 
-  GogState(this._backend);
+  GogState(this._backend, this._storage);
 
   String getLoginUrl() {
     try {
@@ -103,8 +110,7 @@ class GogState {
     try {
       await _ensureTokenRefreshCallback();
       String auth = await _backend.loginWithCode(code);
-      final storage = FlutterSecureStorage();
-      await storage.write(key: 'auth', value: auth);
+      await _writeAuth(auth);
     } catch (e) {
       logGogError(e);
       rethrow;
@@ -116,8 +122,7 @@ class GogState {
   Future<bool> restoreAuthFromStorage() async {
     try {
       await _ensureTokenRefreshCallback();
-      final storage = FlutterSecureStorage();
-      String? auth = await storage.read(key: 'auth');
+      String? auth = await _readAuth();
       if (auth == null) {
         return false;
       }
@@ -140,8 +145,14 @@ class GogState {
   Future<void> _registerTokenRefreshCallback() async {
     try {
       await _backend.setTokenRefreshCallback((auth) async {
-        final storage = FlutterSecureStorage();
-        await storage.write(key: 'auth', value: auth);
+        try {
+          await _writeAuth(auth);
+        } catch (e) {
+          // A keyring failure here shouldn't escape into the bridge's
+          // callback — the next explicit auth call surfaces the same
+          // failure to the user instead.
+          logGogError(e);
+        }
       });
     } catch (e) {
       logGogError(e);
@@ -160,8 +171,45 @@ class GogState {
       logGogError(e);
     }
     _tokenRefreshRegistration = null;
-    final storage = FlutterSecureStorage();
-    await storage.delete(key: 'auth');
+    await _deleteAuth();
+  }
+
+  Future<String?> _readAuth() =>
+      _withKeyringErrors(() => _storage.read(key: _authStorageKey));
+
+  Future<void> _writeAuth(String auth) => _withKeyringErrors(
+    () => _storage.write(key: _authStorageKey, value: auth),
+  );
+
+  Future<void> _deleteAuth() =>
+      _withKeyringErrors(() => _storage.delete(key: _authStorageKey));
+
+  /// Maps `flutter_secure_storage`'s Linux plugin failures — no Secret
+  /// Service provider running (common on minimal WMs) or a locked keyring —
+  /// to [KeyringUnavailableError] with actionable text, instead of letting
+  /// the raw `PlatformException(Libsecret error, ...)` reach the UI. Any
+  /// other failure (including on other platforms) passes through unchanged.
+  Future<T> _withKeyringErrors<T>(Future<T> Function() op) async {
+    try {
+      return await op();
+    } on PlatformException catch (e) {
+      final detail = e.message ?? e.toString();
+      if (e.code == 'KeyringLocked') {
+        throw KeyringUnavailableError(
+          'Your system keyring is locked — unlock it and try again.',
+          detail,
+        );
+      }
+      if (e.code == 'Libsecret error') {
+        throw KeyringUnavailableError(
+          'No system keyring available. Lumen stores your GOG login in the '
+          'keyring via the Secret Service API — install and start one '
+          '(e.g. gnome-keyring or KeePassXC) and try again.',
+          detail,
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<List<int>?> getOwnedGames() =>
@@ -366,6 +414,7 @@ final gogBackendProvider = Provider<GogBackend>((ref) {
 }, name: 'gogBackendProvider');
 
 final gogStateProvider = Provider<GogState>(
-  (ref) => GogState(ref.watch(gogBackendProvider)),
+  (ref) =>
+      GogState(ref.watch(gogBackendProvider), ref.watch(secureStorageProvider)),
   name: 'gogStateProvider',
 );

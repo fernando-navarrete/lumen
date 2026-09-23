@@ -41,9 +41,11 @@ fvm flutter test                            # run the test suite (no native libr
 ```
 
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
-`FakeGogBackend` and `test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`
-(and `sharedPreferencesProvider`) with a fake, so a test never needs the Rust bridge's native library
-loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or call `RustLib.init()` —
+`FakeGogBackend`, `test/helpers/fake_secure_storage.dart`'s `FakeSecureStorage` and
+`test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`,
+`secureStorageProvider` and `sharedPreferencesProvider` with a fake, so a test never needs the Rust
+bridge's native library loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or
+call `RustLib.init()` —
 either would require that native library, which isn't available in CI. Anything that touches
 `lib/common/app_paths.dart` (Proton prefixes, the Proton install dir, the fake Steam compat client
 dir) must never read or write under the real `lumenDataDir()`; `test/helpers/temp_data_home.dart`'s
@@ -66,13 +68,14 @@ trigger a pipeline).
 
 All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `downloads_state.dart`,
 `gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `launch_state.dart`, `proton_state.dart`,
-`saves_state.dart`, `home_state.dart`), plus three supporting files that aren't domains themselves:
+`saves_state.dart`, `home_state.dart`), plus four supporting files that aren't domains themselves:
 `bridge_stream.dart` (`guardBridgeStream`, which every `GogdlBackend` stream is wrapped in so that an
 error thrown after `onDone`, within a short grace period, still arrives as a stream error instead of
 being silently dropped), `emit_throttle.dart` (`ThrottledTaskBuffer`, which `DownloadsNotifier`,
 `ProtonNotifier` and `SavesNotifier` each use to throttle high-frequency progress-event state
-replacements to ~10Hz with a trailing flush, so the final value in a burst is never dropped) and
-`shared_preferences_provider.dart`. Every domain follows the same shape:
+replacements to ~10Hz with a trailing flush, so the final value in a burst is never dropped),
+`shared_preferences_provider.dart` and `secure_storage_provider.dart`. Every domain follows the same
+shape:
 
 - An immutable, read-only **State** class (`GamesState`, `DownloadsState`, ...) exposing getters only.
 - A `Notifier<State>` subclass that is the *only* thing allowed to mutate state, always by
@@ -127,6 +130,14 @@ notifier updates on every event.
 persist to prefs (`GamesNotifier`, `ProtonNotifier`) load their persisted state synchronously inside
 `build()`. Don't reintroduce an async `SharedPreferences.getInstance().then(...)` load path; that
 previously raced app startup and let the UI read/clobber empty state.
+
+**`secureStorageProvider`** (`lib/state/secure_storage_provider.dart`) is the single
+`FlutterSecureStorage` instance `GogState` uses for the stored auth token, so a fake can stand in for
+tests. `GogState` routes every read/write/delete through `_withKeyringErrors`, which maps
+`flutter_secure_storage_linux`'s `Libsecret error`/`KeyringLocked` `PlatformException`s to
+`KeyringUnavailableError` (`lib/common/keyring_error.dart`) with actionable text — no Secret Service
+provider running, or a locked keyring — instead of letting the raw platform message reach the login
+screen's `gogErrorText` snackbars.
 
 ### Proton / launching games
 

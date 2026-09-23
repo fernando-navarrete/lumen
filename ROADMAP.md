@@ -75,7 +75,11 @@ Follow-up patches (`v1.1.1+`), one per tag:
    `{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`; `GamesNotifier._load` upgrades
    anything older through a `_migrations` step list before decoding (the productId string/int
    fallback became the v0→v1 step), and a bare pre-`v1.1.5` map is treated as version 0.
-6. `v1.1.6`: reuse one `FlutterSecureStorage` instance and add a clear no-keyring message (§4).
+6. `v1.1.6` ✅: reuse one `FlutterSecureStorage` instance and add a clear no-keyring message (§4).
+   `GogState` now takes the storage via a new `secureStorageProvider` (mirroring
+   `sharedPreferencesProvider`) instead of constructing a fresh instance per call, and a
+   `Libsecret error`/`KeyringLocked` `PlatformException` from the Linux plugin is now mapped to a
+   `KeyringUnavailableError` with actionable text instead of the raw platform message.
 
 ## v1.2.0 — Launching and Proton
 

@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/common/keyring_error.dart';
 import 'package:lumen/state/gog_state.dart';
 
 import '../helpers/container.dart';
 import '../helpers/fake_gog_backend.dart';
+import '../helpers/fake_secure_storage.dart';
 
 void main() {
   group('GogState.getOwnedGames', () {
@@ -292,7 +295,121 @@ void main() {
       expect(state.uploadSaves(1, 'build', '/prefix', '/install'), isNull);
     });
   });
+
+  group('v1.1.6 — secure storage', () {
+    test('loginWithCode writes to storage; restoreAuthFromStorage reads it back', () async {
+      final backend = FakeGogBackend()..loginResult = 'auth-json';
+      final storage = FakeSecureStorage();
+      final state = await _state(backend, secureStorage: storage);
+
+      await state.loginWithCode('code');
+      final restored = await state.restoreAuthFromStorage();
+
+      expect(restored, isTrue);
+      expect(backend.callsTo('restoreAuth').single.args['token'], 'auth-json');
+    });
+
+    test('restoreAuthFromStorage returns false when nothing is stored', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend, secureStorage: FakeSecureStorage());
+
+      expect(await state.restoreAuthFromStorage(), isFalse);
+      expect(backend.callsTo('restoreAuth'), isEmpty);
+    });
+
+    test('the token-refresh callback persists to the same storage key', () async {
+      final backend = FakeGogBackend();
+      final storage = FakeSecureStorage();
+      final state = await _state(backend, secureStorage: storage);
+
+      // Trigger callback registration.
+      await state.restoreAuthFromStorage();
+      await backend.onTokenRefresh!('refreshed-json');
+
+      expect(await storage.read(key: 'auth'), 'refreshed-json');
+    });
+
+    test('clearAuth deletes the stored token', () async {
+      final backend = FakeGogBackend()..loginResult = 'auth-json';
+      final storage = FakeSecureStorage();
+      final state = await _state(backend, secureStorage: storage);
+      await state.loginWithCode('code');
+
+      await state.clearAuth();
+
+      expect(await storage.read(key: 'auth'), isNull);
+    });
+
+    test('a missing Secret Service surfaces a friendly KeyringUnavailableError', () async {
+      final backend = FakeGogBackend();
+      final storage = FakeSecureStorage()
+        ..throwOnNext = PlatformException(
+          code: 'Libsecret error',
+          message: 'The name org.freedesktop.secrets was not provided',
+        );
+      final state = await _state(backend, secureStorage: storage);
+
+      await expectLater(
+        () => state.restoreAuthFromStorage(),
+        throwsA(
+          isA<KeyringUnavailableError>().having(
+            (e) => e.message,
+            'message',
+            contains('No system keyring available'),
+          ),
+        ),
+      );
+    });
+
+    test('a locked keyring surfaces a friendly KeyringUnavailableError', () async {
+      final backend = FakeGogBackend()..loginResult = 'auth-json';
+      final storage = FakeSecureStorage()
+        ..throwOnNext = PlatformException(code: 'KeyringLocked', message: 'locked');
+      final state = await _state(backend, secureStorage: storage);
+
+      await expectLater(
+        () => state.loginWithCode('code'),
+        throwsA(
+          isA<KeyringUnavailableError>().having(
+            (e) => e.message,
+            'message',
+            contains('locked'),
+          ),
+        ),
+      );
+    });
+
+    test('an unrelated PlatformException passes through unchanged', () async {
+      final backend = FakeGogBackend()..loginResult = 'auth-json';
+      final storage = FakeSecureStorage()
+        ..throwOnNext = PlatformException(code: 'other_error', message: 'huh');
+      final state = await _state(backend, secureStorage: storage);
+
+      await expectLater(
+        () => state.loginWithCode('code'),
+        throwsA(isA<PlatformException>()),
+      );
+    });
+
+    test('a keyring failure in the refresh callback is logged, not thrown', () async {
+      final backend = FakeGogBackend();
+      final storage = FakeSecureStorage();
+      final state = await _state(backend, secureStorage: storage);
+      await state.restoreAuthFromStorage();
+
+      storage.throwOnNext = PlatformException(code: 'Libsecret error', message: 'no keyring');
+
+      // Must not throw — GogBackend.setTokenRefreshCallback's contract is a
+      // fire-and-forget notification, not something the bridge awaits/retries.
+      await backend.onTokenRefresh!('refreshed-json');
+    });
+  });
 }
 
-Future<GogState> _state(FakeGogBackend backend) async =>
-    (await createContainer(backend: backend)).read(gogStateProvider);
+Future<GogState> _state(
+  FakeGogBackend backend, {
+  FakeSecureStorage? secureStorage,
+}) async => (await createContainer(
+  backend: backend,
+  secureStorage: secureStorage,
+)).read(gogStateProvider);

@@ -48,6 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Couldn't restore your session: ${gogErrorText(e)}"),
+            duration: const Duration(seconds: 8),
           ),
         );
       }
@@ -116,7 +117,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       logGogError(e);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Couldn't sign in: ${gogErrorText(e)}")),
+        SnackBar(
+          content: Text("Couldn't sign in: ${gogErrorText(e)}"),
+          duration: const Duration(seconds: 8),
+        ),
       );
     }
   }
