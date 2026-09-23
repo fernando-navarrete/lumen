@@ -123,16 +123,18 @@ class GogState {
     }
   }
 
-  Future<void> restoreAuthFromStorage() async {
+  /// Restores the stored auth token. Returns `false` when none is stored (a
+  /// normal first run); throws on a real failure (keyring or bridge error).
+  Future<bool> restoreAuthFromStorage() async {
     try {
       await _ensureTokenRefreshCallback();
       final storage = FlutterSecureStorage();
       String? auth = await storage.read(key: 'auth');
-      if (auth != null) {
-        await _backend.restoreAuth(auth);
-      } else {
-        throw Exception('No auth token found in storage');
+      if (auth == null) {
+        return false;
       }
+      await _backend.restoreAuth(auth);
+      return true;
     } catch (e) {
       logGogError(e);
       rethrow;

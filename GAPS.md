@@ -44,10 +44,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   debug but return `''`/`[]` in release. Debug builds hit unhandled async errors and endless loaders
   (for example the Overview summary) that release builds never show. Pick one contract; CLAUDE.md says
   "return null on failure".
-- [ ] **P1 — The login flow doesn't catch non-`GogError` failures.** `restoreAuthFromStorage` throws a
-  plain `Exception('No auth token…')` on every first run, and `login_screen.dart:45` only catches
-  `GogError`. A secure-storage write failure in `_onSubmitCode` (for example no keyring) escapes the
-  same way, leaving the user on the login screen with no error shown.
+- [x] **P1 — The login flow doesn't catch non-`GogError` failures.** Fixed in `v1.0.9`: a missing
+  stored token is no longer treated as an error, and any other failure (restore or sign-in, e.g. no
+  keyring) now shows a snackbar instead of escaping silently.
 - [ ] **P1 — Removing a Proton version leaves dangling per-game overrides.** After
   `ProtonNotifier.removeVersion`, a game pinned to that tag fails at launch with "no longer installed".
   The Settings dropdown then shows a value that isn't among its entries.

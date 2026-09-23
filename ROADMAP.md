@@ -33,7 +33,7 @@ or edge-case issues.
 | `v1.0.6` ✅ | Library shows error and empty states with a Retry, instead of spinning forever. | §1 P1 |
 | `v1.0.7` ✅ | Builds tab no longer crashes when fetching builds fails. | §1 P1 |
 | `v1.0.8` ✅ | No `setState` after dispose in async `initState` flows. Also dispose the login `TextEditingController`. | §1 P1, P2 |
-| `v1.0.9` | Login catches non-`GogError` failures (no stored token, keyring write errors) and shows an error. | §1 P1 |
+| `v1.0.9` ✅ | Login catches non-`GogError` failures (no stored token, keyring write errors) and shows an error. | §1 P1 |
 | `v1.0.10` | Debug and release builds follow the same error contract in `GogState` metadata getters (return empty/null in both). | §1 P1 |
 | `v1.0.11` | Hero banners stop refetching and flickering (cache `getGameBackgroundLink` like boxart). | §1 P1 |
 | `v1.0.12` | Removing a Proton version clears per-game overrides that point to it. | §1 P1 |

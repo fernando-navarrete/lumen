@@ -31,7 +31,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final gogState = ref.read(gogStateProvider);
       try {
-        await gogState.restoreAuthFromStorage();
+        if (!await gogState.restoreAuthFromStorage()) return;
         if (kDebugMode) {
           print('Auth restored from storage');
         }
@@ -42,8 +42,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
-      } on GogError catch (e) {
+      } catch (e) {
         logGogError(e);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Couldn't restore your session: ${gogErrorText(e)}"),
+          ),
+        );
       }
     });
     super.initState();
@@ -105,6 +111,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _loginError = true;
       });
+    } catch (e) {
+      // Not a bad code: e.g. the keyring rejected the token write.
+      logGogError(e);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Couldn't sign in: ${gogErrorText(e)}")),
+      );
     }
   }
 
