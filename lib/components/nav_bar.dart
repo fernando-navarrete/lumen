@@ -11,27 +11,12 @@ import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
-class NavBar extends ConsumerStatefulWidget {
-  const NavBar({super.key, required this.onItemSelected});
-
-  final ValueChanged<NavBarItem> onItemSelected;
+class NavBar extends ConsumerWidget {
+  const NavBar({super.key});
 
   @override
-  ConsumerState<NavBar> createState() => _NavBarState();
-}
-
-class _NavBarState extends ConsumerState<NavBar> {
-  NavBarItem _selectedItem = NavBarItem.library;
-
-  void _select(NavBarItem item) {
-    setState(() {
-      _selectedItem = item;
-    });
-    widget.onItemSelected(item);
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final NavBarItem selectedItem = ref.watch(navBarItemProvider);
     final int activeDownloads = ref.watch(
       downloadsStateProvider.select(
         (state) => state.tasks.values
@@ -64,8 +49,9 @@ class _NavBarState extends ConsumerState<NavBar> {
               for (final item in NavBarItem.values)
                 TabButton(
                   label: item.label,
-                  isSelected: _selectedItem == item,
-                  onTap: () => _select(item),
+                  isSelected: selectedItem == item,
+                  onTap: () =>
+                      ref.read(navBarItemProvider.notifier).select(item),
                   badge: item == NavBarItem.downloads && activeDownloads > 0
                       ? _CountBadge(count: activeDownloads)
                       : null,
@@ -80,7 +66,9 @@ class _NavBarState extends ConsumerState<NavBar> {
           const SizedBox(width: AppSpacing.xs),
           _ProtonChip(
             label: defaultProton ?? 'No Proton',
-            onTap: () => _select(NavBarItem.settings),
+            onTap: () => ref
+                .read(navBarItemProvider.notifier)
+                .select(NavBarItem.settings),
           ),
         ],
       ),

@@ -7,31 +7,18 @@ import 'package:lumen/screens/home/pages/library/library_page.dart';
 import 'package:lumen/screens/home/pages/settings_page.dart';
 import 'package:lumen/state/home_state.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  ConsumerState<ConsumerStatefulWidget> createState() {
-    return _HomeScreenState();
-  }
-}
-
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  @override
-  Widget build(BuildContext context) {
-    var navBarState = ref.watch(navBarItemProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final item = ref.watch(navBarItemProvider);
     return Scaffold(
       body: GradientBackground(
         child: Column(
           children: [
-            NavBar(
-              onItemSelected: (item) {
-                setState(() {
-                  navBarState.setItem(item);
-                });
-              },
-            ),
-            Expanded(child: _Content(item: navBarState.item)),
+            const NavBar(),
+            Expanded(child: _Content(item: item)),
           ],
         ),
       ),

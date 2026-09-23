@@ -1,16 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class NavBarState {
-  NavBarItem _item;
-  NavBarState(this._item);
-
-  NavBarItem get item => _item;
-
-  void setItem(NavBarItem item) {
-    _item = item;
-  }
-}
-
 enum NavBarItem { library, downloads, settings }
 
 extension NavBarItemLabel on NavBarItem {
@@ -21,10 +10,18 @@ extension NavBarItemLabel on NavBarItem {
   };
 }
 
-final navBarItemProvider = Provider<NavBarState>((ref) {
-  final instance = NavBarState(NavBarItem.library);
-  return instance;
-}, name: 'navBarItemProvider');
+/// The single source of truth for which top-level page is selected.
+class NavBarNotifier extends Notifier<NavBarItem> {
+  @override
+  NavBarItem build() => NavBarItem.library;
+
+  void select(NavBarItem item) => state = item;
+}
+
+final navBarItemProvider = NotifierProvider<NavBarNotifier, NavBarItem>(
+  NavBarNotifier.new,
+  name: 'navBarItemProvider',
+);
 
 /// Live text of the nav-bar search field; the library grid filters on it.
 class LibrarySearchNotifier extends Notifier<String> {
