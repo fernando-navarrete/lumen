@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/executable_lookup.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/models/launch_target.dart';
@@ -92,6 +93,12 @@ class LaunchState {
 /// runs, the game's stdout/stderr, and a footer with the exit code. Game
 /// output goes only there, never to Lumen's own stdout.
 ///
+/// Before anything is spawned — wineboot included — the Proton binary and,
+/// if set, the launch wrapper's first token are validated (see
+/// `executable_lookup.dart`): a missing/non-executable `proton` script or an
+/// unresolvable wrapper fails the launch with a clear message before `pfx`
+/// is created or the log rotates.
+///
 /// A non-zero `wineboot` exit fails the launch without spawning the game,
 /// and removes the just-created `<prefix>/pfx` (Lumen's own, freshly made by
 /// this same call), so the next launch treats the prefix as uninitialized
@@ -177,24 +184,59 @@ class LaunchNotifier extends Notifier<LaunchState> {
     state = LaunchState({...state.games, gameId: game});
     debugPrint('[DIAG] set status=launching, emitted');
 
+    final protonBinary = '$protonPath/proton';
+    final fullExe = '$installPath/${target.executable}';
+    final workingDir = target.workingDir;
+    final cwd = workingDir != null
+        ? '$installPath/$workingDir'
+        : File(fullExe).parent.path;
+
+    // Validated before anything else — wineboot included, before `pfx` is
+    // created and before the log rotates — so a misconfiguration reports
+    // a clear message instead of a raw ProcessException, and doesn't eat
+    // the previous run's log.
+    if (!isExecutableFile(protonBinary)) {
+      game = _commit(
+        game,
+        game.copyWith(
+          status: LaunchStatus.failed,
+          error:
+              'Proton-GE ${p.basename(protonPath)} is missing its proton '
+              'script at $protonBinary — reinstall it in Settings',
+        ),
+      );
+      return;
+    }
+    if (launchWrapper.isNotEmpty) {
+      final wrapperCommand = launchWrapper.first;
+      final resolved = resolveExecutable(
+        wrapperCommand,
+        pathEnv: envVars['PATH'] ?? Platform.environment['PATH'],
+        cwd: cwd,
+      );
+      if (resolved == null) {
+        final message = wrapperCommand.contains('/')
+            ? 'Launch wrapper "$wrapperCommand" not found or not executable'
+            : 'Launch wrapper "$wrapperCommand" not found on PATH';
+        game = _commit(
+          game,
+          game.copyWith(status: LaunchStatus.failed, error: message),
+        );
+        return;
+      }
+    }
+
     final stopwatch = Stopwatch()..start();
     final log = _GameLog.open(gameId);
     try {
       final compatClientDir = steamCompatClientDir();
       Directory(compatClientDir).createSync(recursive: true);
 
-      final protonBinary = '$protonPath/proton';
       final compatEnv = {
         'STEAM_COMPAT_CLIENT_INSTALL_PATH': compatClientDir,
         'STEAM_COMPAT_DATA_PATH': prefixPath,
       };
       debugPrint('[DIAG] protonBinary=$protonBinary compatEnv=$compatEnv');
-
-      final fullExe = '$installPath/${target.executable}';
-      final workingDir = target.workingDir;
-      final cwd = workingDir != null
-          ? '$installPath/$workingDir'
-          : File(fullExe).parent.path;
 
       // The wrapper (e.g. `gamescope -f --`) becomes the process actually
       // spawned, with the whole Proton invocation as its arguments —

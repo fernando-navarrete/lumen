@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/launch_state.dart';
+import 'package:path/path.dart' as p;
 
 import '../helpers/container.dart';
 import '../helpers/temp_data_home.dart';
@@ -234,8 +235,42 @@ exit "\${FAKE_EXIT:-0}"
       },
     );
 
-    test('missing proton binary -> failed with an error', () async {
-      // protonDir exists but has no `proton` executable in it.
+    test(
+      'missing proton binary -> failed with an error, no log touched',
+      () async {
+        // protonDir exists but has no `proton` executable in it.
+        final previousLog = File(gameLogPath(1))
+          ..createSync(recursive: true)
+          ..writeAsStringSync('previous run');
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
+
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          target: gameExe,
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+
+        final game = container.read(launchStateProvider).gameFor(1)!;
+        expect(game.status, LaunchStatus.failed);
+        expect(
+          game.error,
+          'Proton-GE ${p.basename(protonDir.path)} is missing its proton '
+          'script at ${protonDir.path}/proton — reinstall it in Settings',
+        );
+        // No log was opened for this launch, so the previous one wasn't
+        // rotated away.
+        expect(previousLog.readAsStringSync(), 'previous run');
+        expect(File(previousGameLogPath(1)).existsSync(), false);
+      },
+    );
+
+    test('non-executable proton binary -> failed with an error', () async {
+      // Written but never chmod +x'd.
+      File('${protonDir.path}/proton').writeAsStringSync('#!/usr/bin/env bash\nexit 0\n');
       final container = await createContainer();
       final notifier = container.read(launchStateProvider.notifier);
 
@@ -250,7 +285,94 @@ exit "\${FAKE_EXIT:-0}"
 
       final game = container.read(launchStateProvider).gameFor(1)!;
       expect(game.status, LaunchStatus.failed);
-      expect(game.error, isNotNull);
+      expect(
+        game.error,
+        'Proton-GE ${p.basename(protonDir.path)} is missing its proton '
+        'script at ${protonDir.path}/proton — reinstall it in Settings',
+      );
+      expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
+    });
+
+    test('launchWrapper not found on PATH -> failed with an error', () async {
+      writeFakeProton();
+      final emptyPathDir = Directory('${dataHome.path}/empty_path')
+        ..createSync();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: {...baseEnv(), 'PATH': emptyPathDir.path},
+        launchWrapper: const ['gamescope', '-f', '--'],
+      );
+
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.failed);
+      expect(game.error, 'Launch wrapper "gamescope" not found on PATH');
+      expect(log.existsSync(), false); // proton was never invoked
+      expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
+    });
+
+    test(
+      'launchWrapper not found by path -> failed with an error',
+      () async {
+        writeFakeProton();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
+
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          target: gameExe,
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+          launchWrapper: const ['/nonexistent/wrap'],
+        );
+
+        final game = container.read(launchStateProvider).gameFor(1)!;
+        expect(game.status, LaunchStatus.failed);
+        expect(
+          game.error,
+          'Launch wrapper "/nonexistent/wrap" not found or not executable',
+        );
+      },
+    );
+
+    test('a present launchWrapper resolved via PATH passes', () async {
+      writeFakeProton();
+      final wrapperDir = Directory('${dataHome.path}/wrapper_bin')
+        ..createSync();
+      final wrapperScript = File('${wrapperDir.path}/wrap')
+        ..writeAsStringSync('#!/usr/bin/env bash\nexec "\$@"\n');
+      Process.runSync('chmod', ['+x', wrapperScript.path]);
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: {
+          ...baseEnv(),
+          'PATH': '${wrapperDir.path}:${Platform.environment['PATH']}',
+        },
+        launchWrapper: const ['wrap'],
+      );
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
+
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.exited);
     });
 
     test(
@@ -628,11 +750,28 @@ exit "\${FAKE_EXIT:-0}"
     });
 
     test('a launch that fails to spawn logs why', () async {
-      // protonDir exists but has no `proton` executable in it.
+      // A valid, executable proton passes the pre-spawn validation, but a
+      // working directory that doesn't exist still fails Process.start
+      // itself, which is what this test is after.
+      writeFakeProton();
       final container = await createContainer();
 
-      final game = await launchAndSettle(container);
+      await container
+          .read(launchStateProvider.notifier)
+          .launchGame(
+            1,
+            protonPath: protonDir.path,
+            installPath: installDir.path,
+            target: const LaunchTarget(
+              executable: 'game.exe',
+              workingDir: 'missing-dir',
+              source: LaunchTargetSource.scan,
+            ),
+            prefixPath: prefixDir.path,
+            envVars: baseEnv(),
+          );
 
+      final game = container.read(launchStateProvider).gameFor(1)!;
       expect(game.status, LaunchStatus.failed);
       expect(gameLog().readAsStringSync(), contains('Launch failed: '));
     });

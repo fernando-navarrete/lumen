@@ -171,7 +171,11 @@ expansion).
 `LaunchNotifier.launchGame` (`lib/state/launch_state.dart`) follows gogdl-cli's `runner.rs` recipe: a
 one-time `proton run wineboot` to initialize a fresh prefix, then `proton run <exe> <target args>
 <user args>` with cwd set to the target's `workingDir` when it has one, else the executable's parent
-directory. A non-zero `wineboot` exit fails the launch (`"Prefix initialization failed (exit N) — see
+directory. Before any of that — wineboot included — the Proton binary and, if a launch wrapper is
+set, its first token are validated with `lib/common/executable_lookup.dart`'s `isExecutableFile`/
+`resolveExecutable` (a path checked directly, a bare name walked on `PATH`); either failure fails the
+launch with a clear message before `pfx` is created or the log rotates. A non-zero `wineboot` exit
+fails the launch (`"Prefix initialization failed (exit N) — see
 the log"`) without spawning the game, and removes the just-created `<prefix>/pfx` so the next launch
 retries init instead of running in a half-created prefix — "is initialized" is otherwise just "`pfx`
 exists". Every launch writes the per-game log: a header (command, cwd, the user's env vars, the

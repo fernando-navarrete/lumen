@@ -133,8 +133,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `wineboot` exit fails the launch (`"Prefix initialization failed (exit N) — see the log"`) without
   spawning the game, and removes the just-created `<prefix>/pfx` so the next launch retries init
   instead of running in a half-created prefix.
-- [ ] **P2 — Validate before spawning.** Check that `$protonPath/proton` exists and that the wrapper's
+- [x] **P2 — Validate before spawning.** Check that `$protonPath/proton` exists and that the wrapper's
   first token is on `PATH`, so failures give a clear message instead of a raw `ProcessException`.
+  Fixed in `v1.2.2`: `executable_lookup.dart`'s `isExecutableFile`/`resolveExecutable` validate the
+  proton script and, if set, the wrapper's first token (a path checked directly, a bare name walked
+  on `PATH`) before wineboot runs, before `pfx` is created, and before the log rotates.
 - [ ] **P2 — Stop treating every non-zero exit code as a failure** (`launch_state.dart:144`). Many games
   exit non-zero normally, so this shows a spurious error snackbar. Note (`v1.1.0` Phase 6): this
   snackbar (`game_action_buttons.dart:111`) was dead code before `v1.1.0` — `previous` and `next`
