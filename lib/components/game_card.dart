@@ -25,9 +25,9 @@ class GameCard extends ConsumerWidget {
       gamesStateProvider.select((state) => state.getGameStatus(gameId!)),
     );
     // Select a value-type snapshot of the bytes rather than the ActivityTask
-    // instance itself: the notifier mutates that instance in place, so
-    // `select` would see the same reference across updates (no `==`
-    // override) and this card would never rebuild while downloading.
+    // instance itself: ActivityTask has no `==` override, so watching the
+    // instance directly would rebuild on every field change, not just the
+    // bytes this card cares about.
     final (int, int)? progress = ref.watch(
       downloadsStateProvider.select((state) {
         final task = state.tasks[gameId!];

@@ -629,4 +629,144 @@ void main() {
       },
     );
   });
+
+  group('DownloadsNotifier — immutability (Phase 5)', () {
+    test('an event produces a new task; the old snapshot keeps its old values', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.verifyController(1);
+
+      controller.add(VerifyDownloadProgress.started(BigInt.from(1000)));
+      await settle();
+      final before = container.read(downloadsStateProvider).tasks[1]!;
+
+      controller.add(VerifyDownloadProgress.progress(BigInt.from(400)));
+      await settle();
+      final after = container.read(downloadsStateProvider).tasks[1]!;
+
+      expect(identical(before, after), isFalse);
+      expect(before.downloadedBytes, 0);
+      expect(after.downloadedBytes, 400);
+    });
+
+    test('errorFiles and verifyFailures are unmodifiable', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.verifyController(1);
+      controller.add(
+        VerifyDownloadProgress.fileNotFound('missing.dat', BigInt.zero),
+      );
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(() => task.errorFiles.add('x'), throwsUnsupportedError);
+      expect(
+        () => task.verifyFailures['x'] = VerifyFailure.missing,
+        throwsUnsupportedError,
+      );
+    });
+
+    test(
+      'rapid progress events collapse under the throttle, but the final '
+      'terminal event always lands',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+        container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+
+        await notifier.startDownload(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final controller = backend.downloadController(1);
+
+        // No settle() between these -- all but the last should be coalesced
+        // by the throttle, and the terminal finished+close must still flush.
+        controller.add(
+          DownloadGameProgress.started(
+            totalFiles: BigInt.from(1),
+            totalBytes: BigInt.from(1000),
+          ),
+        );
+        for (var i = 1; i <= 5; i++) {
+          controller.add(
+            DownloadGameProgress.downloadProgress(
+              downloadedBytes: BigInt.from(i * 100),
+            ),
+          );
+        }
+        controller.add(const DownloadGameProgress.finished());
+        await controller.close();
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.completed);
+        expect(task.downloadedBytes, 500);
+      },
+    );
+
+    test(
+      'a stale stream cannot clobber the task that replaced it',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startVerification(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final staleController = backend.verifyController(1);
+
+        // Dequeues the still-running task above and starts a fresh one on a
+        // new controller, without waiting for the old stream to close.
+        await notifier.startVerificationForInstalled(
+          1,
+          path: '/games/foo',
+          buildName: 'build-2',
+          productIds: [1],
+        );
+        final freshController = backend.verifyController(1);
+        expect(identical(staleController, freshController), isFalse);
+
+        freshController.add(VerifyDownloadProgress.started(BigInt.from(500)));
+        await settle();
+        final beforeStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
+
+        // An event on the orphaned stream must not overwrite the fresh task.
+        staleController.add(VerifyDownloadProgress.started(BigInt.from(999999)));
+        await settle();
+        final afterStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
+
+        expect(afterStaleEvent.totalBytes, beforeStaleEvent.totalBytes);
+        expect(afterStaleEvent.buildName, 'build-2');
+        expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
+      },
+    );
+  });
 }
