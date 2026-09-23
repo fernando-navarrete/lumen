@@ -143,10 +143,15 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   return a fresh stream every time; double-start protection already lived in the owning notifiers
   (a synchronous `running`-task check before the task is registered), so removing the cache changed
   no observable behavior.
-- [ ] **P2 — Make error handling consistent in `GogState`.** Some methods catch only `GogError`
-  (`getLoginUrl`, `getProtonReleases`), others catch everything.
-  `GogdlBackend.getProtonReleases` swallows errors and returns `[]`, so the UI shows "No releases
-  loaded" with an endless "Load more" and can't tell a failure from the end of the list.
+- [x] **P2 — Make error handling consistent in `GogState`.** Fixed in `v1.1.2`: `getLoginUrl` and
+  `getProtonReleases` now `catch (e)` like every other `GogState` method, and
+  `GogdlBackend.getProtonReleases` no longer swallows the error into `[]` — it propagates, so
+  `GogState.getProtonReleases` can return `null` on failure vs. `[]` for a genuinely empty page. The
+  Proton releases dialog (`proton_manager.dart`) now shows a distinct "Couldn't load releases" + Retry
+  state instead of an endless "Load more". Also fixed the related `DownloadsNotifier` gap from the same
+  ROADMAP entry: a stream error arriving after a `finished`/`Finished` event no longer gets silently
+  re-derived back to `completed` by `onDone` — `onDone` now no-ops once `onError` has already failed
+  the task.
 - [ ] **P2 — Keep library, details and Proton release data in providers.** It currently lives in widget
   `State` with `addPostFrameCallback` fetches. Owned games, names, builds, products, summaries and
   releases would work better as `FutureProvider.family`s: they'd survive tab switches, get loading and

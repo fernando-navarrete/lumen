@@ -325,6 +325,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
+        if (task.status == TaskStatus.failed) {
+          return;
+        }
         final finished = task.chunksToRedownload == 0 && task.errorFiles.isEmpty;
         final next = task.copyWith(
           status: finished ? TaskStatus.completed : TaskStatus.failed,
@@ -458,6 +461,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
+        if (task.status == TaskStatus.failed) {
+          return;
+        }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
         final next = task.copyWith(
           status: finished ? TaskStatus.completed : TaskStatus.failed,
@@ -608,6 +614,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
+        if (task.status == TaskStatus.failed) {
+          return;
+        }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
         final next = task.copyWith(
           status: finished ? TaskStatus.completed : TaskStatus.failed,

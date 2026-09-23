@@ -601,9 +601,9 @@ void main() {
     });
 
     test(
-      'known gap: an error arriving after finished still completes the task, '
-      'because onDone runs after onError and re-derives status from stage/'
-      'errorFiles (see ROADMAP v1.1.2)',
+      'download: an error arriving after finished still fails the task, not '
+      'completes it (v1.1.2 — onDone no longer re-derives status once onError '
+      'has already failed the task)',
       () async {
         final backend = FakeGogBackend();
         final container = await createContainer(backend: backend);
@@ -624,8 +624,60 @@ void main() {
         await settle();
 
         final task = container.read(downloadsStateProvider).tasks[1]!;
-        expect(task.status, TaskStatus.completed);
-        expect(games().getGameStatus(1), GameStatus.downloaded);
+        expect(task.status, TaskStatus.failed);
+        expect(games().getGameStatus(1), GameStatus.notInstalled);
+      },
+    );
+
+    test(
+      'verification: an error arriving after finished still fails the task '
+      '(v1.1.2)',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startVerification(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final controller = backend.verifyController(1);
+        controller.add(VerifyDownloadProgress.finished(BigInt.from(0)));
+        controller.addError(Exception('late error, after finished'));
+        await controller.close();
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.failed);
+      },
+    );
+
+    test(
+      'repair: an error arriving after finished still fails the task '
+      '(v1.1.2)',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startRepairForInstalled(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final controller = backend.repairController(1);
+        controller.add(const RepairGameProgress.finished());
+        controller.addError(Exception('late error, after finished'));
+        await controller.close();
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.failed);
       },
     );
   });

@@ -2,7 +2,6 @@ import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
 import 'package:gogdl_flutter/gogdl_flutter.dart' as bridge
     show GameBuild, DownloadableProduct, ProtonRelease;
-import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/proton_release.dart';
@@ -120,13 +119,8 @@ class GogdlBackend implements GogBackend {
 
   @override
   Future<List<ProtonRelease>> getProtonReleases(int page) async {
-    try {
-      var result = await _api.getProtonReleases(page: page);
-      return result.map(_adaptRelease).toList();
-    } on GogError catch (e) {
-      logGogError(e);
-      return [];
-    }
+    var result = await _api.getProtonReleases(page: page);
+    return result.map(_adaptRelease).toList();
   }
 
   @override

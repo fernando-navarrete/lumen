@@ -73,6 +73,8 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
   int _nextPage = 1;
   bool _loading = false;
   bool _loadedOnce = false;
+  bool _failed = false;
+  bool _reachedEnd = false;
 
   @override
   void initState() {
@@ -94,9 +96,16 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
     setState(() {
       _loading = false;
       _loadedOnce = true;
-      if (releases != null) {
-        _releases.addAll(releases);
-        _nextPage++;
+      if (releases == null) {
+        _failed = true;
+      } else {
+        _failed = false;
+        if (releases.isEmpty) {
+          _reachedEnd = true;
+        } else {
+          _releases.addAll(releases);
+          _nextPage++;
+        }
       }
     });
   }
@@ -151,7 +160,11 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                               )
                             : Panel(
                                 child: Text(
-                                  "No releases loaded",
+                                  _failed
+                                      ? "Couldn't load releases"
+                                      : _reachedEnd
+                                      ? "No releases available"
+                                      : "No releases loaded",
                                   style: AppText.bodyMedium(
                                     color: AppColors.textSecondary,
                                   ),
@@ -169,14 +182,23 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                           ],
                         ),
                       const SizedBox(height: AppSpacing.sm),
-                      if (_loadedOnce)
+                      if (_loadedOnce && !_reachedEnd)
                         PrimaryButton(
                           enabled: !_loading,
                           onTap: _loadMore,
                           child: Text(
-                            _loading ? "Loading…" : "Load more",
+                            _loading
+                                ? "Loading…"
+                                : _failed
+                                ? "Retry"
+                                : "Load more",
                             style: AppText.button(color: Colors.white),
                           ),
+                        )
+                      else if (_loadedOnce && _reachedEnd && _releases.isNotEmpty)
+                        Text(
+                          "No more releases",
+                          style: AppText.caption(color: AppColors.textSecondary),
                         ),
                     ],
                   ),

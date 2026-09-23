@@ -130,6 +130,31 @@ void main() {
 
       expect(await state.getGameName(1), isNull);
     });
+
+    test('getLoginUrl returns empty (v1.1.2)', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getLoginUrl'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(state.getLoginUrl(), '');
+    });
+
+    test('getProtonReleases returns null (v1.1.2)', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getProtonReleases'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getProtonReleases(1), isNull);
+    });
+  });
+
+  group('v1.1.2 — getProtonReleases distinguishes failure from end-of-list', () {
+    test('an empty page returns an empty list, not null', () async {
+      final backend = FakeGogBackend()..protonReleases = [];
+      final state = await _state(backend);
+
+      expect(await state.getProtonReleases(1), isEmpty);
+    });
   });
 
   group('v1.0.11 — banner links are cached, not refetched on every call', () {
