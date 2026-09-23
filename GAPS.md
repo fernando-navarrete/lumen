@@ -138,13 +138,16 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   Fixed in `v1.2.2`: `executable_lookup.dart`'s `isExecutableFile`/`resolveExecutable` validate the
   proton script and, if set, the wrapper's first token (a path checked directly, a bare name walked
   on `PATH`) before wineboot runs, before `pfx` is created, and before the log rotates.
-- [ ] **P2 — Stop treating every non-zero exit code as a failure** (`launch_state.dart:144`). Many games
+- [x] **P2 — Stop treating every non-zero exit code as a failure** (`launch_state.dart:144`). Many games
   exit non-zero normally, so this shows a spurious error snackbar. Note (`v1.1.0` Phase 6): this
   snackbar (`game_action_buttons.dart:111`) was dead code before `v1.1.0` — `previous` and `next`
   shared the same mutated `RunningGame`, so its `previous.status != failed` check was never true.
   Making `RunningGame` immutable fixed that, so the snackbar now actually fires, including for this
   gap's spurious case. Note (`v1.2.0`): a game the user stopped is already exempt, and always ends
-  `exited` whatever its exit code.
+  `exited` whatever its exit code. Fixed in `v1.2.3`: a spawned game now always ends `exited` with
+  its exit code kept, except a non-zero exit within `immediateExitWindow` (10s) of the process being
+  spawned, which is `failed` with `"The game exited immediately (code N)"`. The snackbar is no
+  longer spurious — it fires only for a real crash-on-start, a Lumen-side failure, or a spawn error.
 - [ ] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`.
 - [ ] **P2 — Validate installed Proton versions against disk on load.** A directory deleted outside the
   app still shows as installed.

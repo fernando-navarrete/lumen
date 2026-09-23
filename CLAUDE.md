@@ -188,7 +188,11 @@ setup. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the re
 `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are reparented
 to init, so only wineserver can reach them), then escalates to SIGTERM/SIGKILL on the spawned pid
 (never its process group, which is Lumen's own). That `WINEPREFIX` goes to `wineserver` only, never
-to the game. A game the user stopped always ends `exited`, whatever its exit code.
+to the game. A game the user stopped always ends `exited`, whatever its exit code. Otherwise, a
+non-zero exit only counts as `failed` (`"The game exited immediately (code N)"`) when it happens
+within `immediateExitWindow` (10s) of the process being spawned — a later non-zero exit, and a
+launcher-style play task whose `proton run` returns within seconds of a successful start, both end
+`exited` with the exit code kept.
 If the game's `launchWrapper` config (`GameConfig.launchWrapper`) is non-empty, its tokens are
 prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `gamescope -f --`) becomes
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never

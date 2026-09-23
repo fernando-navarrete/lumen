@@ -153,7 +153,7 @@ exit "\${FAKE_EXIT:-0}"
       expect(lines[0], contains('run ${installDir.path}/game.exe'));
     });
 
-    test('non-zero exit code -> failed', () async {
+    test('non-zero exit right after spawn -> failed', () async {
       writeFakeProton();
       Directory('${prefixDir.path}/pfx').createSync();
       final container = await createContainer();
@@ -176,7 +176,34 @@ exit "\${FAKE_EXIT:-0}"
       final game = container.read(launchStateProvider).gameFor(1)!;
       expect(game.status, LaunchStatus.failed);
       expect(game.exitCode, 3);
-      expect(game.error, 'Game exited with code 3');
+      expect(game.error, 'The game exited immediately (code 3)');
+    });
+
+    test('non-zero exit after the window -> exited', () async {
+      writeFakeProton();
+      Directory('${prefixDir.path}/pfx').createSync();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier)
+        ..immediateExitWindow = Duration.zero;
+
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: {...baseEnv(), 'FAKE_EXIT': '3'},
+      );
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
+
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.exited);
+      expect(game.exitCode, 3);
+      expect(game.error, null);
     });
 
     test(

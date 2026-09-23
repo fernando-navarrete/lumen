@@ -114,6 +114,13 @@ class LaunchState {
 /// [stopGrace], it's sent SIGTERM, then SIGKILL after [killGrace] — its pid
 /// only, never its process group, which is Lumen's own. A game the user
 /// stopped always ends `exited`, whatever its exit code.
+///
+/// A game's exit code alone doesn't mean `failed`: many games exit non-zero
+/// on a normal quit (and a launcher-style play task can make `proton run`
+/// return within seconds of a successful start — see [LaunchTarget]). Only a
+/// non-zero exit within [immediateExitWindow] of the process being spawned
+/// is treated as a crash on start and reported as `failed`; any later exit,
+/// and any user-requested stop, ends `exited` with the exit code kept.
 class LaunchNotifier extends Notifier<LaunchState> {
   @override
   LaunchState build() => const LaunchState.empty();
@@ -134,6 +141,12 @@ class LaunchNotifier extends Notifier<LaunchState> {
   /// How long [stopGame] waits after SIGTERM before sending SIGKILL.
   @visibleForTesting
   Duration killGrace = const Duration(seconds: 3);
+
+  /// A non-zero exit sooner than this after the game process is spawned
+  /// counts as a crash on start (`failed`); any later exit is `exited`,
+  /// whatever its code — see the class doc comment.
+  @visibleForTesting
+  Duration immediateExitWindow = const Duration(seconds: 10);
 
   /// The handle on each spawned game process, from `Process.start` until its
   /// exit is handled. Kept out of [LaunchState] on purpose: a `Process` in a
@@ -335,6 +348,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
         includeParentEnvironment: true,
       );
       debugPrint('[DIAG] process started pid=${process.pid}');
+      final spawnedAt = Stopwatch()..start();
       final live = _LiveLaunch(
         process: process,
         protonPath: protonPath,
@@ -358,6 +372,9 @@ class LaunchNotifier extends Notifier<LaunchState> {
       );
 
       process.exitCode.then((code) async {
+        // Measured here, before the pipe-drain wait below, so a slow drain
+        // never counts toward the window.
+        final immediate = spawnedAt.elapsed < immediateExitWindow;
         // The footer and close come before the status commit, so whoever
         // reacts to `exited`/`failed` finds the whole log on disk.
         try {
@@ -383,16 +400,20 @@ class LaunchNotifier extends Notifier<LaunchState> {
           _live.remove(gameId);
         }
         // A game the user stopped is never a failure, whatever its exit
-        // code (killed processes rarely exit 0).
+        // code (killed processes rarely exit 0). Otherwise, only a non-zero
+        // exit soon after spawning counts as a crash on start — a later
+        // non-zero exit is a normal quit for many games, and a
+        // launcher-style play task can make `proton run` return within
+        // seconds of a successful start.
         final current = live.game;
         live.game = _commit(
           current,
-          code == 0 || stopped
+          code == 0 || stopped || !immediate
               ? current.copyWith(status: LaunchStatus.exited, exitCode: code)
               : current.copyWith(
                   status: LaunchStatus.failed,
                   exitCode: code,
-                  error: 'Game exited with code $code',
+                  error: 'The game exited immediately (code $code)',
                 ),
         );
       });
