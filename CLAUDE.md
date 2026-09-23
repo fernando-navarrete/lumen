@@ -48,7 +48,16 @@ either would require that native library, which isn't available in CI. Anything 
 `lib/common/app_paths.dart` (Proton prefixes, the Proton install dir, the fake Steam compat client
 dir) must never read or write under the real `lumenDataDir()`; `test/helpers/temp_data_home.dart`'s
 `useTempDataHome()` points it at a temp dir for the test via `app_paths.dart`'s
-`xdgDataHomeOverride` test seam.
+`xdgDataHomeOverride` test seam. `test/flutter_test_config.dart` runs before every test file and
+disables `google_fonts`' runtime HTTP fetch, so widget tests don't hit the network for the Onest
+font (it silently falls back to the default font instead). Widget tests (`test/screens/`) use
+`test/helpers/pump_app.dart`'s `pumpApp()`, which wraps a widget in a real `MaterialApp`/`Scaffold`
+backed by a `createContainer()`-style `ProviderContainer` and sizes the test surface to a desktop
+window; it doesn't call `pumpAndSettle()` itself because several screens show an indefinitely
+spinning `CenteredLoader` while their first fetch is pending.
+
+CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
+`flutter analyze --fatal-infos` and `flutter test` on every branch.
 
 ## Architecture
 

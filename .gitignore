@@ -46,3 +46,6 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# CI-local Flutter checkout and pub cache (see .gitlab-ci.yml)
+.ci/

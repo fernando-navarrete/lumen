@@ -78,4 +78,82 @@ void main() {
 
     expect(result, isEmpty);
   });
+
+  group('v1.0.10 — metadata getters fall back on a thrown error', () {
+    // Debug and release builds must behave the same: none of these getters
+    // is allowed to only special-case `GogError` (that was the bug) or to
+    // only swallow the error in one build mode.
+    test('getGameBackgroundLink returns empty', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getBackgroundImageLink'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getGameBackgroundLink(1), '');
+    });
+
+    test('getGameBoxartLink returns empty', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getGameBoxartLink'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getGameBoxartLink(1), '');
+    });
+
+    test('getGameSummary returns empty', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getGameSummary'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getGameSummary(1), '');
+    });
+
+    test('getGameScreenshots returns empty', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getGameScreenshots'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getGameScreenshots(1), isEmpty);
+    });
+
+    test('getBuilds returns null', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getGameBuilds'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getBuilds(1), isNull);
+    });
+
+    test('getGameName returns null', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getGameTitle'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getGameName(1), isNull);
+    });
+  });
+
+  group('v1.0.11 — banner links are cached, not refetched on every call', () {
+    test('getGameBackgroundLink hits the backend once for the same id', () async {
+      final backend = FakeGogBackend()..backgroundLinks[1] = 'https://a/bg.jpg';
+      final state = await _state(backend);
+
+      await state.getGameBackgroundLink(1);
+      await state.getGameBackgroundLink(1);
+
+      expect(backend.callsTo('getBackgroundImageLink'), hasLength(1));
+    });
+
+    test('getGameBoxartLink hits the backend once for the same id', () async {
+      final backend = FakeGogBackend()..boxartLinks[1] = 'https://a/box.jpg';
+      final state = await _state(backend);
+
+      await state.getGameBoxartLink(1);
+      await state.getGameBoxartLink(1);
+
+      expect(backend.callsTo('getGameBoxartLink'), hasLength(1));
+    });
+  });
 }
+
+Future<GogState> _state(FakeGogBackend backend) async =>
+    (await createContainer(backend: backend)).read(gogStateProvider);

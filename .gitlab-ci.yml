@@ -1,10 +1,63 @@
-stages:
-  - test
+# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker
+# executor) — see v1.1.0-FOUNDATION_WORKPLAN.md Phase 0/8.
+#
+# `gogdl_flutter` is a private git dependency reachable only over the LAN
+# (ssh://git@thinkcentre.home:2200). `pub get` authenticates with a read-only
+# SSH deploy key stored as the `GOGDL_DEPLOY_KEY` file variable (Settings ->
+# CI/CD -> Variables in this project); its public half must be added as a
+# deploy key on the gogdl_flutter project.
+#
+# If a job fails to resolve thinkcentre.home, the runner's containers aren't
+# seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
+# Fix it in /etc/gitlab-runner/config.toml under [runners.docker]:
+#   extra_hosts = ["thinkcentre.home:192.168.8.234"]
+# then restart the runner (`sudo gitlab-runner restart`).
 
-runner-test:
-  stage: test
-  image: alpine:latest
+stages:
+  - check
+
+variables:
+  PUB_CACHE: "$CI_PROJECT_DIR/.ci/pub-cache"
+  FLUTTER_HOME: "$CI_PROJECT_DIR/.ci/flutter"
+
+.setup: &setup
+  image: debian:bookworm-slim
+  before_script:
+    - apt-get update -qq
+    - apt-get install -qq -y --no-install-recommends git curl unzip xz-utils ca-certificates openssh-client >/dev/null
+    # SSH access to gogdl_flutter via the deploy key file variable.
+    - eval "$(ssh-agent -s)"
+    - chmod 600 "$GOGDL_DEPLOY_KEY"
+    - ssh-add "$GOGDL_DEPLOY_KEY"
+    - mkdir -p ~/.ssh
+    - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
+    # Flutter, pinned to the version in .fvmrc; cached in .ci/flutter/ (see cache: below).
+    - FLUTTER_VERSION=$(sed -n 's/.*"flutter": *"\([^"]*\)".*/\1/p' .fvmrc)
+    - |
+      if [ ! -x "$FLUTTER_HOME/bin/flutter" ]; then
+        git clone --depth 1 -b "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$FLUTTER_HOME"
+      fi
+    - export PATH="$FLUTTER_HOME/bin:$PATH"
+    - flutter config --no-analytics >/dev/null
+    - flutter --version
+    - flutter pub get
+  cache:
+    key:
+      files:
+        - .fvmrc
+        - pubspec.lock
+    paths:
+      - .ci/flutter/
+      - .ci/pub-cache/
+
+analyze:
+  stage: check
+  <<: *setup
   script:
-    - echo "The runner is working"
-    - uname -a
-    - cat /etc/os-release
+    - flutter analyze --fatal-infos
+
+test:
+  stage: check
+  <<: *setup
+  script:
+    - flutter test
