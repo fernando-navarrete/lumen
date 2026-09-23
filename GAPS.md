@@ -129,7 +129,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   user `"<old>" is no longer in the install folder — using <new> instead` (or showing the notice in
   the picker). A missing install folder stops with its own message. The Settings tab marks a missing
   override before Play is pressed.
-- [ ] **P2 — Check `wineboot`'s exit code** (`launch_state.dart:110`).
+- [x] **P2 — Check `wineboot`'s exit code** (`launch_state.dart:110`). Fixed in `v1.2.1`: a non-zero
+  `wineboot` exit fails the launch (`"Prefix initialization failed (exit N) — see the log"`) without
+  spawning the game, and removes the just-created `<prefix>/pfx` so the next launch retries init
+  instead of running in a half-created prefix.
 - [ ] **P2 — Validate before spawning.** Check that `$protonPath/proton` exists and that the wrapper's
   first token is on `PATH`, so failures give a clear message instead of a raw `ProcessException`.
 - [ ] **P2 — Stop treating every non-zero exit code as a failure** (`launch_state.dart:144`). Many games

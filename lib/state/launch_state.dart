@@ -92,6 +92,11 @@ class LaunchState {
 /// runs, the game's stdout/stderr, and a footer with the exit code. Game
 /// output goes only there, never to Lumen's own stdout.
 ///
+/// A non-zero `wineboot` exit fails the launch without spawning the game,
+/// and removes the just-created `<prefix>/pfx` (Lumen's own, freshly made by
+/// this same call), so the next launch treats the prefix as uninitialized
+/// and retries init instead of running the game in a half-created prefix.
+///
 /// [stopGame] stops a running game with the release's
 /// `files/bin/wineserver -k`, which takes down every Wine process in the
 /// prefix (the game's Windows processes are reparented to init, so they're
@@ -245,6 +250,37 @@ class LaunchNotifier extends Notifier<LaunchState> {
           ..add(result.stderr as List<int>)
           ..writeln('wineboot exited with code ${result.exitCode}');
         debugPrint('[DIAG] wineboot init returned without throwing');
+
+        if (result.exitCode != 0) {
+          // pfx is Lumen's own, freshly created by this very call, so it's
+          // safe to remove: the next launch sees no pfx and retries init
+          // instead of running the game in a half-created prefix.
+          try {
+            final pfx = Directory('$prefixPath/pfx');
+            if (pfx.existsSync()) {
+              pfx.deleteSync(recursive: true);
+              log.writeln('Removed half-initialized pfx.');
+            }
+          } catch (e) {
+            logGogError(e);
+            log.writeln('Failed to remove half-initialized pfx: $e');
+          }
+          log.writeln(
+            'Launch failed: prefix initialization failed '
+            '(exit ${result.exitCode})',
+          );
+          await log.close();
+          game = _commit(
+            game,
+            game.copyWith(
+              status: LaunchStatus.failed,
+              error:
+                  'Prefix initialization failed (exit ${result.exitCode}) '
+                  '— see the log',
+            ),
+          );
+          return;
+        }
       }
 
       debugPrint('[DIAG] starting process: ${wrapped.join(' ')} cwd=$cwd');

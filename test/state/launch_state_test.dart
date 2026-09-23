@@ -50,11 +50,12 @@ void main() {
   /// Writes a fake `proton` executable at [protonDir]/proton that logs each
   /// invocation as "$LUMEN_WRAPPED|$STEAM_COMPAT_DATA_PATH|$*|$PWD" to `$LOG`,
   /// echoes "<$2> to-stdout"/"<$2> to-stderr" to its own stdout/stderr,
-  /// creates "$STEAM_COMPAT_DATA_PATH/pfx" on a `run wineboot` call, leaves
-  /// a background `sleep` holding its stdout/stderr open if `$HOLD_PIPE` is
-  /// set, and exits with `$FAKE_EXIT` (default 0). If `$PIDFILE` is set, a
-  /// game run instead writes its pid there and `exec`s a long `sleep`, so it
-  /// runs until killed and the killed pid is the spawned process itself.
+  /// creates "$STEAM_COMPAT_DATA_PATH/pfx" and exits with `$WINEBOOT_EXIT`
+  /// (default 0) on a `run wineboot` call, leaves a background `sleep`
+  /// holding its stdout/stderr open if `$HOLD_PIPE` is set, and otherwise
+  /// exits with `$FAKE_EXIT` (default 0). If `$PIDFILE` is set, a game run
+  /// instead writes its pid there and `exec`s a long `sleep`, so it runs
+  /// until killed and the killed pid is the spawned process itself.
   void writeFakeProton() {
     final script = File('${protonDir.path}/proton');
     script.writeAsStringSync('''
@@ -64,8 +65,9 @@ echo "<\$2> to-stdout"
 echo "<\$2> to-stderr" >&2
 if [ "\$2" = "wineboot" ]; then
   mkdir -p "\$STEAM_COMPAT_DATA_PATH/pfx"
+  exit "\${WINEBOOT_EXIT:-0}"
 fi
-if [ -n "\${PIDFILE:-}" ] && [ "\$2" != "wineboot" ]; then
+if [ -n "\${PIDFILE:-}" ]; then
   echo \$\$ > "\$PIDFILE"
   exec sleep 30
 fi
@@ -175,6 +177,62 @@ exit "\${FAKE_EXIT:-0}"
       expect(game.exitCode, 3);
       expect(game.error, 'Game exited with code 3');
     });
+
+    test(
+      'wineboot failure -> failed, game never spawned, pfx removed, next '
+      'launch retries init',
+      () async {
+        writeFakeProton();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
+
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          target: gameExe,
+          prefixPath: prefixDir.path,
+          envVars: {...baseEnv(), 'WINEBOOT_EXIT': '1'},
+        );
+
+        final game = container.read(launchStateProvider).gameFor(1)!;
+        expect(game.status, LaunchStatus.failed);
+        expect(
+          game.error,
+          'Prefix initialization failed (exit 1) — see the log',
+        );
+        expect(log.readAsLinesSync(), hasLength(1));
+        expect(log.readAsLinesSync()[0], contains('run wineboot'));
+        expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
+
+        // The next launch sees no pfx and retries init.
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          target: gameExe,
+          prefixPath: prefixDir.path,
+          envVars: baseEnv(),
+        );
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status !=
+              LaunchStatus.running,
+        );
+
+        // The fake proton's own invocation log ($LOG) isn't rotated between
+        // launches like the real game log is, so it now holds both the
+        // first (failed) wineboot call and the second launch's wineboot +
+        // game calls.
+        final lines = log.readAsLinesSync();
+        expect(lines, hasLength(3));
+        expect(lines[1], contains('run wineboot'));
+        expect(lines[2], contains('run ${installDir.path}/game.exe'));
+        final second = container.read(launchStateProvider).gameFor(1)!;
+        expect(second.status, LaunchStatus.exited);
+        expect(Directory('${prefixDir.path}/pfx').existsSync(), true);
+      },
+    );
 
     test('missing proton binary -> failed with an error', () async {
       // protonDir exists but has no `proton` executable in it.
@@ -487,6 +545,27 @@ exit "\${FAKE_EXIT:-0}"
       final text = gameLog().readAsStringSync();
       expect(text, isNot(contains('wineboot')));
       expect(text, contains('--- game ---\n'));
+    });
+
+    test('a wineboot failure logs the exit code and the failure, with no '
+        'game section', () async {
+      writeFakeProton();
+      final container = await createContainer();
+
+      final game = await launchAndSettle(container, env: {
+        'WINEBOOT_EXIT': '1',
+      });
+      expect(game.status, LaunchStatus.failed);
+
+      final text = gameLog().readAsStringSync();
+      expect(text, contains('--- wineboot ---\n'));
+      expect(text, contains('wineboot exited with code 1\n'));
+      expect(text, contains('Removed half-initialized pfx.\n'));
+      expect(
+        text,
+        contains('Launch failed: prefix initialization failed (exit 1)\n'),
+      );
+      expect(text, isNot(contains('--- game ---')));
     });
 
     test('a non-zero exit is in the footer', () async {
