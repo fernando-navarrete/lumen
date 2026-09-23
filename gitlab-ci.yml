@@ -3,6 +3,8 @@ stages:
 
 runner-test:
   stage: test
+  tags:
+    - shared
   image: alpine:latest
   script:
     - echo "The runner is working"
