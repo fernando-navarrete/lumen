@@ -3,9 +3,11 @@
 #
 # `gogdl_flutter` is a private git dependency reachable only over the LAN
 # (ssh://git@thinkcentre.home:2200). `pub get` authenticates with a read-only
-# SSH deploy key stored as the `GOGDL_DEPLOY_KEY` file variable (Settings ->
-# CI/CD -> Variables in this project); its public half must be added as a
-# deploy key on the gogdl_flutter project.
+# SSH deploy key stored base64-encoded (single line, no whitespace — GitLab's
+# "File" variable type mangled the raw multi-line PEM on paste) as the
+# `GOGDL_DEPLOY_KEY_B64` variable (Settings -> CI/CD -> Variables in this
+# project, Type: Variable, masked); its public half must be added as a deploy
+# key on the gogdl_flutter project.
 #
 # If a job fails to resolve thinkcentre.home, the runner's containers aren't
 # seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
@@ -25,11 +27,12 @@ variables:
   before_script:
     - apt-get update -qq
     - apt-get install -qq -y --no-install-recommends git curl unzip xz-utils ca-certificates openssh-client >/dev/null
-    # SSH access to gogdl_flutter via the deploy key file variable.
-    - eval "$(ssh-agent -s)"
-    - chmod 600 "$GOGDL_DEPLOY_KEY"
-    - ssh-add "$GOGDL_DEPLOY_KEY"
+    # SSH access to gogdl_flutter via the base64-encoded deploy key variable.
     - mkdir -p ~/.ssh
+    - echo "$GOGDL_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/gogdl_deploy_key
+    - chmod 600 ~/.ssh/gogdl_deploy_key
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/gogdl_deploy_key
     - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
     # Flutter, pinned to the version in .fvmrc; cached in .ci/flutter/ (see cache: below).
     # (A literal block, not a plain list-item string: the sed script's `": *"`
