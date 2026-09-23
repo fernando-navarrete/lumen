@@ -176,10 +176,13 @@ String _downloadStatusText(ActivityTask task) {
     case TaskStatus.completed:
       return "Downloaded";
     case TaskStatus.failed:
-      return task.errorFiles.isEmpty
+      if (task.errorFiles.isNotEmpty) {
+        return "Download failed — couldn't create"
+            " ${task.errorFiles.length} file(s)";
+      }
+      return task.error == null
           ? "Download failed"
-          : "Download failed — couldn't create"
-                " ${task.errorFiles.length} file(s)";
+          : "Download failed — ${task.error}";
   }
 }
 
@@ -213,10 +216,13 @@ String _repairStatusText(ActivityTask task) {
           ? "Repaired"
           : "Repaired — ${task.verifyFailures.length} file(s) restored";
     case TaskStatus.failed:
-      return task.errorFiles.isEmpty
+      if (task.errorFiles.isNotEmpty) {
+        return "Repair failed — couldn't create"
+            " ${task.errorFiles.length} file(s)";
+      }
+      return task.error == null
           ? "Repair failed"
-          : "Repair failed — couldn't create"
-                " ${task.errorFiles.length} file(s)";
+          : "Repair failed — ${task.error}";
   }
 }
 
@@ -233,9 +239,12 @@ String _verificationStatusText(ActivityTask task) {
     case TaskStatus.completed:
       return "Verified";
     case TaskStatus.failed:
-      return task.verifyFailures.isEmpty
+      if (task.verifyFailures.isNotEmpty) {
+        return "Damaged — ${_verifyFailureSummary(task)}";
+      }
+      return task.error == null
           ? "Verification failed"
-          : "Damaged — ${_verifyFailureSummary(task)}";
+          : "Verification failed — ${task.error}";
   }
 }
 
@@ -438,7 +447,10 @@ class _RecentInstallRow extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Text(statusText, style: AppText.caption(color: AppColors.text40)),
+                Text(
+                  statusText,
+                  style: AppText.caption(color: AppColors.text40),
+                ),
               ],
             ),
           ),

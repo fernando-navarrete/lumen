@@ -21,12 +21,19 @@ class GameActionButtons extends ConsumerStatefulWidget {
     super.key,
     required this.gameId,
     this.large = false,
+    this.onSelectBuild,
   });
 
   final int gameId;
 
   /// Hero-sized buttons (library hero, game header).
   final bool large;
+
+  /// Called when an action needs the user to pick a build (e.g. the
+  /// installed build is missing or no longer offered by GOG) — typically
+  /// switches to the Builds tab. Left null wherever there's no tab to
+  /// switch to (the library hero).
+  final VoidCallback? onSelectBuild;
 
   @override
   ConsumerState<GameActionButtons> createState() => _GameActionButtonsState();
@@ -60,17 +67,24 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
 
   /// Preloads the default build (latest) and products (all) for
   /// [widget.gameId], but only fills in defaults when nothing has been
-  /// saved yet — a prior user choice is left untouched.
+  /// saved yet — a prior user choice is left untouched. Never picks a build
+  /// for an already-installed game: the files on disk were built from
+  /// whatever build was recorded (or none), and guessing "latest" here
+  /// could silently record a build that doesn't match them — see
+  /// [_checkBuild] for how a missing/stale build is surfaced instead.
   Future<void> _preload() async {
     final gogState = ref.read(gogStateProvider);
     final gamesNotifier = ref.read(gamesStateProvider.notifier);
     final gameId = widget.gameId;
+    final installed =
+        ref.read(gamesStateProvider).getGameStatus(gameId) ==
+        GameStatus.downloaded;
 
     // Re-read gamesStateProvider after each mutation below — it's an
     // immutable snapshot, so a stale local would miss updates the notifier
     // just made (e.g. addProductId below).
     String? buildName = ref.read(gamesStateProvider).getSelectedBuild(gameId);
-    if (buildName == null || buildName.isEmpty) {
+    if (!installed && (buildName == null || buildName.isEmpty)) {
       final builds = await gogState.getBuilds(gameId);
       if (!mounted) return;
       if (builds != null && builds.isNotEmpty) {
@@ -252,6 +266,32 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     ];
   }
 
+  /// Returns an error message if [buildName] can't be used to verify/repair
+  /// an installed game, or null if it looks usable. An empty name means
+  /// nothing was ever selected; a non-empty one that isn't in GOG's current
+  /// build list means the build was delisted or renamed after install —
+  /// either way the bridge would otherwise fail immediately (it looks the
+  /// build up by name) with no useful error surfaced to the user. A failed
+  /// [GogState.getBuilds] call (e.g. offline) returns null here too, so the
+  /// action proceeds and any real failure comes back through the task's
+  /// [ActivityTask.error] instead.
+  Future<String?> _checkBuild(int gameId, String buildName) async {
+    if (buildName.isEmpty) {
+      return "No build selected for this game — pick the installed build "
+          "in the Builds tab";
+    }
+    final gogState = ref.read(gogStateProvider);
+    final builds = await gogState.getBuilds(gameId);
+    if (builds == null) {
+      return null;
+    }
+    if (!builds.any((b) => b.versionName == buildName)) {
+      return 'Build "$buildName" is no longer offered by GOG — pick one in '
+          'the Builds tab';
+    }
+    return null;
+  }
+
   /// Re-checks an installed game's files against the manifest, reusing its
   /// already-persisted install path/build/products instead of prompting via
   /// [DirPicker] the way the not-installed "Import" flow does.
@@ -274,8 +314,16 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       return;
     }
     final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
+    final buildError = await _checkBuild(gameId, buildName);
+    if (buildError != null) {
+      if (!mounted) return;
+      showMessage(buildError);
+      widget.onSelectBuild?.call();
+      return;
+    }
     final List<int> productIds = gamesState.getProductIds(gameId).toList();
     if (productIds.isEmpty) {
+      showMessage("This game has no products selected to verify");
       return;
     }
 

@@ -1,0 +1,119 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/components/game_action_buttons.dart';
+import 'package:lumen/models/game_build.dart';
+import 'package:lumen/state/downloads_state.dart';
+import 'package:lumen/state/games_state.dart';
+
+import '../helpers/fake_gog_backend.dart';
+import '../helpers/pump_app.dart';
+
+/// Regression: an installed game whose saved build is empty, or no longer
+/// listed by GOG, used to fail Verify immediately with no explanation (the
+/// bridge looks builds up by name and throws on an unknown one). Verify now
+/// checks the build first and explains the problem instead.
+void main() {
+  const gameId = 1;
+
+  testWidgets(
+    'Verify on an installed game with no selected build shows a message and '
+    'starts nothing',
+    (tester) async {
+      final backend = FakeGogBackend();
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "", "productIds": [1], '
+          '"installPath": "/games/foo"}}}';
+      var selectBuildCalled = false;
+
+      final container = await pumpApp(
+        tester,
+        GameActionButtons(
+          gameId: gameId,
+          onSelectBuild: () => selectBuildCalled = true,
+        ),
+        backend: backend,
+        prefs: {'games': json},
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('Verify'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining('No build selected for this game'),
+        findsOneWidget,
+      );
+      expect(selectBuildCalled, isTrue);
+      expect(container.read(downloadsStateProvider).tasks, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'Verify on an installed game whose build is no longer listed shows a '
+    'message and starts nothing',
+    (tester) async {
+      final backend = FakeGogBackend()..builds[gameId] = [];
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "delisted-build", "productIds": [1], '
+          '"installPath": "/games/foo"}}}';
+      var selectBuildCalled = false;
+
+      final container = await pumpApp(
+        tester,
+        GameActionButtons(
+          gameId: gameId,
+          onSelectBuild: () => selectBuildCalled = true,
+        ),
+        backend: backend,
+        prefs: {'games': json},
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('Verify'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining('is no longer offered by GOG'),
+        findsOneWidget,
+      );
+      expect(selectBuildCalled, isTrue);
+      expect(container.read(downloadsStateProvider).tasks, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'an installed game with an empty selected build is not silently assigned '
+    'the latest one',
+    (tester) async {
+      final backend = FakeGogBackend()
+        ..builds[gameId] = [
+          const GameBuild(
+            buildId: 'b1',
+            versionName: 'latest',
+            releaseDate: '2026-02-01T00:00:00+0000',
+            releaseDateTimestamp: 1,
+          ),
+        ];
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "", "productIds": [1], '
+          '"installPath": "/games/foo"}}}';
+
+      final container = await pumpApp(
+        tester,
+        const GameActionButtons(gameId: gameId),
+        backend: backend,
+        prefs: {'games': json},
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(container.read(gamesStateProvider).getSelectedBuild(gameId), '');
+    },
+  );
+}

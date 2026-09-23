@@ -74,6 +74,11 @@ class _GameDetailsViewState extends State<GameDetailsView> {
                 _selectedTab = SelectedTab.settings;
               });
             },
+            onSelectBuild: () {
+              setState(() {
+                _selectedTab = SelectedTab.builds;
+              });
+            },
           ),
           const SizedBox(height: AppSpacing.lg),
           Expanded(

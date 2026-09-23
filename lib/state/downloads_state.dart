@@ -55,6 +55,12 @@ class ActivityTask {
   final String? buildName;
   final List<int> productIds;
 
+  // Set on a failed task from the bridge error (or a local reason, e.g. a
+  // stream that couldn't even be started) so the Downloads page can show
+  // more than a generic "<kind> failed" — see downloads_page.dart's status
+  // helpers.
+  final String? error;
+
   ActivityTask({
     required this.gameId,
     required this.kind,
@@ -70,6 +76,7 @@ class ActivityTask {
     this.path,
     this.buildName,
     List<int> productIds = const [],
+    this.error,
   }) : errorFiles = List.unmodifiable(errorFiles),
        verifyFailures = Map.unmodifiable(verifyFailures),
        productIds = List.unmodifiable(productIds);
@@ -92,6 +99,7 @@ class ActivityTask {
     required this.path,
     required this.buildName,
     required this.productIds,
+    required this.error,
   });
 
   int verifyFailureCount(VerifyFailure kind) =>
@@ -131,6 +139,7 @@ class ActivityTask {
     Object? path = _unset,
     Object? buildName = _unset,
     List<int>? productIds,
+    Object? error = _unset,
   }) {
     return ActivityTask._(
       gameId: gameId,
@@ -157,6 +166,7 @@ class ActivityTask {
       productIds: productIds == null
           ? this.productIds
           : List.unmodifiable(productIds),
+      error: identical(error, _unset) ? this.error : error as String?,
     );
   }
 }
@@ -272,7 +282,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       productIds,
     );
     if (stream == null) {
-      task = _commit(task, task.copyWith(status: TaskStatus.failed));
+      task = _commit(
+        task,
+        task.copyWith(status: TaskStatus.failed, error: 'could not start'),
+      );
       return;
     }
 
@@ -281,7 +294,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         final prev = task;
         switch (event) {
           case VerifyDownloadProgress_Started(:final field0):
-            task = task.copyWith(totalBytes: field0.toInt(), stage: 'verifying');
+            task = task.copyWith(
+              totalBytes: field0.toInt(),
+              stage: 'verifying',
+            );
           case VerifyDownloadProgress_Progress(:final field0):
             task = task.copyWith(downloadedBytes: field0.toInt());
           case VerifyDownloadProgress_CouldNotResolvePath(:final field0):
@@ -301,7 +317,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         if (task.status == TaskStatus.failed) {
           return;
         }
-        final finished = task.chunksToRedownload == 0 && task.errorFiles.isEmpty;
+        final finished =
+            task.chunksToRedownload == 0 && task.errorFiles.isEmpty;
         final next = task.copyWith(
           status: finished ? TaskStatus.completed : TaskStatus.failed,
         );
@@ -312,7 +329,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       },
       onError: (Object error) {
         logGogError(error);
-        task = _commit(task, task.copyWith(status: TaskStatus.failed));
+        task = _commit(
+          task,
+          task.copyWith(status: TaskStatus.failed, error: gogErrorText(error)),
+        );
       },
     );
   }
@@ -392,7 +412,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       productIds,
     );
     if (stream == null) {
-      final next = task.copyWith(status: TaskStatus.failed);
+      final next = task.copyWith(
+        status: TaskStatus.failed,
+        error: 'could not start',
+      );
       _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
       task = _commit(task, next);
       return;
@@ -402,7 +425,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       (event) {
         final prev = task;
         switch (event) {
-          case DownloadGameProgress_Started(:final totalFiles, :final totalBytes):
+          case DownloadGameProgress_Started(
+            :final totalFiles,
+            :final totalBytes,
+          ):
             task = task.copyWith(
               totalFiles: totalFiles.toInt(),
               totalBytes: totalBytes.toInt(),
@@ -452,7 +478,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       },
       onError: (Object error) {
         logGogError(error);
-        final next = task.copyWith(status: TaskStatus.failed);
+        final next = task.copyWith(
+          status: TaskStatus.failed,
+          error: gogErrorText(error),
+        );
         _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
         task = _commit(task, next);
       },
@@ -465,7 +494,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// game blocks a second start, same as [startDownload].
   Future<void> startRepair(int gameId) async {
     final existing = state.tasks[gameId];
-    if (existing == null || existing.path == null || existing.buildName == null) {
+    if (existing == null ||
+        existing.path == null ||
+        existing.buildName == null) {
       return;
     }
     if (existing.status == TaskStatus.running) {
@@ -533,7 +564,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       productIds,
     );
     if (stream == null) {
-      task = _commit(task, task.copyWith(status: TaskStatus.failed));
+      task = _commit(
+        task,
+        task.copyWith(status: TaskStatus.failed, error: 'could not start'),
+      );
       return;
     }
 
@@ -601,7 +635,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       },
       onError: (Object error) {
         logGogError(error);
-        task = _commit(task, task.copyWith(status: TaskStatus.failed));
+        task = _commit(
+          task,
+          task.copyWith(status: TaskStatus.failed, error: gogErrorText(error)),
+        );
       },
     );
   }

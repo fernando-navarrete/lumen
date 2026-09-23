@@ -13,7 +13,8 @@ import '../helpers/fake_gog_backend.dart';
 /// passing unchanged once Phase 5 makes tasks immutable (the throttle then
 /// gates a state *replacement* instead of a mutation, but the timing is the
 /// same).
-Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 150));
+Future<void> settle() =>
+    Future<void>.delayed(const Duration(milliseconds: 150));
 
 void main() {
   group('DownloadsNotifier — download', () {
@@ -25,7 +26,9 @@ void main() {
       GamesState games() => container.read(gamesStateProvider);
       // setGameStatus() no-ops without an existing GameConfig, so seed one —
       // otherwise the downloading assertion below would pass trivially.
-      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
 
       await notifier.startDownload(
         1,
@@ -78,7 +81,9 @@ void main() {
       expect(task.processedFiles, 3);
 
       controller.add(
-        DownloadGameProgress.downloadProgress(downloadedBytes: BigInt.from(400)),
+        DownloadGameProgress.downloadProgress(
+          downloadedBytes: BigInt.from(400),
+        ),
       );
       await settle();
       task = container.read(downloadsStateProvider).tasks[1]!;
@@ -87,29 +92,32 @@ void main() {
       expect(task.progress, 400 / 1000);
     });
 
-    test('finished + close marks the task completed and the game installed', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(downloadsStateProvider.notifier);
-      GamesState games() => container.read(gamesStateProvider);
+    test(
+      'finished + close marks the task completed and the game installed',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+        GamesState games() => container.read(gamesStateProvider);
 
-      await notifier.startDownload(
-        1,
-        path: '/games/foo',
-        buildName: 'build-1',
-        productIds: [1],
-      );
-      final controller = backend.downloadController(1);
-      controller.add(const DownloadGameProgress.finished());
-      await controller.close();
-      await settle();
+        await notifier.startDownload(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final controller = backend.downloadController(1);
+        controller.add(const DownloadGameProgress.finished());
+        await controller.close();
+        await settle();
 
-      final task = container.read(downloadsStateProvider).tasks[1]!;
-      expect(task.status, TaskStatus.completed);
-      expect(games().getGameStatus(1), GameStatus.downloaded);
-      expect(games().getInstallPath(1), '/games/foo');
-    });
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.completed);
+        expect(games().getGameStatus(1), GameStatus.downloaded);
+        expect(games().getInstallPath(1), '/games/foo');
+      },
+    );
 
     test(
       'v1.0.5: a download that finishes with allocation errorFiles is not marked installed',
@@ -119,7 +127,9 @@ void main() {
         addTearDown(backend.closeAll);
         final notifier = container.read(downloadsStateProvider.notifier);
         GamesState games() => container.read(gamesStateProvider);
-        container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+        container
+            .read(gamesStateProvider.notifier)
+            .setSelectedBuild(1, 'build-1');
 
         await notifier.startDownload(
           1,
@@ -146,7 +156,9 @@ void main() {
       addTearDown(backend.closeAll);
       final notifier = container.read(downloadsStateProvider.notifier);
       GamesState games() => container.read(gamesStateProvider);
-      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
 
       await notifier.startDownload(
         1,
@@ -166,26 +178,31 @@ void main() {
       expect(games().getGameStatus(1), GameStatus.notInstalled);
     });
 
-    test('a thrown error starting the stream fails the task immediately', () async {
-      final backend = FakeGogBackend()
-        ..throwOn['downloadGame'] = Exception('boom');
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(downloadsStateProvider.notifier);
-      GamesState games() => container.read(gamesStateProvider);
-      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+    test(
+      'a thrown error starting the stream fails the task immediately',
+      () async {
+        final backend = FakeGogBackend()
+          ..throwOn['downloadGame'] = Exception('boom');
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+        GamesState games() => container.read(gamesStateProvider);
+        container
+            .read(gamesStateProvider.notifier)
+            .setSelectedBuild(1, 'build-1');
 
-      await notifier.startDownload(
-        1,
-        path: '/games/foo',
-        buildName: 'build-1',
-        productIds: [1],
-      );
+        await notifier.startDownload(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
 
-      final task = container.read(downloadsStateProvider).tasks[1]!;
-      expect(task.status, TaskStatus.failed);
-      expect(games().getGameStatus(1), GameStatus.notInstalled);
-    });
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.failed);
+        expect(games().getGameStatus(1), GameStatus.notInstalled);
+      },
+    );
 
     test(
       'a running download blocks a re-start; a failed one is retried with a fresh stream',
@@ -288,7 +305,10 @@ void main() {
           VerifyDownloadProgress.checksumMismatch('corrupt.dat', BigInt.zero),
         );
         controller.add(
-          VerifyDownloadProgress.couldNotResolvePath('bad-path.dat', BigInt.zero),
+          VerifyDownloadProgress.couldNotResolvePath(
+            'bad-path.dat',
+            BigInt.zero,
+          ),
         );
         controller.add(VerifyDownloadProgress.finished(BigInt.from(3)));
         await controller.close();
@@ -297,10 +317,7 @@ void main() {
         final task = container.read(downloadsStateProvider).tasks[1]!;
         expect(task.verifyFailures['missing.dat'], VerifyFailure.missing);
         expect(task.verifyFailures['corrupt.dat'], VerifyFailure.corrupt);
-        expect(
-          task.verifyFailures['bad-path.dat'],
-          VerifyFailure.unreadable,
-        );
+        expect(task.verifyFailures['bad-path.dat'], VerifyFailure.unreadable);
         expect(
           task.errorFiles,
           unorderedEquals(['missing.dat', 'corrupt.dat', 'bad-path.dat']),
@@ -426,7 +443,10 @@ void main() {
         );
         await settle();
         var task = container.read(downloadsStateProvider).tasks[1]!;
-        expect(task.verifyFailures.keys, unorderedEquals(['missing.dat', 'corrupt.dat']));
+        expect(
+          task.verifyFailures.keys,
+          unorderedEquals(['missing.dat', 'corrupt.dat']),
+        );
         expect(task.errorFiles, isEmpty);
 
         controller.add(
@@ -527,32 +547,39 @@ void main() {
   });
 
   group('DownloadsNotifier — late stream error', () {
-    test('download: an error with no finished fails the task and the game', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(downloadsStateProvider.notifier);
-      GamesState games() => container.read(gamesStateProvider);
-      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+    test(
+      'download: an error with no finished fails the task and the game',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+        GamesState games() => container.read(gamesStateProvider);
+        container
+            .read(gamesStateProvider.notifier)
+            .setSelectedBuild(1, 'build-1');
 
-      await notifier.startDownload(
-        1,
-        path: '/games/foo',
-        buildName: 'build-1',
-        productIds: [1],
-      );
-      final controller = backend.downloadController(1);
-      controller.add(
-        DownloadGameProgress.downloadProgress(downloadedBytes: BigInt.from(10)),
-      );
-      controller.addError(Exception('late error'));
-      await controller.close();
-      await settle();
+        await notifier.startDownload(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        final controller = backend.downloadController(1);
+        controller.add(
+          DownloadGameProgress.downloadProgress(
+            downloadedBytes: BigInt.from(10),
+          ),
+        );
+        controller.addError(Exception('late error'));
+        await controller.close();
+        await settle();
 
-      final task = container.read(downloadsStateProvider).tasks[1]!;
-      expect(task.status, TaskStatus.failed);
-      expect(games().getGameStatus(1), GameStatus.notInstalled);
-    });
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.failed);
+        expect(games().getGameStatus(1), GameStatus.notInstalled);
+      },
+    );
 
     test('verification: an error with no finished fails the task', () async {
       final backend = FakeGogBackend();
@@ -600,38 +627,82 @@ void main() {
       expect(task.status, TaskStatus.failed);
     });
 
+    test('download: an error arriving after finished still fails the task, not '
+        'completes it (v1.1.2 — onDone no longer re-derives status once onError '
+        'has already failed the task)', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+      GamesState games() => container.read(gamesStateProvider);
+
+      await notifier.startDownload(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.downloadController(1);
+      controller.add(const DownloadGameProgress.finished());
+      controller.addError(Exception('late error, after finished'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(games().getGameStatus(1), GameStatus.notInstalled);
+    });
+
+    test('verification: an error arriving after finished still fails the task '
+        '(v1.1.2)', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.verifyController(1);
+      controller.add(VerifyDownloadProgress.finished(BigInt.from(0)));
+      controller.addError(Exception('late error, after finished'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+    });
+
+    test('repair: an error arriving after finished still fails the task '
+        '(v1.1.2)', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startRepairForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.repairController(1);
+      controller.add(const RepairGameProgress.finished());
+      controller.addError(Exception('late error, after finished'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+    });
+  });
+
+  group('DownloadsNotifier — error text', () {
     test(
-      'download: an error arriving after finished still fails the task, not '
-      'completes it (v1.1.2 — onDone no longer re-derives status once onError '
-      'has already failed the task)',
-      () async {
-        final backend = FakeGogBackend();
-        final container = await createContainer(backend: backend);
-        addTearDown(backend.closeAll);
-        final notifier = container.read(downloadsStateProvider.notifier);
-        GamesState games() => container.read(gamesStateProvider);
-
-        await notifier.startDownload(
-          1,
-          path: '/games/foo',
-          buildName: 'build-1',
-          productIds: [1],
-        );
-        final controller = backend.downloadController(1);
-        controller.add(const DownloadGameProgress.finished());
-        controller.addError(Exception('late error, after finished'));
-        await controller.close();
-        await settle();
-
-        final task = container.read(downloadsStateProvider).tasks[1]!;
-        expect(task.status, TaskStatus.failed);
-        expect(games().getGameStatus(1), GameStatus.notInstalled);
-      },
-    );
-
-    test(
-      'verification: an error arriving after finished still fails the task '
-      '(v1.1.2)',
+      'verification: a stream error records the bridge error text',
       () async {
         final backend = FakeGogBackend();
         final container = await createContainer(backend: backend);
@@ -645,70 +716,113 @@ void main() {
           productIds: [1],
         );
         final controller = backend.verifyController(1);
-        controller.add(VerifyDownloadProgress.finished(BigInt.from(0)));
-        controller.addError(Exception('late error, after finished'));
+        controller.addError(Exception('gog says no'));
         await controller.close();
         await settle();
 
         final task = container.read(downloadsStateProvider).tasks[1]!;
         expect(task.status, TaskStatus.failed);
+        expect(task.error, contains('gog says no'));
       },
     );
 
+    test('download: a stream error records the bridge error text', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startDownload(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.downloadController(1);
+      controller.addError(Exception('gog says no'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(task.error, contains('gog says no'));
+    });
+
+    test('repair: a stream error records the bridge error text', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startRepairForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.repairController(1);
+      controller.addError(Exception('gog says no'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(task.error, contains('gog says no'));
+    });
+
     test(
-      'repair: an error arriving after finished still fails the task '
-      '(v1.1.2)',
+      'a build lookup that fails to even start the stream records "could not start"',
+      () async {
+        final backend = FakeGogBackend()
+          ..throwOn['verifyDownload'] = Exception('boom');
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startVerification(
+          1,
+          path: '/games/foo',
+          buildName: 'unknown-build',
+          productIds: [1],
+        );
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.failed);
+        expect(task.error, 'could not start');
+      },
+    );
+  });
+
+  group('DownloadsNotifier — immutability (Phase 5)', () {
+    test(
+      'an event produces a new task; the old snapshot keeps its old values',
       () async {
         final backend = FakeGogBackend();
         final container = await createContainer(backend: backend);
         addTearDown(backend.closeAll);
         final notifier = container.read(downloadsStateProvider.notifier);
 
-        await notifier.startRepairForInstalled(
+        await notifier.startVerification(
           1,
           path: '/games/foo',
           buildName: 'build-1',
           productIds: [1],
         );
-        final controller = backend.repairController(1);
-        controller.add(const RepairGameProgress.finished());
-        controller.addError(Exception('late error, after finished'));
-        await controller.close();
-        await settle();
+        final controller = backend.verifyController(1);
 
-        final task = container.read(downloadsStateProvider).tasks[1]!;
-        expect(task.status, TaskStatus.failed);
+        controller.add(VerifyDownloadProgress.started(BigInt.from(1000)));
+        await settle();
+        final before = container.read(downloadsStateProvider).tasks[1]!;
+
+        controller.add(VerifyDownloadProgress.progress(BigInt.from(400)));
+        await settle();
+        final after = container.read(downloadsStateProvider).tasks[1]!;
+
+        expect(identical(before, after), isFalse);
+        expect(before.downloadedBytes, 0);
+        expect(after.downloadedBytes, 400);
       },
     );
-  });
-
-  group('DownloadsNotifier — immutability (Phase 5)', () {
-    test('an event produces a new task; the old snapshot keeps its old values', () async {
-      final backend = FakeGogBackend();
-      final container = await createContainer(backend: backend);
-      addTearDown(backend.closeAll);
-      final notifier = container.read(downloadsStateProvider.notifier);
-
-      await notifier.startVerification(
-        1,
-        path: '/games/foo',
-        buildName: 'build-1',
-        productIds: [1],
-      );
-      final controller = backend.verifyController(1);
-
-      controller.add(VerifyDownloadProgress.started(BigInt.from(1000)));
-      await settle();
-      final before = container.read(downloadsStateProvider).tasks[1]!;
-
-      controller.add(VerifyDownloadProgress.progress(BigInt.from(400)));
-      await settle();
-      final after = container.read(downloadsStateProvider).tasks[1]!;
-
-      expect(identical(before, after), isFalse);
-      expect(before.downloadedBytes, 0);
-      expect(after.downloadedBytes, 400);
-    });
 
     test('errorFiles and verifyFailures are unmodifiable', () async {
       final backend = FakeGogBackend();
@@ -736,89 +850,85 @@ void main() {
       );
     });
 
-    test(
-      'rapid progress events collapse under the throttle, but the final '
-      'terminal event always lands',
-      () async {
-        final backend = FakeGogBackend();
-        final container = await createContainer(backend: backend);
-        addTearDown(backend.closeAll);
-        final notifier = container.read(downloadsStateProvider.notifier);
-        container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'build-1');
+    test('rapid progress events collapse under the throttle, but the final '
+        'terminal event always lands', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
 
-        await notifier.startDownload(
-          1,
-          path: '/games/foo',
-          buildName: 'build-1',
-          productIds: [1],
-        );
-        final controller = backend.downloadController(1);
+      await notifier.startDownload(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final controller = backend.downloadController(1);
 
-        // No settle() between these -- all but the last should be coalesced
-        // by the throttle, and the terminal finished+close must still flush.
+      // No settle() between these -- all but the last should be coalesced
+      // by the throttle, and the terminal finished+close must still flush.
+      controller.add(
+        DownloadGameProgress.started(
+          totalFiles: BigInt.from(1),
+          totalBytes: BigInt.from(1000),
+        ),
+      );
+      for (var i = 1; i <= 5; i++) {
         controller.add(
-          DownloadGameProgress.started(
-            totalFiles: BigInt.from(1),
-            totalBytes: BigInt.from(1000),
+          DownloadGameProgress.downloadProgress(
+            downloadedBytes: BigInt.from(i * 100),
           ),
         );
-        for (var i = 1; i <= 5; i++) {
-          controller.add(
-            DownloadGameProgress.downloadProgress(
-              downloadedBytes: BigInt.from(i * 100),
-            ),
-          );
-        }
-        controller.add(const DownloadGameProgress.finished());
-        await controller.close();
-        await settle();
+      }
+      controller.add(const DownloadGameProgress.finished());
+      await controller.close();
+      await settle();
 
-        final task = container.read(downloadsStateProvider).tasks[1]!;
-        expect(task.status, TaskStatus.completed);
-        expect(task.downloadedBytes, 500);
-      },
-    );
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.completed);
+      expect(task.downloadedBytes, 500);
+    });
 
-    test(
-      'a stale stream cannot clobber the task that replaced it',
-      () async {
-        final backend = FakeGogBackend();
-        final container = await createContainer(backend: backend);
-        addTearDown(backend.closeAll);
-        final notifier = container.read(downloadsStateProvider.notifier);
+    test('a stale stream cannot clobber the task that replaced it', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
 
-        await notifier.startVerification(
-          1,
-          path: '/games/foo',
-          buildName: 'build-1',
-          productIds: [1],
-        );
-        final staleController = backend.verifyController(1);
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final staleController = backend.verifyController(1);
 
-        // Dequeues the still-running task above and starts a fresh one on a
-        // new controller, without waiting for the old stream to close.
-        await notifier.startVerificationForInstalled(
-          1,
-          path: '/games/foo',
-          buildName: 'build-2',
-          productIds: [1],
-        );
-        final freshController = backend.verifyController(1);
-        expect(identical(staleController, freshController), isFalse);
+      // Dequeues the still-running task above and starts a fresh one on a
+      // new controller, without waiting for the old stream to close.
+      await notifier.startVerificationForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-2',
+        productIds: [1],
+      );
+      final freshController = backend.verifyController(1);
+      expect(identical(staleController, freshController), isFalse);
 
-        freshController.add(VerifyDownloadProgress.started(BigInt.from(500)));
-        await settle();
-        final beforeStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
+      freshController.add(VerifyDownloadProgress.started(BigInt.from(500)));
+      await settle();
+      final beforeStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
 
-        // An event on the orphaned stream must not overwrite the fresh task.
-        staleController.add(VerifyDownloadProgress.started(BigInt.from(999999)));
-        await settle();
-        final afterStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
+      // An event on the orphaned stream must not overwrite the fresh task.
+      staleController.add(VerifyDownloadProgress.started(BigInt.from(999999)));
+      await settle();
+      final afterStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
 
-        expect(afterStaleEvent.totalBytes, beforeStaleEvent.totalBytes);
-        expect(afterStaleEvent.buildName, 'build-2');
-        expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
-      },
-    );
+      expect(afterStaleEvent.totalBytes, beforeStaleEvent.totalBytes);
+      expect(afterStaleEvent.buildName, 'build-2');
+      expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
+    });
   });
 }

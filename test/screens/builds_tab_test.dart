@@ -83,12 +83,49 @@ void main() {
   });
 
   testWidgets(
+    'an installed game whose saved build is no longer listed shows a stale-build note '
+    'and no build is Active',
+    (tester) async {
+      final backend = FakeGogBackend()
+        ..builds[gameId] = [
+          const GameBuild(
+            buildId: 'b2',
+            versionName: '2.0.0',
+            releaseDate: '2026-02-01T00:00:00+0000',
+            releaseDateTimestamp: 1,
+          ),
+        ];
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "1.0.0-delisted", "productIds": [1]}}}';
+
+      await pumpApp(
+        tester,
+        const BuildsTab(gameId: gameId),
+        backend: backend,
+        prefs: {'games': json},
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.textContaining(
+          'Installed build "1.0.0-delisted" is no longer listed',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Active'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'v1.0.8: a getGameBuilds that resolves after the tab is disposed does not crash',
     (tester) async {
       final backend = _GatedFakeGogBackend()..builds[gameId] = [];
 
       await pumpApp(tester, const BuildsTab(gameId: gameId), backend: backend);
-      await tester.pump(); // post-frame callback starts _loadBuilds, which awaits the gate
+      await tester
+          .pump(); // post-frame callback starts _loadBuilds, which awaits the gate
 
       // Unmount BuildsTab while its getBuilds() future is still pending.
       await tester.pumpWidget(const SizedBox.shrink());

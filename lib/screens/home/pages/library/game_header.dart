@@ -12,12 +12,20 @@ import 'package:lumen/theme/text_styles.dart';
 /// Wide banner with the game's background art, title, status meta row and
 /// the status-driven action buttons.
 class GameHeader extends ConsumerWidget {
-  const GameHeader({super.key, required this.gameId, this.onConfigure});
+  const GameHeader({
+    super.key,
+    required this.gameId,
+    this.onConfigure,
+    this.onSelectBuild,
+  });
 
   final int gameId;
 
   /// Invoked by the Configure button, e.g. to jump to the Settings tab.
   final VoidCallback? onConfigure;
+
+  /// Forwarded to [GameActionButtons.onSelectBuild].
+  final VoidCallback? onSelectBuild;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,7 +74,11 @@ class GameHeader extends ConsumerWidget {
               ),
           ],
           actions: [
-            GameActionButtons(gameId: gameId, large: true),
+            GameActionButtons(
+              gameId: gameId,
+              large: true,
+              onSelectBuild: onSelectBuild,
+            ),
             if (onConfigure != null)
               PrimaryButton(
                 onTap: onConfigure!,

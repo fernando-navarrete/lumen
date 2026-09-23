@@ -30,6 +30,13 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   List<GameBuild>? _builds;
   int selectedBuild = -1;
 
+  /// Set when the game is installed, has a non-empty recorded build, but
+  /// that build isn't in [_builds] — GOG delisted or renamed it after
+  /// install. Surfaced as a note above the list, since otherwise nothing
+  /// being Active here looks unexplained (see game_action_buttons.dart's
+  /// `_checkBuild`, which blocks Verify/Play in the same situation).
+  String? _staleBuildName;
+
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadBuilds());
@@ -44,11 +51,22 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
     GamesState gamesState = ref.read(gamesStateProvider);
     String? selectedName = gamesState.getSelectedBuild(widget.gameId);
+    final installed =
+        gamesState.getGameStatus(widget.gameId) == GameStatus.downloaded;
+    final index = selectedName == null
+        ? -1
+        : builds?.indexWhere((b) => b.versionName == selectedName) ?? -1;
     setState(() {
       _builds = builds;
-      selectedBuild = selectedName == null
-          ? -1
-          : builds?.indexWhere((b) => b.versionName == selectedName) ?? -1;
+      selectedBuild = index;
+      _staleBuildName =
+          installed &&
+              builds != null &&
+              selectedName != null &&
+              selectedName.isNotEmpty &&
+              index == -1
+          ? selectedName
+          : null;
       _loading = false;
     });
   }
@@ -63,9 +81,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
     if (status == GameStatus.downloading ||
         runningTask?.status == TaskStatus.running) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Wait for the current task to finish"),
-        ),
+        const SnackBar(content: Text("Wait for the current task to finish")),
       );
       return;
     }
@@ -142,6 +158,15 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
+                if (_staleBuildName != null) ...[
+                  Text(
+                    'Installed build "$_staleBuildName" is no longer listed '
+                    'by GOG. Select the build to switch to — Lumen will '
+                    'repair the install against it.',
+                    style: AppText.meta(color: AppColors.error),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 if (_loading)
                   const CenteredLoader()
                 else if (_builds == null)
