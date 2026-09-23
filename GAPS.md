@@ -25,9 +25,15 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   like boxart and names are, and `library_page.dart:133` / `game_header.dart:43` call it inside
   `build()`. Each rebuild (for example any `gamesStateProvider` change) hands `FutureBuilder` a new
   Future, which resets it to the loader and re-issues the bridge call.
-- [ ] **P1 — The library never leaves the loading spinner on error or when empty.** `_GameGrid`
-  (`library_page.dart:84,100`) treats `null` (the fetch failed) and `[]` (no games) the same way: an
-  endless `CenteredLoader`. It needs error and empty states, plus a retry.
+- [x] **P1 — The library never leaves the loading spinner on error or when empty.** Fixed in
+  `v1.0.6`: `_GameGrid` now distinguishes loading, a failed fetch (`null`) and an empty library
+  (`[]`), showing a message with a Retry button for the latter two. This also relies on
+  `gogdl_flutter` `v1.1.3` / `gogdl-lib` `v1.0.11`, which filter `getOwnedGames()` down to real
+  games (DLC and other non-game products used to surface as raw decode errors downstream). Since
+  that filtering isn't cached upstream and doesn't preserve order (one `gamesdb.gog.com` lookup per
+  owned product, unordered), `GogState.getOwnedGames` now caches and sorts the result itself, and
+  a per-product lookup failure can make the result `[]` even though the library isn't actually
+  empty — hence Retry on the empty state too, not just the error state.
 - [ ] **P1 — Builds tab crashes when fetching builds fails.** `_builds!.indexWhere`
   (`builds_tab.dart:48`) runs when `getBuilds` returns `null`.
 - [ ] **P1 — `setState` can run after dispose in several async `initState` flows.** Affected:
@@ -81,9 +87,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — Prefix tools.** Add "open prefix folder", "reset prefix", winecfg and winetricks, plus an
   "open install folder" action.
 - [ ] **P2 — Disk space check** before installing, using the download size.
-- [ ] **P2 — Library refresh, sorting and metadata caching.** The owned-games list and titles are
-  refetched every time the Library tab is shown (see 5.1). There is no manual refresh and no offline
-  view.
+- [ ] **P2 — Library refresh, sorting and metadata caching.** Since `v1.0.6`, `GogState` caches the
+  owned-games list for the session (`gog_state.dart`'s `_ownedGamesCache`), so it's no longer
+  refetched on every Library visit — only titles still are (see 5.1). There is still no manual
+  refresh (to pick up newly purchased/redeemed games without restarting) and no offline view.
 - [ ] **P2 — Desktop notifications** when a download, repair or sync finishes.
 - [ ] **P2 — Playtime and last-played tracking** (the hero banner already says "CONTINUE PLAYING").
 - [ ] **P2 — `.desktop` shortcuts / launch by game id** from outside the app.
@@ -149,10 +156,13 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 5. Performance
 
-- [ ] **P1 — Game titles are fetched serially (5.1)** (`library_page.dart:87`), one `await` per game,
-  on every Library visit. Fetch them in parallel (bounded) and cache them in a provider.
+- [ ] **P1 — Game titles are fetched serially (5.1)** (`library_page.dart:104`), one `await` per game,
+  on every Library visit (the owned-games list itself is cached since `v1.0.6`, but not titles).
+  Fetch them in parallel (bounded) and cache them in a provider.
 - [ ] **P2 — Filter the grid without hiding untitled games.** Games whose title hasn't loaded or failed
-  render as `SizedBox.shrink()` but still count toward "N games" and take a grid slot.
+  render as `SizedBox.shrink()` but still count toward "N games" and take a grid slot. Rarer since
+  `v1.0.6` now that non-game products are filtered out server-side, but a slow/failed title fetch
+  for an actual game still hits this.
 - [ ] **P2 — Screenshots use `BoxFit.fill`** (`overview_tab.dart:81`), which distorts them; use `cover`.
   Consider `cacheWidth` for grid thumbnails.
 

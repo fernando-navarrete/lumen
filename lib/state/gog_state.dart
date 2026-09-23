@@ -32,6 +32,14 @@ class GogState {
   final HashMap<int, Future<String?>> _gameNameCache = HashMap();
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
 
+  /// The bridge's owned-games list is filtered to real games server-side
+  /// (since `gogdl_flutter` v1.1.3) by looking up every owned product on
+  /// `gamesdb.gog.com`, unordered and uncached — so it's both slow (one
+  /// request per owned product) and shuffles order between calls. Cache the
+  /// resolved, sorted list for a stable grid order and a cheap tab switch;
+  /// [invalidateOwnedGames] clears it for a manual Retry.
+  Future<List<int>?>? _ownedGamesCache;
+
   /// Caches the in-flight/completed registration of the token-refresh
   /// callback (see [_ensureTokenRefreshCallback]) so it's only registered
   /// once per [GogState], no matter how many auth calls trigger it.
@@ -166,11 +174,31 @@ class GogState {
     await storage.delete(key: 'auth');
   }
 
-  Future<List<int>?> getOwnedGames() async {
+  Future<List<int>?> getOwnedGames() =>
+      _ownedGamesCache ??= _fetchOwnedGames();
+
+  /// Drops the cached owned-games list so the next [getOwnedGames] call
+  /// re-fetches, for a manual Retry.
+  void invalidateOwnedGames() {
+    _ownedGamesCache = null;
+  }
+
+  Future<List<int>?> _fetchOwnedGames() async {
     try {
-      return await _backend.getOwnedGames();
+      final owned = await _backend.getOwnedGames();
+      if (owned.isEmpty) {
+        // A per-product gamesdb lookup failure silently drops that game
+        // upstream, so an empty result may just be transient — don't pin it
+        // behind the cache, so a Retry actually hits the network again.
+        _ownedGamesCache = null;
+        return owned;
+      }
+      return owned.toList()..sort();
     } catch (e) {
       logGogError(e);
+      // Don't pin a transient failure behind the cache — let the next call
+      // (e.g. a Retry) try the network again.
+      _ownedGamesCache = null;
       return null;
     }
   }

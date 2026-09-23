@@ -11,6 +11,7 @@ import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/home_state.dart';
 import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
@@ -73,33 +74,60 @@ class _GameGrid extends ConsumerStatefulWidget {
 }
 
 class _GameGridState extends ConsumerState<_GameGrid> {
-  List<int> _ownedGames = [];
+  bool _loading = true;
+  List<int>? _ownedGames;
   List<String> _gameNames = [];
   _LibraryFilter _filter = _LibraryFilter.all;
 
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      var gogState = ref.read(gogStateProvider);
-      _ownedGames = await gogState.getOwnedGames() ?? [];
-      _gameNames = List.filled(_ownedGames.length, '');
-      setState(() {});
-      for (int i = 0; i < _ownedGames.length; i++) {
-        final name = await gogState.getGameName(_ownedGames[i]);
-        if (name != null) {
-          _gameNames[i] = name;
-          setState(() {});
-        }
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
     super.initState();
+  }
+
+  Future<void> _load({bool retry = false}) async {
+    setState(() => _loading = true);
+    var gogState = ref.read(gogStateProvider);
+    if (retry) {
+      gogState.invalidateOwnedGames();
+    }
+    final owned = await gogState.getOwnedGames();
+    if (!mounted) return;
+    setState(() {
+      _ownedGames = owned;
+      _gameNames = List.filled(owned?.length ?? 0, '');
+      _loading = false;
+    });
+    if (owned == null) {
+      return;
+    }
+    for (int i = 0; i < owned.length; i++) {
+      final name = await gogState.getGameName(owned[i]);
+      if (!mounted) return;
+      if (name != null) {
+        setState(() => _gameNames[i] = name);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_ownedGames.isEmpty) {
+    if (_loading) {
       return const CenteredLoader();
     }
+    if (_ownedGames == null) {
+      return _LibraryMessage(
+        message: "Couldn't load your library.",
+        onRetry: () => _load(retry: true),
+      );
+    }
+    if (_ownedGames!.isEmpty) {
+      return _LibraryMessage(
+        message: 'No games in your library.',
+        onRetry: () => _load(retry: true),
+      );
+    }
+    final List<int> ownedGames = _ownedGames!;
 
     final gogState = ref.watch(gogStateProvider);
     final gamesState = ref.watch(gamesStateProvider);
@@ -107,17 +135,17 @@ class _GameGridState extends ConsumerState<_GameGrid> {
 
     // Indices surviving the search field and the status filter chips.
     final List<int> visible = [
-      for (int i = 0; i < _ownedGames.length; i++)
-        if (_filter.matches(gamesState.getGameStatus(_ownedGames[i])) &&
+      for (int i = 0; i < ownedGames.length; i++)
+        if (_filter.matches(gamesState.getGameStatus(ownedGames[i])) &&
             (query.isEmpty || _gameNames[i].toLowerCase().contains(query)))
           i,
     ];
 
     // Featured game: first installed one, else the first in the library.
-    final int featuredIndex = _ownedGames.indexWhere(
+    final int featuredIndex = ownedGames.indexWhere(
       (id) => gamesState.getGameStatus(id) == GameStatus.downloaded,
     );
-    final int featuredId = _ownedGames[featuredIndex < 0 ? 0 : featuredIndex];
+    final int featuredId = ownedGames[featuredIndex < 0 ? 0 : featuredIndex];
     final String featuredName = _gameNames[featuredIndex < 0 ? 0 : featuredIndex];
     final bool featuredInstalled = featuredIndex >= 0;
 
@@ -205,10 +233,10 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                       return const SizedBox.shrink();
                     }
                     return GameCard(
-                      gameId: _ownedGames[i],
+                      gameId: ownedGames[i],
                       gameName: _gameNames[i],
                       onTap: () {
-                        widget.onGameTap(_ownedGames[i]);
+                        widget.onGameTap(ownedGames[i]);
                       },
                     );
                   },
@@ -221,4 +249,39 @@ class _GameGridState extends ConsumerState<_GameGrid> {
       ),
     );
   }
+}
+
+/// Centered message with a Retry action, for when the owned-games fetch
+/// failed or came back empty.
+class _LibraryMessage extends StatelessWidget {
+  const _LibraryMessage({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        decoration: AppDecorations.glassRow(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: AppSpacing.md,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppText.bodyMedium(color: AppColors.text70),
+            ),
+            PrimaryButton(
+              onTap: onRetry,
+              child: Text('Retry', style: AppText.button(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

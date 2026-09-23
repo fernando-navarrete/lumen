@@ -61,6 +61,12 @@ every other notifier reads it via `ref.read(gogStateProvider)`. Its methods foll
 convention: try the backend call, `print` and either `rethrow` or return `null`/empty on `kDebugMode`
 catch — callers are expected to handle `null` as "the operation failed."
 
+`GogState.getOwnedGames` is filtered to real games by the bridge (`gogdl_flutter` v1.1.3+): DLC and
+other non-game products the account owns no longer come back in the list. That filtering is
+per-product, unordered and uncached upstream, so `GogState` caches the resolved list for the session
+and sorts it before returning, invalidating the cache on failure or an empty result so a Retry
+re-fetches instead of replaying a stale outcome.
+
 **Backend streams are single-subscription.** `GogState` caches one stream per gameId (verification,
 download, repair, save download, save upload) or per Proton tag (Proton download), so only the
 owning notifier (`DownloadsNotifier`, `ProtonNotifier`, `SavesNotifier`) may ever `.listen()` to it. UI code must never listen to the
