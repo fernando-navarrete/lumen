@@ -21,6 +21,19 @@ void main() {
     root.deleteSync(recursive: true);
   });
 
+  group('findExecutablesAsync', () {
+    test('returns the same list as findExecutables', () async {
+      touch('Game.exe');
+      touch('bin/x64/Game64.exe');
+      touch('LAUNCHER.EXE');
+      touch('unins000.exe');
+      touch('_CommonRedist/vcredist_x64.exe');
+
+      expect(await findExecutablesAsync(root.path), findExecutables(root.path));
+      expect(await findExecutablesAsync(root.path), hasLength(3));
+    });
+  });
+
   group('findExecutables', () {
     test(
       'finds real launch candidates and skips installers/redistributables',
@@ -50,9 +63,10 @@ void main() {
     });
 
     // Known false negatives of the current substring heuristic — recorded as
-    // characterization tests of existing behavior. Fixing these properly is
-    // the ROADMAP v1.2.0 item: resolving executables from a game's
-    // goggame-<id>.info `playTasks` instead of this scan.
+    // characterization tests of existing behavior. They're deliberately left
+    // alone: for games that ship goggame-<id>.info, its `playTasks`
+    // (lib/common/goggame_info.dart) supersede this scan, which is only the
+    // fallback now, and loosening it would just widen the picker.
     group('known false negatives (current heuristic, see ROADMAP v1.2.0)', () {
       test('a legitimate exe containing "crash" is skipped', () {
         touch('CrashDay.exe');

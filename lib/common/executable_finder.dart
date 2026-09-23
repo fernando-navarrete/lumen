@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 /// Directory names (case-insensitive substring match) skipped while
 /// scanning for launchable executables — installers/redistributables ship
@@ -73,3 +74,10 @@ List<String> findExecutables(String installPath) {
   final result = found.toList()..sort();
   return result;
 }
+
+/// [findExecutables] on a background isolate, so scanning a large install
+/// doesn't block the UI. The closure passed to `Isolate.run` is copied to
+/// the new isolate, so it must only capture plain data like the path
+/// `String` — never a `ref`, notifier or widget.
+Future<List<String>> findExecutablesAsync(String installPath) =>
+    Isolate.run(() => findExecutables(installPath));
