@@ -93,6 +93,14 @@ and is called from `GameSettingsTab`'s `dispose`/game-switch and from the notifi
 `ref.onDispose` — the latter reads a plain mirror field rather than `state`, since Riverpod forbids
 touching `state`/`ref` from inside an `onDispose` callback.
 
+The persisted `games` JSON is versioned: `GamesNotifier` writes
+`{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`, and `_load` runs the stored value
+through `_migrations` — an ordered list of raw-map transforms, one per version step — up to
+`gamesSchemaVersion` before decoding, so `_decodeGames` only ever has to read the current shape. A
+bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Any future change to the
+per-game JSON shape must bump `gamesSchemaVersion` and append a step to `_migrations`, rather than
+adding more type-sniffing to the decoder.
+
 `gogStateProvider` (`lib/state/gog_state.dart`) wraps a `GogBackend` (see "What this is" above); nearly
 every other notifier reads it via `ref.read(gogStateProvider)`. Its methods follow a consistent
 convention: try the backend call, log the failure via `logGogError` (`lib/common/gog_error.dart`,

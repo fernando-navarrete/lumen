@@ -169,8 +169,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   call; in-memory state still updates immediately. `GamesNotifier.flushPendingPersist` commits a
   pending write early — called from `GameSettingsTab`'s `dispose`/game-switch and from the
   notifier's own `ref.onDispose`, so leaving the tab or the app never drops the last edit.
-- [ ] **P2 — Add a schema version** to the persisted `games` JSON so future migrations aren't ad hoc
-  type sniffing (see the productId string/int fallback).
+- [x] **P2 — Add a schema version** to the persisted `games` JSON so future migrations aren't ad hoc
+  type sniffing (see the productId string/int fallback). Fixed in `v1.1.5`: saves are now wrapped in
+  `{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`; `GamesNotifier._load` upgrades
+  anything older through a `_migrations` step list (the productId string/int fallback became the
+  v0→v1 step) before decoding, and a stored version newer than the app is decoded best-effort
+  instead of rejected. A bare pre-`v1.1.5` `games` map with no envelope is treated as version 0.
 - [ ] **P2 — Reuse a single `FlutterSecureStorage` instance.** Also handle the Linux case where no
   Secret Service or keyring is available (common on minimal WMs) with a clear message.
 - [ ] **P2 — `LibraryPage` loses the selected game** when switching nav tabs and back.

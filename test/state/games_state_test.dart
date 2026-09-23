@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
@@ -110,7 +112,13 @@ void main() {
           .getString('games');
       expect(savedJson, isNotNull);
 
-      final reloaded = await createContainer(prefs: {'games': savedJson!});
+      // The save is wrapped in a {"version": ..., "games": {...}} envelope,
+      // not a bare gameId->entry map.
+      final decoded = jsonDecode(savedJson!) as Map<String, dynamic>;
+      expect(decoded['version'], GamesNotifier.gamesSchemaVersion);
+      expect(decoded['games'], isA<Map<String, dynamic>>());
+
+      final reloaded = await createContainer(prefs: {'games': savedJson});
       final reloadedConfig = reloaded.read(gamesStateProvider).games[gameId];
 
       expect(reloadedConfig, isNotNull);
@@ -130,17 +138,33 @@ void main() {
       );
     });
 
-    test('legacy string-encoded productIds are tolerated on load', () async {
-      const json =
-          '{"1": {"status": "downloaded", "selectedBuild": "b", '
-          '"productIds": ["123", 456]}}';
+    test(
+      'a "downloading" status is coerced to notInstalled on load',
+      () async {
+        const json =
+            '{"version": 1, "games": {"1": {"status": "downloading", '
+            '"selectedBuild": "b", "productIds": []}}}';
 
-      final container = await createContainer(prefs: {'games': json});
+        final container = await createContainer(prefs: {'games': json});
 
-      expect(container.read(gamesStateProvider).getProductIds(1), {123, 456});
+        expect(
+          container.read(gamesStateProvider).getGameStatus(1),
+          GameStatus.notInstalled,
+        );
+      },
+    );
+
+    test('corrupt JSON loads as empty state instead of throwing', () async {
+      final container = await createContainer(prefs: {'games': 'not json'});
+
+      expect(container.read(gamesStateProvider).games, isEmpty);
     });
+  });
 
-    test('a "downloading" status is coerced to notInstalled on load', () async {
+  group('schema migration', () {
+    test('a legacy (pre-v1.1.5) bare games map loads correctly', () async {
+      // No "version"/"games" envelope -- this is what every prefs file
+      // written before v1.1.5 looks like: gameId -> entry directly.
       const json =
           '{"1": {"status": "downloading", "selectedBuild": "b", '
           '"productIds": []}}';
@@ -153,11 +177,69 @@ void main() {
       );
     });
 
-    test('corrupt JSON loads as empty state instead of throwing', () async {
-      final container = await createContainer(prefs: {'games': 'not json'});
+    test(
+      'legacy string-encoded productIds are migrated to ints on load',
+      () async {
+        const json =
+            '{"1": {"status": "downloaded", "selectedBuild": "b", '
+            '"productIds": ["123", 456]}}';
 
-      expect(container.read(gamesStateProvider).games, isEmpty);
+        final container = await createContainer(prefs: {'games': json});
+
+        expect(
+          container.read(gamesStateProvider).getProductIds(1),
+          {123, 456},
+        );
+      },
+    );
+
+    test('legacy data is re-saved in the current envelope after a mutation', () async {
+      const json =
+          '{"1": {"status": "downloaded", "selectedBuild": "b", '
+          '"productIds": ["123"]}}';
+
+      final container = await createContainer(prefs: {'games': json});
+      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'c');
+
+      final savedJson = container
+          .read(sharedPreferencesProvider)
+          .getString('games');
+      final decoded = jsonDecode(savedJson!) as Map<String, dynamic>;
+      expect(decoded['version'], GamesNotifier.gamesSchemaVersion);
+
+      final games = decoded['games'] as Map<String, dynamic>;
+      final entry = games['1'] as Map<String, dynamic>;
+      // Migrated to an int alongside the version bump.
+      expect(entry['productIds'], [123]);
     });
+
+    test(
+      'a stored version newer than the app is decoded on a best-effort '
+      'basis instead of being rejected',
+      () async {
+        final json = jsonEncode({
+          'version': GamesNotifier.gamesSchemaVersion + 1,
+          'games': {
+            '1': {
+              'status': 'downloaded',
+              'selectedBuild': 'b',
+              'productIds': [1, 2],
+              // A hypothetical future field this app version doesn't know
+              // about; it must simply be ignored, not crash the load.
+              'someFutureField': 'value',
+            },
+          },
+        });
+
+        final container = await createContainer(prefs: {'games': json});
+
+        expect(
+          container.read(gamesStateProvider).getGameStatus(1),
+          GameStatus.downloaded,
+        );
+        expect(container.read(gamesStateProvider).getProductIds(1), {1, 2});
+      },
+    );
   });
 
   group('debounced persistence', () {

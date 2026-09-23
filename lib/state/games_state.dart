@@ -168,6 +168,37 @@ class GamesNotifier extends Notifier<GamesState> {
   /// waits for more edits before writing to prefs.
   static const persistDebounce = Duration(milliseconds: 500);
 
+  /// The current version of the persisted `games` JSON format. Every save
+  /// is written as `{"version": gamesSchemaVersion, "games": {...}}`;
+  /// [_load] upgrades anything older through [_migrations] before decoding
+  /// it, so a format change is a numbered migration step instead of the
+  /// type-sniffing [_decodeGames] used to do (the productId string/int
+  /// fallback). Bump this and append a step to [_migrations] whenever the
+  /// per-game JSON shape changes.
+  static const gamesSchemaVersion = 1;
+
+  /// `_migrations[n]` upgrades a raw games map (gameId string -> entry map,
+  /// both still JSON-shaped, i.e. pre-[_decodeGames]) from version `n` to
+  /// `n + 1`. [_load] runs every step from the stored version up to
+  /// [gamesSchemaVersion] before handing the result to [_decodeGames],
+  /// which only ever has to read the current format.
+  static final List<Map<String, dynamic> Function(Map<String, dynamic>)>
+  _migrations = [
+    // v0 -> v1: productIds used to sometimes be persisted as strings
+    // (pre product-id migration); coerce them all to ints so
+    // _decodeGames can read productIds strictly.
+    (games) => games.map((gameId, value) {
+      final entry = Map<String, dynamic>.from(value as Map<String, dynamic>);
+      final productIds = entry['productIds'] as List<dynamic>?;
+      if (productIds != null) {
+        entry['productIds'] = productIds
+            .map((id) => id is int ? id : int.parse(id as String))
+            .toList();
+      }
+      return MapEntry(gameId, entry);
+    }),
+  ];
+
   Timer? _persistTimer;
 
   /// Mirrors `state.games` as of the last [_update] call. [_persist] writes
@@ -411,12 +442,13 @@ class GamesNotifier extends Notifier<GamesState> {
         'launchWrapper': config.launchWrapper,
       }),
     );
-    return jsonEncode(stringKeyed);
+    return jsonEncode({'version': gamesSchemaVersion, 'games': stringKeyed});
   }
 
-  Map<int, GameConfig> _decodeGames(String json) {
-    final decoded = jsonDecode(json) as Map<String, dynamic>;
-    return decoded.map((gameId, value) {
+  /// Decodes a raw games map already at [gamesSchemaVersion] (i.e. after
+  /// [_load] has run it through [_migrations]) into [GameConfig]s.
+  Map<int, GameConfig> _decodeGames(Map<String, dynamic> games) {
+    return games.map((gameId, value) {
       final entry = value as Map<String, dynamic>;
       final productIds = entry['productIds'] as List<dynamic>?;
       final launchArgs = entry['launchArgs'] as List<dynamic>?;
@@ -433,12 +465,7 @@ class GamesNotifier extends Notifier<GamesState> {
               ? GameStatus.notInstalled
               : status,
           selectedBuild: entry['selectedBuild'] as String,
-          // Product ids used to be persisted as strings (pre product-id
-          // migration); tolerate either shape so a prefs file written by an
-          // older build doesn't crash on load.
-          productIds: productIds
-              ?.map((id) => id is int ? id : int.parse(id as String))
-              .toSet(),
+          productIds: productIds?.map((id) => id as int).toSet(),
           installPath: entry['installPath'] as String?,
           protonVersion: entry['protonVersion'] as String?,
           protonPrefixPath: entry['protonPrefixPath'] as String?,
@@ -466,13 +493,38 @@ class GamesNotifier extends Notifier<GamesState> {
   /// [_prefs] instance. Called from [build] so the notifier never emits an
   /// empty state that a mutation (or a launch) could read/persist over,
   /// clobbering real data — see [sharedPreferencesProvider].
+  ///
+  /// Pre-[v1.1.5] prefs are a bare `{gameId: entry}` map with no version at
+  /// all — a real gameId key can never be the string `"version"`, so that
+  /// shape is unambiguously version 0. Anything else is expected to be the
+  /// `{"version": n, "games": {...}}` envelope; [_migrations] upgrades it to
+  /// [gamesSchemaVersion] before [_decodeGames] reads it. A stored version
+  /// newer than [gamesSchemaVersion] (e.g. after a downgrade) is decoded
+  /// as-is on a best-effort basis — new fields are usually just additions —
+  /// and falls back to empty state like corrupt JSON if that throws.
   GamesState _load() {
     final gamesJson = _prefs.getString('games');
     if (gamesJson == null) {
       return const GamesState.empty();
     }
     try {
-      return GamesState(_decodeGames(gamesJson));
+      final decoded = jsonDecode(gamesJson);
+      int version;
+      Map<String, dynamic> games;
+      if (decoded is Map<String, dynamic> && decoded['version'] is int) {
+        version = decoded['version'] as int;
+        games = Map<String, dynamic>.from(
+          decoded['games'] as Map<String, dynamic>,
+        );
+      } else {
+        version = 0;
+        games = Map<String, dynamic>.from(decoded as Map<String, dynamic>);
+      }
+      while (version < gamesSchemaVersion) {
+        games = _migrations[version](games);
+        version++;
+      }
+      return GamesState(_decodeGames(games));
     } catch (e) {
       logGogError(e);
       return const GamesState.empty();

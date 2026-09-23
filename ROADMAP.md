@@ -71,7 +71,10 @@ Follow-up patches (`v1.1.1+`), one per tag:
    (`setLaunchArgs`, `setEnvVars`, `setLaunchWrapper`) now write to prefs at most once per 500ms,
    with a `flushPendingPersist` escape hatch called on tab/game switch, app exit, and the
    notifier's own disposal.
-5. `v1.1.5`: add a schema version to the persisted `games` JSON (§4).
+5. `v1.1.5` ✅: add a schema version to the persisted `games` JSON (§4). Saves now write
+   `{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`; `GamesNotifier._load` upgrades
+   anything older through a `_migrations` step list before decoding (the productId string/int
+   fallback became the v0→v1 step), and a bare pre-`v1.1.5` map is treated as version 0.
 6. `v1.1.6`: reuse one `FlutterSecureStorage` instance and add a clear no-keyring message (§4).
 
 ## v1.2.0 — Launching and Proton
