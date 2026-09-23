@@ -95,7 +95,7 @@ Follow-up patches (`v1.2.1+`), one per tag:
 2. `v1.2.2` ✅: validate the Proton binary and wrapper before spawning (§3).
 3. `v1.2.3` ✅: stop treating every non-zero exit as a failure (§3).
 4. `v1.2.4` ✅: remove the `[DIAG]` prints (§3).
-5. `v1.2.5`: validate installed Proton versions against disk on load (§3).
+5. `v1.2.5` ✅: validate installed Proton versions against disk on load (§3).
 
 ## v1.3.0 — Download management
 

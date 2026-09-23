@@ -153,6 +153,12 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
 - Per-game launch logs at `<lumenDataDir>/logs/<gameId>.log`, rotated to `<gameId>.previous.log`
   (one generation, overwritten) at the start of every launch.
 
+`ProtonNotifier._load` (`lib/state/proton_state.dart`) validates the persisted `protonInstalled`
+registry against disk on every load, via `executable_lookup.dart`'s `isExecutableFile` on each
+entry's `proton` script: a release deleted (or on an unmounted drive, for a custom `targetDir`)
+outside the app is hidden from `ProtonState.installed`/`defaultVersion` for that session — not
+pruned from SharedPreferences — so it reappears on its own once the directory comes back.
+
 What a game launches with is decided by `LaunchResolver` (`lib/common/launch_resolver.dart`), shared
 by Play and the Settings tab, as a `LaunchTarget` (`lib/models/`: exe and optional `workingDir`, both
 relative to the install root, plus `arguments` and a `source`). The order is: the user's override

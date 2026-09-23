@@ -14,8 +14,20 @@ import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/launch_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
+import '../helpers/fake_proton.dart';
 import '../helpers/pump_app.dart';
 import '../helpers/temp_data_home.dart';
+
+/// A real (but throwaway) install dir with an executable `proton` stub, so
+/// `ProtonNotifier._load`'s on-disk check (v1.2.5) doesn't hide the fake
+/// 'GE-1' version these tests seed into `protonInstalled` prefs. Doesn't
+/// need `useTempDataHome()` — it's just an arbitrary path on the real
+/// filesystem, not under `lumenDataDir()`.
+String _fakeProtonPath() {
+  final dir = Directory.systemTemp.createTempSync('lumen_test_proton_ge1');
+  addTearDown(() => dir.deleteSync(recursive: true));
+  return fakeProtonInstall(dir.path);
+}
 
 /// Records [launchGame] calls instead of spawning anything.
 class _RecordingLaunchNotifier extends LaunchNotifier {
@@ -211,7 +223,7 @@ void main() {
               },
             },
           }),
-          'protonInstalled': jsonEncode({'GE-1': '/proton/GE-1'}),
+          'protonInstalled': jsonEncode({'GE-1': _fakeProtonPath()}),
           'protonDefault': 'GE-1',
         },
         overrides: [
@@ -276,7 +288,7 @@ void main() {
               },
             },
           }),
-          'protonInstalled': jsonEncode({'GE-1': '/proton/GE-1'}),
+          'protonInstalled': jsonEncode({'GE-1': _fakeProtonPath()}),
           'protonDefault': 'GE-1',
         },
         overrides: [
@@ -327,7 +339,7 @@ void main() {
               },
             },
           }),
-          'protonInstalled': jsonEncode({'GE-1': '/proton/GE-1'}),
+          'protonInstalled': jsonEncode({'GE-1': _fakeProtonPath()}),
           'protonDefault': 'GE-1',
         },
         overrides: [

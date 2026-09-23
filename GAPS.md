@@ -151,8 +151,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P2 — Remove the `[DIAG]` `debugPrint`s** in `launch_state.dart`. Fixed in `v1.2.4`: all 8
   removed; the one piece of info they carried that wasn't already in the per-game log (the spawned
   pid) is now written to the log itself, right under `--- game ---`.
-- [ ] **P2 — Validate installed Proton versions against disk on load.** A directory deleted outside the
-  app still shows as installed.
+- [x] **P2 — Validate installed Proton versions against disk on load.** Fixed in `v1.2.5`: `_load`
+  checks each entry's `proton` script with `isExecutableFile` (P2's check); a missing one is hidden
+  from `ProtonState.installed`/`defaultVersion` for the session but kept in a private `_unavailable`
+  map (and `_unavailableDefault`) so a later `_persist` doesn't drop it from prefs — a release on an
+  unmounted custom `targetDir` reappears on its own once the drive is back, and Play already reports
+  "no Proton-GE version installed" for a hidden default.
 
 ## 4. State management / architecture
 

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/executable_lookup.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
@@ -105,6 +106,18 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
   static const _installedKey = 'protonInstalled';
   static const _defaultKey = 'protonDefault';
+
+  /// Entries from the persisted `protonInstalled` map that failed the
+  /// on-disk check in [_load] (see [_load]'s doc comment) — kept here, not
+  /// in [state], so a later [_persist] doesn't silently drop them from
+  /// prefs. `_install` removes a tag from here once it lands in
+  /// [ProtonState.installed] for real.
+  Map<String, String> _unavailable = const {};
+
+  /// The persisted default, if it was one of [_unavailable] at load time —
+  /// restored by [_persist] whenever [ProtonState.defaultVersion] is still
+  /// null (i.e. nothing's been installed/chosen this session to replace it).
+  String? _unavailableDefault;
 
   @override
   ProtonState build() {
@@ -239,6 +252,9 @@ class ProtonNotifier extends Notifier<ProtonState> {
   void _install(String tag, String path) {
     final installed = {...state.installed, tag: path};
     final defaultVersion = state.defaultVersion ?? tag;
+    if (_unavailable.containsKey(tag)) {
+      _unavailable = {..._unavailable}..remove(tag);
+    }
     state = ProtonState(
       installed: installed,
       defaultVersion: defaultVersion,
@@ -283,14 +299,20 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// keep reporting versions as installed that were just cleared.
   void resetToEmpty() {
     _buffer.clear();
+    _unavailable = const {};
+    _unavailableDefault = null;
     state = const ProtonState.empty();
   }
 
   void _persist() {
     try {
-      _prefs.setString(_installedKey, jsonEncode(state.installed));
-      if (state.defaultVersion != null) {
-        _prefs.setString(_defaultKey, state.defaultVersion!);
+      _prefs.setString(
+        _installedKey,
+        jsonEncode({..._unavailable, ...state.installed}),
+      );
+      final defaultVersion = state.defaultVersion ?? _unavailableDefault;
+      if (defaultVersion != null) {
+        _prefs.setString(_defaultKey, defaultVersion);
       } else {
         _prefs.remove(_defaultKey);
       }
@@ -305,15 +327,43 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// async load is still in flight — that race previously caused spurious
   /// "Proton-GE version is no longer installed" errors at launch when the UI
   /// read state before the old fire-and-forget load had resolved.
+  ///
+  /// Each persisted entry is checked against disk (`isExecutableFile` on its
+  /// `proton` script — a release deleted, or on an unmounted custom
+  /// `targetDir`, outside the app) before being trusted; one that fails is
+  /// hidden from [ProtonState.installed] for this session but kept in
+  /// [_unavailable] rather than dropped from prefs, so it comes back on its
+  /// own once the directory reappears (e.g. the drive gets remounted) — see
+  /// P5 in v1.2.0-LAUNCHING-AND-PROTON.md for the considered alternatives. A
+  /// hidden default similarly falls back to `null` in-memory (Play already
+  /// reports "no Proton-GE version installed" for that) while [_unavailableDefault]
+  /// remembers it for [_persist].
   ProtonState _load() {
     try {
       final installedJson = _prefs.getString(_installedKey);
-      final installed = installedJson != null
+      final stored = installedJson != null
           ? (jsonDecode(installedJson) as Map<String, dynamic>).map(
               (tag, path) => MapEntry(tag, path as String),
             )
           : <String, String>{};
-      final defaultVersion = _prefs.getString(_defaultKey);
+
+      final installed = <String, String>{};
+      final unavailable = <String, String>{};
+      for (final entry in stored.entries) {
+        if (isExecutableFile('${entry.value}/proton')) {
+          installed[entry.key] = entry.value;
+        } else {
+          unavailable[entry.key] = entry.value;
+        }
+      }
+      _unavailable = unavailable;
+
+      final storedDefault = _prefs.getString(_defaultKey);
+      final defaultVersion = installed.containsKey(storedDefault)
+          ? storedDefault
+          : null;
+      _unavailableDefault = defaultVersion == null ? storedDefault : null;
+
       return ProtonState(
         installed: installed,
         defaultVersion: defaultVersion,
@@ -321,6 +371,8 @@ class ProtonNotifier extends Notifier<ProtonState> {
       );
     } catch (e) {
       logGogError(e);
+      _unavailable = const {};
+      _unavailableDefault = null;
       return const ProtonState.empty();
     }
   }

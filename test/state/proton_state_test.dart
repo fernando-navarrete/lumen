@@ -12,6 +12,7 @@ import 'package:lumen/state/shared_preferences_provider.dart';
 
 import '../helpers/container.dart';
 import '../helpers/fake_gog_backend.dart';
+import '../helpers/fake_proton.dart';
 import '../helpers/temp_data_home.dart';
 
 // The notifier throttles progress emits to ~10Hz with a trailing flush (see
@@ -162,10 +163,12 @@ void main() {
       'v1.0.12: removeVersion clears per-game overrides pointing at it',
       () async {
         final backend = FakeGogBackend();
+        final pathA = fakeProtonInstall('${dataHome.path}/A');
+        final pathB = fakeProtonInstall('${dataHome.path}/B');
         final container = await createContainer(
           backend: backend,
           prefs: {
-            'protonInstalled': jsonEncode({'A': '/proton/A', 'B': '/proton/B'}),
+            'protonInstalled': jsonEncode({'A': pathA, 'B': pathB}),
             'protonDefault': 'A',
           },
         );
@@ -199,6 +202,147 @@ void main() {
         expect(installedJson.containsKey('A'), false);
         expect(installedJson.containsKey('B'), true);
         expect(prefs.getString('protonDefault'), null);
+      },
+    );
+  });
+
+  group('ProtonNotifier — validate on load (v1.2.5)', () {
+    test(
+      'a tag whose directory is gone is not installed; prefs are unchanged',
+      () async {
+        final present = fakeProtonInstall('${dataHome.path}/present');
+        final container = await createContainer(
+          prefs: {
+            'protonInstalled': jsonEncode({
+              'present': present,
+              'missing': '${dataHome.path}/missing',
+            }),
+            'protonDefault': 'present',
+          },
+        );
+
+        final state = container.read(protonStateProvider);
+        expect(state.isInstalled('present'), true);
+        expect(state.isInstalled('missing'), false);
+        expect(state.defaultVersion, 'present');
+
+        final prefs = container.read(sharedPreferencesProvider);
+        final installedJson =
+            jsonDecode(prefs.getString('protonInstalled')!)
+                as Map<String, dynamic>;
+        expect(installedJson.containsKey('missing'), true);
+        expect(prefs.getString('protonDefault'), 'present');
+      },
+    );
+
+    test(
+      'a directory that exists but has no executable proton is not installed',
+      () async {
+        Directory(
+          '${dataHome.path}/empty',
+        ).createSync(recursive: true);
+        final container = await createContainer(
+          prefs: {
+            'protonInstalled': jsonEncode({'empty': '${dataHome.path}/empty'}),
+            'protonDefault': 'empty',
+          },
+        );
+
+        final state = container.read(protonStateProvider);
+        expect(state.isInstalled('empty'), false);
+        expect(state.defaultVersion, null);
+      },
+    );
+
+    test(
+      'a missing default falls back to null in-memory without touching prefs',
+      () async {
+        final present = fakeProtonInstall('${dataHome.path}/present');
+        final container = await createContainer(
+          prefs: {
+            'protonInstalled': jsonEncode({'present': present}),
+            'protonDefault': 'missing',
+          },
+        );
+
+        final state = container.read(protonStateProvider);
+        expect(state.defaultVersion, null);
+
+        final prefs = container.read(sharedPreferencesProvider);
+        expect(prefs.getString('protonDefault'), 'missing');
+      },
+    );
+
+    test(
+      'a later persist keeps the hidden entry and hidden default in prefs',
+      () async {
+        final backend = FakeGogBackend();
+        final present = fakeProtonInstall('${dataHome.path}/present');
+        final container = await createContainer(
+          backend: backend,
+          prefs: {
+            'protonInstalled': jsonEncode({
+              'present': present,
+              'missing': '${dataHome.path}/missing',
+            }),
+            'protonDefault': 'missing',
+          },
+        );
+        addTearDown(backend.closeAll);
+
+        final notifier = container.read(protonStateProvider.notifier);
+        notifier.setDefault('present');
+
+        final prefs = container.read(sharedPreferencesProvider);
+        final installedJson =
+            jsonDecode(prefs.getString('protonInstalled')!)
+                as Map<String, dynamic>;
+        // The hidden 'missing' entry survives the persist triggered by
+        // setDefault, instead of being dropped just because it was hidden
+        // from ProtonState.installed at load.
+        expect(installedJson.containsKey('missing'), true);
+        expect(prefs.getString('protonDefault'), 'present');
+      },
+    );
+
+    test(
+      'installing a previously-hidden tag drops it from the unavailable set',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(
+          backend: backend,
+          prefs: {
+            'protonInstalled': jsonEncode({
+              _release.tagName: '${dataHome.path}/missing',
+            }),
+            'protonDefault': _release.tagName,
+          },
+        );
+        addTearDown(backend.closeAll);
+        final notifier = container.read(protonStateProvider.notifier);
+        final targetDir = '${dataHome.path}/target';
+
+        expect(
+          container.read(protonStateProvider).isInstalled(_release.tagName),
+          false,
+        );
+
+        await notifier.downloadRelease(_release, targetDir);
+        final controller = backend.protonDownloadController(_release.tagName);
+        final reportedPath = '$targetDir/GE-Proton9_1';
+        controller.add(ProtonDownloadProgress.finished(reportedPath));
+        await controller.close();
+        await settle();
+
+        final state = container.read(protonStateProvider);
+        expect(state.isInstalled(_release.tagName), true);
+        expect(state.pathFor(_release.tagName), reportedPath);
+
+        final prefs = container.read(sharedPreferencesProvider);
+        final installedJson =
+            jsonDecode(prefs.getString('protonInstalled')!)
+                as Map<String, dynamic>;
+        expect(installedJson[_release.tagName], reportedPath);
       },
     );
   });
