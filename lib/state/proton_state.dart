@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -199,7 +200,9 @@ class ProtonNotifier extends Notifier<ProtonState> {
   }
 
   /// Drops [tag] from the installed registry (does not delete the files on
-  /// disk — the user picked that location and may want to keep it).
+  /// disk — the user picked that location and may want to keep it). Games
+  /// pinned to [tag] have their override cleared so they fall back to the
+  /// global default instead of failing at launch.
   void removeVersion(String tag) {
     final installed = {...state.installed}..remove(tag);
     final defaultVersion = state.defaultVersion == tag
@@ -211,6 +214,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
       tasks: state.tasks,
     );
     _persist();
+    ref.read(gamesStateProvider.notifier).clearProtonVersion(tag);
   }
 
   /// Resets in-memory state to empty without touching disk — call after

@@ -43,9 +43,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P1 — The login flow doesn't catch non-`GogError` failures.** Fixed in `v1.0.9`: a missing
   stored token is no longer treated as an error, and any other failure (restore or sign-in, e.g. no
   keyring) now shows a snackbar instead of escaping silently.
-- [ ] **P1 — Removing a Proton version leaves dangling per-game overrides.** After
-  `ProtonNotifier.removeVersion`, a game pinned to that tag fails at launch with "no longer installed".
-  The Settings dropdown then shows a value that isn't among its entries.
+- [x] **P1 — Removing a Proton version leaves dangling per-game overrides.** Fixed in `v1.0.12`:
+  removing a version now clears the override on games pinned to it, so they fall back to the global
+  default.
 - [ ] **P2 — Saves downloaded before first launch may skip prefix init (needs verification).**
   `SavesNotifier` passes `<prefix>/pfx` to the bridge, which can create `pfx/drive_c/...` in a prefix
   that was never initialized. `LaunchNotifier` (`launch_state.dart:104`) uses "`pfx` exists" as its

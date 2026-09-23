@@ -253,6 +253,24 @@ class GamesNotifier extends Notifier<GamesState> {
     _update(gameId, existing.copyWith(protonVersion: tag));
   }
 
+  /// Clears the Proton-GE override of every game pinned to [tag], so they
+  /// fall back to the global default — call after [tag] is uninstalled.
+  void clearProtonVersion(String tag) {
+    final games = {...state.games};
+    var changed = false;
+    state.games.forEach((gameId, config) {
+      if (config.protonVersion == tag) {
+        games[gameId] = config.copyWith(protonVersion: null);
+        changed = true;
+      }
+    });
+    if (!changed) {
+      return;
+    }
+    state = GamesState(games);
+    _persist();
+  }
+
   /// Sets [gameId]'s launch executable, relative to its install path; pass
   /// null to clear it back to "not resolved yet" (the Play flow will
   /// re-scan the install directory).
