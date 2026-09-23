@@ -35,10 +35,12 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
           .getSelectedBuild(widget.gameId);
 
       if (selectedVersionName != null) {
-        _products = await gogState.getProducts(
+        final products = await gogState.getProducts(
           widget.gameId,
           selectedVersionName,
         );
+        if (!mounted) return;
+        _products = products;
         for (final product in _products ?? const <DownloadableProduct>[]) {
           if (product.productType == "GAME") {
             gamesNotifier.addProductId(widget.gameId, product.id);

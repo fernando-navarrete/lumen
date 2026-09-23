@@ -30,10 +30,12 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       GogState gogState = ref.read(gogStateProvider);
-      _gameSummary = await gogState.getGameSummary(widget.gameId);
-      setState(() {});
-      _screenshots = await gogState.getGameScreenshots(widget.gameId);
-      setState(() {});
+      final summary = await gogState.getGameSummary(widget.gameId);
+      if (!mounted) return;
+      setState(() => _gameSummary = summary);
+      final screenshots = await gogState.getGameScreenshots(widget.gameId);
+      if (!mounted) return;
+      setState(() => _screenshots = screenshots);
     });
     super.initState();
   }

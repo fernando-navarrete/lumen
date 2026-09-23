@@ -71,6 +71,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     String? buildName = ref.read(gamesStateProvider).getSelectedBuild(gameId);
     if (buildName == null || buildName.isEmpty) {
       final builds = await gogState.getBuilds(gameId);
+      if (!mounted) return;
       if (builds != null && builds.isNotEmpty) {
         buildName = _latestBuild(builds).versionName;
         gamesNotifier.setSelectedBuild(gameId, buildName);
@@ -81,6 +82,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         buildName.isNotEmpty &&
         ref.read(gamesStateProvider).getProductIds(gameId).isEmpty) {
       final products = await gogState.getProducts(gameId, buildName);
+      if (!mounted) return;
       for (final product in products ?? const <DownloadableProduct>[]) {
         gamesNotifier.addProductId(gameId, product.id);
       }

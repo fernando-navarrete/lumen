@@ -50,6 +50,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final gogState = ref.watch(gogStateProvider);
     var size = MediaQuery.of(context).size;
@@ -85,18 +91,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _onSubmitCode(String code, GogState gogState) async {
     try {
       await gogState.loginWithCode(code.trim());
+      if (!mounted) return;
       setState(() {
         _loginError = false;
       });
-      if (context.mounted) {
-        Navigator.pushReplacement(
-          // ignore: use_build_context_synchronously
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
     } on GogError catch (e) {
       logGogError(e);
+      if (!mounted) return;
       setState(() {
         _loginError = true;
       });
@@ -128,6 +133,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     }
     Future.delayed(Duration(seconds: 10), () {
+      if (!mounted) return;
       setState(() {
         _step = LoginStep.copyCode;
       });

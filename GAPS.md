@@ -36,10 +36,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   empty — hence Retry on the empty state too, not just the error state.
 - [x] **P1 — Builds tab crashes when fetching builds fails.** Fixed in `v1.0.7`: a failed fetch
   now shows an error with Retry (and an empty list shows a message) instead of crashing.
-- [ ] **P1 — `setState` can run after dispose in several async `initState` flows.** Affected:
-  `login_screen.dart:130` (a 10 s `Future.delayed` with no `mounted` check),
-  `overview_tab.dart:34,36`, `products_tab.dart:52` and `library_page.dart:86,91`. Leaving the page
-  mid-fetch throws.
+- [x] **P1 — `setState` can run after dispose in several async `initState` flows.** Fixed in
+  `v1.0.8`: the login, Overview, DLC and Library flows (and `GameActionButtons`) now check
+  `mounted` after every `await` before calling `setState` or `ref`.
 - [ ] **P1 — Debug and release builds handle errors differently.** In `GogState`, `getGameBackgroundLink`,
   `getGameBoxartLink`, `getGameSummary` and `getGameScreenshots` (`gog_state.dart:51-104`) *throw* in
   debug but return `''`/`[]` in release. Debug builds hit unhandled async errors and endless loaders
@@ -57,7 +56,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   that was never initialized. `LaunchNotifier` (`launch_state.dart:104`) uses "`pfx` exists" as its
   "already initialized" check, so it would then skip `wineboot`. Test this against a fresh game, and
   check Proton's `version` file instead of the folder.
-- [ ] **P2 — `TextEditingController` is never disposed** (`login_screen.dart:27`).
+- [x] **P2 — `TextEditingController` is never disposed.** Fixed in `v1.0.8`: the login screen now
+  disposes it.
 - [ ] **P2 — Proton download `onDone` always marks the task complete** (`proton_state.dart:165`), even
   when no `Finished` event arrived. In that case it falls back to a guessed `'$dir/$tag'` path.
 
