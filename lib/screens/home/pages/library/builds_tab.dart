@@ -11,6 +11,7 @@ import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/theme/app_colors.dart';
+import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
@@ -25,6 +26,7 @@ class BuildsTab extends ConsumerStatefulWidget {
 }
 
 class _BuildsTabState extends ConsumerState<BuildsTab> {
+  bool _loading = true;
   List<GameBuild>? _builds;
   int selectedBuild = -1;
 
@@ -35,22 +37,20 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   }
 
   Future<void> _loadBuilds() async {
-    setState(() {
-      _builds = null;
-    });
+    setState(() => _loading = true);
     GogState gogState = ref.read(gogStateProvider);
-    _builds = await gogState.getBuilds(widget.gameId);
-    setState(() {});
+    final builds = await gogState.getBuilds(widget.gameId);
+    if (!mounted) return;
 
     GamesState gamesState = ref.read(gamesStateProvider);
     String? selectedName = gamesState.getSelectedBuild(widget.gameId);
-    if (selectedName == null) {
-      selectedBuild = -1;
-    } else {
-      int index = _builds!.indexWhere((b) => b.versionName == selectedName);
-      selectedBuild = index;
-    }
-    setState(() {});
+    setState(() {
+      _builds = builds;
+      selectedBuild = selectedName == null
+          ? -1
+          : builds?.indexWhere((b) => b.versionName == selectedName) ?? -1;
+      _loading = false;
+    });
   }
 
   Future<void> _onBuildTap(int index, GameBuild gameBuild) async {
@@ -142,18 +142,29 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                (_builds != null)
-                    ? ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _builds!.length,
-                        itemBuilder: (context, index) => _BuildListItem(
-                          isSelected: index == selectedBuild,
-                          gameBuild: _builds![index],
-                          onTap: (gameBuild) => _onBuildTap(index, gameBuild),
-                        ),
-                      )
-                    : const CenteredLoader(),
+                if (_loading)
+                  const CenteredLoader()
+                else if (_builds == null)
+                  _BuildsMessage(
+                    message: "Couldn't load builds.",
+                    onRetry: _loadBuilds,
+                  )
+                else if (_builds!.isEmpty)
+                  _BuildsMessage(
+                    message: 'No builds available.',
+                    onRetry: _loadBuilds,
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _builds!.length,
+                    itemBuilder: (context, index) => _BuildListItem(
+                      isSelected: index == selectedBuild,
+                      gameBuild: _builds![index],
+                      onTap: (gameBuild) => _onBuildTap(index, gameBuild),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -227,6 +238,36 @@ class _SwitchBuildDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Message with a Retry action, for when the builds fetch failed or came
+/// back empty.
+class _BuildsMessage extends StatelessWidget {
+  const _BuildsMessage({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(AppSpacing.lg),
+    decoration: AppDecorations.glassRow(),
+    child: Column(
+      spacing: AppSpacing.md,
+      children: [
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: AppText.bodyMedium(color: AppColors.text70),
+        ),
+        PrimaryButton(
+          onTap: onRetry,
+          child: Text('Retry', style: AppText.button(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Quiet "↻ Refresh" chip re-fetching the build list.

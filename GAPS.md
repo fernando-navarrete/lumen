@@ -34,10 +34,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   owned product, unordered), `GogState.getOwnedGames` now caches and sorts the result itself, and
   a per-product lookup failure can make the result `[]` even though the library isn't actually
   empty — hence Retry on the empty state too, not just the error state.
-- [ ] **P1 — Builds tab crashes when fetching builds fails.** `_builds!.indexWhere`
-  (`builds_tab.dart:48`) runs when `getBuilds` returns `null`.
+- [x] **P1 — Builds tab crashes when fetching builds fails.** Fixed in `v1.0.7`: a failed fetch
+  now shows an error with Retry (and an empty list shows a message) instead of crashing.
 - [ ] **P1 — `setState` can run after dispose in several async `initState` flows.** Affected:
-  `login_screen.dart:130` (a 10 s `Future.delayed` with no `mounted` check), `builds_tab.dart:41,51`,
+  `login_screen.dart:130` (a 10 s `Future.delayed` with no `mounted` check),
   `overview_tab.dart:34,36`, `products_tab.dart:52` and `library_page.dart:86,91`. Leaving the page
   mid-fetch throws.
 - [ ] **P1 — Debug and release builds handle errors differently.** In `GogState`, `getGameBackgroundLink`,
