@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/common/executable_finder.dart';
+import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/section_card.dart';
@@ -46,6 +47,11 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   late TextEditingController _launchArgsController;
   final List<_EnvVarRow> _envRows = [];
 
+  // Shown under the field while its text doesn't split (e.g. an
+  // unterminated quote); the last valid value stays persisted meanwhile.
+  String? _launchWrapperError;
+  String? _launchArgsError;
+
   // Cached in initState rather than read from `ref` in dispose, which
   // Riverpod disallows once the widget is unmounting.
   late final GamesNotifier _gamesNotifier;
@@ -70,6 +76,8 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
         row.dispose();
       }
       _envRows.clear();
+      _launchWrapperError = null;
+      _launchArgsError = null;
       _initFromState();
     }
   }
@@ -77,10 +85,10 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   void _initFromState() {
     final gamesState = ref.read(gamesStateProvider);
     _launchWrapperController = TextEditingController(
-      text: gamesState.getLaunchWrapper(widget.gameId).join(' '),
+      text: joinShellWords(gamesState.getLaunchWrapper(widget.gameId)),
     );
     _launchArgsController = TextEditingController(
-      text: gamesState.getLaunchArgs(widget.gameId).join(' '),
+      text: joinShellWords(gamesState.getLaunchArgs(widget.gameId)),
     );
     for (final entry in gamesState.getEnvVars(widget.gameId).entries) {
       _envRows.add(_EnvVarRow(key: entry.key, value: entry.value));
@@ -102,20 +110,32 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   }
 
   void _persistLaunchWrapper() {
-    final wrapper = _launchWrapperController.text
-        .split(RegExp(r'\s+'))
-        .where((arg) => arg.isNotEmpty)
-        .toList();
+    final List<String> wrapper;
+    try {
+      wrapper = splitShellWords(_launchWrapperController.text);
+    } on FormatException catch (e) {
+      setState(() => _launchWrapperError = e.message);
+      return;
+    }
+    if (_launchWrapperError != null) {
+      setState(() => _launchWrapperError = null);
+    }
     ref
         .read(gamesStateProvider.notifier)
         .setLaunchWrapper(widget.gameId, wrapper);
   }
 
   void _persistLaunchArgs() {
-    final args = _launchArgsController.text
-        .split(RegExp(r'\s+'))
-        .where((arg) => arg.isNotEmpty)
-        .toList();
+    final List<String> args;
+    try {
+      args = splitShellWords(_launchArgsController.text);
+    } on FormatException catch (e) {
+      setState(() => _launchArgsError = e.message);
+      return;
+    }
+    if (_launchArgsError != null) {
+      setState(() => _launchArgsError = null);
+    }
     ref.read(gamesStateProvider.notifier).setLaunchArgs(widget.gameId, args);
   }
 
@@ -156,23 +176,21 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   }
 
   /// "ENV=VAL … wrapper -- ./game.exe -args" preview assembled from the
-  /// saved config.
+  /// saved config, quoted with [joinShellWords] so it shows the exact words
+  /// that will run.
   String _resolvedCommand(GamesState gamesState) {
     final envVars = gamesState.getEnvVars(widget.gameId);
     final executable = gamesState.getExecutable(widget.gameId);
     final wrapper = gamesState.getLaunchWrapper(widget.gameId);
     final args = gamesState.getLaunchArgs(widget.gameId);
 
-    final envStr = envVars.entries
-        .map((entry) => '${entry.key}=${entry.value}')
-        .join(' ');
     final exeName = executable?.split(RegExp(r'[/\\]')).last;
-    return [
-      if (envStr.isNotEmpty) envStr,
+    return joinShellWords([
+      for (final entry in envVars.entries) '${entry.key}=${entry.value}',
       ...wrapper,
       './${exeName ?? '<game>'}',
       ...args,
-    ].join(' ');
+    ]);
   }
 
   @override
@@ -273,6 +291,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     hintText: "gamescope -f --",
                     hintStyle: AppText.code(color: AppColors.textMuted),
+                    errorText: _launchWrapperError,
                   ),
                 ),
               ),
@@ -293,6 +312,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     hintText: "-skipintro -windowed",
                     hintStyle: AppText.code(color: AppColors.textMuted),
+                    errorText: _launchArgsError,
                   ),
                 ),
               ),
