@@ -421,8 +421,17 @@ class GogState {
   }
 }
 
-final gogStateProvider = Provider<GogState>((ref) {
-  final instance = GogState(GogdlBackend(GogdlApi()));
-  ref.onDispose(() => instance._backend.dispose());
-  return instance;
-}, name: 'gogStateProvider');
+/// The real [GogBackend], backed by the Rust bridge. This is the only place
+/// that constructs [GogdlBackend]/[GogdlApi] — a fake implementation is
+/// overridden in here in tests, so nothing else should construct either
+/// directly (and no test should, or it'll need the native library loaded).
+final gogBackendProvider = Provider<GogBackend>((ref) {
+  final backend = GogdlBackend(GogdlApi());
+  ref.onDispose(backend.dispose);
+  return backend;
+}, name: 'gogBackendProvider');
+
+final gogStateProvider = Provider<GogState>(
+  (ref) => GogState(ref.watch(gogBackendProvider)),
+  name: 'gogStateProvider',
+);

@@ -3,8 +3,8 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
 /// particular implementation. [GogState] talks only to this interface —
 /// [GogdlBackend] (`gogdl_backend.dart`) is the implementation actually wired
-/// up in `gogStateProvider`, and the seam lets a fake implementation stand in
-/// for it in tests.
+/// up in `gogBackendProvider` (`gog_state.dart`), which `gogStateProvider`
+/// watches — the seam lets a fake implementation stand in for it in tests.
 ///
 /// Long-running operations are exposed as `Stream<T>`, matching the
 /// convention the bridge established — never `Future`.

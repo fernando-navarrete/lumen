@@ -12,8 +12,8 @@ are delegated to a Rust bridge consumed as the `gogdl_flutter` package (via `flu
 pinned in `pubspec.yaml`. `lib/state/gog_backend.dart` declares a `GogBackend` interface abstracting
 that bridge away from any particular implementation, and `lib/state/gog_state.dart`'s `GogState` — the
 facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogdl_backend.dart`'s
-`GogdlBackend` is the implementation wired up in `gogStateProvider`, adapting each `GogBackend` method
-to a `GogdlApi` call.
+`GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
+`gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
 Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
@@ -37,9 +37,14 @@ fvm flutter pub get                        # install dependencies
 fvm flutter analyze                        # static analysis / lints (flutter_lints)
 fvm flutter run -d linux                    # run the app (only Linux target exists)
 fvm flutter build linux                     # build the Linux release binary
+fvm flutter test                            # run the test suite (no native library needed)
 ```
 
-There is no `test/` directory yet — add tests against the `GogBackend` interface.
+Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
+`FakeGogBackend` and `test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`
+(and `sharedPreferencesProvider`) with a fake, so a test never needs the Rust bridge's native library
+loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or call `RustLib.init()` —
+either would require that native library, which isn't available in CI.
 
 ## Architecture
 
