@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/state/emit_throttle.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/common/gog_error.dart';
@@ -194,50 +193,25 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   DownloadsState build() {
     _gogState = ref.read(gogStateProvider);
     _gamesNotifier = ref.read(gamesStateProvider.notifier);
-    ref.onDispose(() => _trailingTimer?.cancel());
+    _buffer = ThrottledTaskBuffer<int, ActivityTask>(
+      (pending) => state = DownloadsState({...state.tasks, ...pending}),
+    );
+    ref.onDispose(_buffer.dispose);
     return const DownloadsState.empty();
   }
 
-  // Not-yet-flushed tasks, keyed by gameId. [_commit] writes throttled
-  // updates here instead of straight to [state]; [_emit] merges them in and
-  // clears the buffer.
-  final Map<int, ActivityTask> _pending = {};
-
-  void _emit() {
-    _trailingTimer?.cancel();
-    _trailingTimer = null;
-    state = DownloadsState({...state.tasks, ..._pending});
-    _pending.clear();
-  }
-
-  // Byte-progress events can fire many times per second and each _emit()
+  // Byte-progress events can fire many times per second and each flush
   // triggers a full rebuild of whatever's watching the provider (e.g. the
-  // Downloads page). Throttle those high-frequency progress updates to
-  // ~10Hz with a trailing flush so the UI stays smooth without ever
-  // dropping the final value. Terminal/status-transition emits (onDone,
-  // onError) still call _emit() directly so they land
-  // immediately.
-  static const _emitThrottle = Duration(milliseconds: 100);
-  DateTime _lastEmit = DateTime.fromMillisecondsSinceEpoch(0);
-  Timer? _trailingTimer;
-
-  void _emitThrottled() {
-    final elapsed = DateTime.now().difference(_lastEmit);
-    if (elapsed >= _emitThrottle) {
-      _lastEmit = DateTime.now();
-      _emit();
-    } else {
-      _trailingTimer ??= Timer(_emitThrottle - elapsed, () {
-        _trailingTimer = null;
-        _lastEmit = DateTime.now();
-        _emit();
-      });
-    }
-  }
+  // Downloads page). [_buffer] throttles those high-frequency progress
+  // updates to ~10Hz with a trailing flush so the UI stays smooth without
+  // ever dropping the final value. Terminal/status-transition commits pass
+  // `throttle: false` so they land immediately instead of waiting behind a
+  // trailing flush. See lib/state/emit_throttle.dart.
+  late final ThrottledTaskBuffer<int, ActivityTask> _buffer;
 
   /// Commits [next] as the replacement for [current] if [current] is still
   /// the task registered for its game — either the latest buffered value in
-  /// [_pending], or (if nothing's buffered) the value in [state.tasks]. A
+  /// [_buffer], or (if nothing's buffered) the value in [state.tasks]. A
   /// stream whose task was dequeued (e.g. a restart while still running)
   /// keeps delivering events to an orphaned closure-local task; this stops
   /// those stale events from clobbering whatever replaced it. Returns
@@ -248,10 +222,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     ActivityTask next, {
     bool throttle = false,
   }) {
-    final registered = _pending[next.gameId] ?? state.tasks[next.gameId];
+    final registered = _buffer[next.gameId] ?? state.tasks[next.gameId];
     if (identical(registered, current)) {
-      _pending[next.gameId] = next;
-      throttle ? _emitThrottled() : _emit();
+      _buffer.put(next.gameId, next, throttle: throttle);
     }
     return next;
   }
@@ -259,7 +232,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// Removes a task from the registry, e.g. to dequeue a failed verification
   /// before starting a repair for the same game.
   void removeTask(int gameId) {
-    _pending.remove(gameId);
+    _buffer.remove(gameId);
     state = DownloadsState({...state.tasks}..remove(gameId));
   }
 
@@ -289,7 +262,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    _pending.remove(gameId);
+    _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
     final stream = _gogState.verifyGameFiles(
@@ -408,7 +381,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    _pending.remove(gameId);
+    _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
     _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
 
@@ -550,7 +523,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       buildName: buildName,
       productIds: productIds,
     );
-    _pending.remove(gameId);
+    _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
     final stream = _gogState.repairGameFiles(

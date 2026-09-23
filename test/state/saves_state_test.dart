@@ -12,7 +12,12 @@ import '../helpers/container.dart';
 import '../helpers/fake_gog_backend.dart';
 import '../helpers/temp_data_home.dart';
 
-Future<void> settle() => Future<void>.delayed(Duration.zero);
+// The notifier throttles progress emits to ~10Hz with a trailing flush (see
+// lib/state/emit_throttle.dart's ThrottledTaskBuffer, used by
+// SavesNotifier). Tests wait past that window before asserting on a value
+// that arrived via a throttled emit — same as downloads_state_test.dart's
+// settle().
+Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 150));
 
 void main() {
   setUp(() {
@@ -221,6 +226,45 @@ void main() {
       expect(task.status, TaskStatus.completed);
       expect(task.filesTotal, 1);
     });
+
+    test(
+      'rapid progress events collapse under the throttle, but the final '
+      'terminal event always lands',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        seedInstalledGame(container, 1);
+
+        final notifier = container.read(savesStateProvider.notifier);
+        await notifier.downloadSaves(1);
+        final controller = backend.saveDownloadController(1);
+
+        // No settle() between these -- all but the last should be coalesced
+        // by the throttle, and the terminal finished event must still flush.
+        controller.add(
+          DownloadSavesProgress.started(
+            totalFiles: BigInt.from(1),
+            totalBytes: BigInt.from(1000),
+          ),
+        );
+        for (var i = 1; i <= 5; i++) {
+          controller.add(
+            DownloadSavesProgress.progress(
+              downloadedBytes: BigInt.from(i * 100),
+              fileDownloadedBytes: BigInt.from(i * 100),
+            ),
+          );
+        }
+        controller.add(const DownloadSavesProgress.finished());
+        await controller.close();
+        await settle();
+
+        final task = container.read(savesStateProvider).taskFor(1)!;
+        expect(task.status, TaskStatus.completed);
+        expect(task.transferred, 500);
+      },
+    );
 
     test('a second sync while one is running is a no-op', () async {
       final backend = FakeGogBackend();

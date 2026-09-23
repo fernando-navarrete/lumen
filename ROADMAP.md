@@ -64,7 +64,9 @@ Follow-up patches (`v1.1.1+`), one per tag:
    once the task is already `failed`; the test previously characterizing this as a "known gap"
    (Phase 4a, `devlog/v1.1.0-foundation.md`) in `test/state/downloads_state_test.dart` is now a
    regression test asserting the fixed behavior.
-3. `v1.1.3`: throttle `ProtonNotifier` and `SavesNotifier` emits (§4).
+3. `v1.1.3` ✅: throttle `ProtonNotifier` and `SavesNotifier` emits (§4). The throttling logic moved
+   out of `DownloadsNotifier` into a shared `ThrottledTaskBuffer`
+   (`lib/state/emit_throttle.dart`), which all three notifiers now use.
 4. `v1.1.4`: debounce game-settings persistence (§4).
 5. `v1.1.5`: add a schema version to the persisted `games` JSON (§4).
 6. `v1.1.6`: reuse one `FlutterSecureStorage` instance and add a clear no-keyring message (§4).

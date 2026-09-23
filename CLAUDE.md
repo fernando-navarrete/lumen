@@ -66,10 +66,13 @@ trigger a pipeline).
 
 All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `downloads_state.dart`,
 `gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `launch_state.dart`, `proton_state.dart`,
-`saves_state.dart`, `home_state.dart`), plus two supporting files that aren't domains themselves:
+`saves_state.dart`, `home_state.dart`), plus three supporting files that aren't domains themselves:
 `bridge_stream.dart` (`guardBridgeStream`, which every `GogdlBackend` stream is wrapped in so that an
 error thrown after `onDone`, within a short grace period, still arrives as a stream error instead of
-being silently dropped) and `shared_preferences_provider.dart`. Every domain follows the same shape:
+being silently dropped), `emit_throttle.dart` (`ThrottledTaskBuffer`, which `DownloadsNotifier`,
+`ProtonNotifier` and `SavesNotifier` each use to throttle high-frequency progress-event state
+replacements to ~10Hz with a trailing flush, so the final value in a burst is never dropped) and
+`shared_preferences_provider.dart`. Every domain follows the same shape:
 
 - An immutable, read-only **State** class (`GamesState`, `DownloadsState`, ...) exposing getters only.
 - A `Notifier<State>` subclass that is the *only* thing allowed to mutate state, always by

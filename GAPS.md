@@ -156,8 +156,13 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `State` with `addPostFrameCallback` fetches. Owned games, names, builds, products, summaries and
   releases would work better as `FutureProvider.family`s: they'd survive tab switches, get loading and
   error states for free, and could be invalidated for refresh.
-- [ ] **P2 — Throttle `ProtonNotifier` and `SavesNotifier` emits** the way `DownloadsNotifier` does.
-  Right now every progress event triggers a rebuild.
+- [x] **P2 — Throttle `ProtonNotifier` and `SavesNotifier` emits** the way `DownloadsNotifier` does.
+  Fixed in `v1.1.3`: the throttling/trailing-flush logic moved out of `DownloadsNotifier` into a
+  shared `ThrottledTaskBuffer` (`lib/state/emit_throttle.dart`), which all three notifiers now use.
+  `ProtonNotifier` throttles `Started`/`Progress` download events; `SavesNotifier` throttles every
+  event that leaves a task `running` (`Progress`, `FileStarted`, `FileFinished`). Terminal
+  status-transition commits (`onDone`, `onError`, and each notifier's own "finished" event) still
+  flush immediately.
 - [ ] **P2 — Game settings persist the whole games JSON on every keystroke** (`onChanged` →
   `_persist`). Debounce it, or persist on blur/submit.
 - [ ] **P2 — Add a schema version** to the persisted `games` JSON so future migrations aren't ad hoc

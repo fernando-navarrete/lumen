@@ -6,6 +6,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/state/emit_throttle.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
@@ -133,21 +134,31 @@ class SavesNotifier extends Notifier<SavesState> {
   SavesState build() {
     _gogState = ref.read(gogStateProvider);
     _gamesNotifier = ref.read(gamesStateProvider.notifier);
+    _buffer = ThrottledTaskBuffer<int, SaveTask>(
+      (pending) => state = SavesState({...state.tasks, ...pending}),
+    );
+    ref.onDispose(_buffer.dispose);
     return const SavesState.empty();
   }
 
+  // Throttles progress-event emits to ~10Hz with a trailing flush, the same
+  // way `DownloadsNotifier` does — see lib/state/emit_throttle.dart.
+  late final ThrottledTaskBuffer<int, SaveTask> _buffer;
+
   /// Commits [next] as the replacement for [current] if [current] is still
-  /// the task registered for its game — a stream whose task was replaced
-  /// (e.g. a finished sync's stream delivering a late error after a new
-  /// sync started) keeps delivering events to an orphaned closure-local
-  /// task; this stops those stale events from clobbering whatever replaced
-  /// it. Returns [next] regardless, so the caller's local variable keeps
-  /// evolving for its own onDone/onError decisions even once its updates
-  /// stop landing. Mirrors `DownloadsNotifier._commit` in downloads_state.dart
-  /// (without the throttling — saves syncs don't throttle emits).
-  SaveTask _commit(SaveTask current, SaveTask next) {
-    if (identical(state.tasks[next.gameId], current)) {
-      state = SavesState({...state.tasks, next.gameId: next});
+  /// the task registered for its game — either the latest buffered value in
+  /// [_buffer], or (if nothing's buffered) the value in [state.tasks]. A
+  /// stream whose task was replaced (e.g. a finished sync's stream
+  /// delivering a late error after a new sync started) keeps delivering
+  /// events to an orphaned closure-local task; this stops those stale
+  /// events from clobbering whatever replaced it. Returns [next]
+  /// regardless, so the caller's local variable keeps evolving for its own
+  /// onDone/onError decisions even once its updates stop landing. Mirrors
+  /// `DownloadsNotifier._commit` in downloads_state.dart.
+  SaveTask _commit(SaveTask current, SaveTask next, {bool throttle = false}) {
+    final registered = _buffer[next.gameId] ?? state.tasks[next.gameId];
+    if (identical(registered, current)) {
+      _buffer.put(next.gameId, next, throttle: throttle);
     }
     return next;
   }
@@ -167,6 +178,7 @@ class SavesNotifier extends Notifier<SavesState> {
       return;
     }
     var task = SaveTask(gameId: gameId, direction: direction);
+    _buffer.remove(gameId);
     state = SavesState({...state.tasks, gameId: task});
 
     final gamesState = ref.read(gamesStateProvider);
@@ -218,7 +230,11 @@ class SavesNotifier extends Notifier<SavesState> {
 
     stream.listen(
       (event) {
-        task = _commit(task, _apply(task, event));
+        // `Finished`'s status change to completed lands immediately; every
+        // other event here (Progress, FileStarted, FileFinished) leaves the
+        // task running and is throttled.
+        final next = _apply(task, event);
+        task = _commit(task, next, throttle: next.status == TaskStatus.running);
       },
       onDone: () {
         // `Finished` normally marks completion first; this covers a stream

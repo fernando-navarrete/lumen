@@ -6,6 +6,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
+import 'package:lumen/state/emit_throttle.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
@@ -109,25 +110,35 @@ class ProtonNotifier extends Notifier<ProtonState> {
   ProtonState build() {
     _gogState = ref.read(gogStateProvider);
     _prefs = ref.read(sharedPreferencesProvider);
+    _buffer = ThrottledTaskBuffer<String, ProtonTask>(
+      (pending) => state = ProtonState(
+        installed: state.installed,
+        defaultVersion: state.defaultVersion,
+        tasks: {...state.tasks, ...pending},
+      ),
+    );
+    ref.onDispose(_buffer.dispose);
     return _load();
   }
 
+  // Throttles progress-event emits to ~10Hz with a trailing flush, the same
+  // way `DownloadsNotifier` does — see lib/state/emit_throttle.dart.
+  late final ThrottledTaskBuffer<String, ProtonTask> _buffer;
+
   /// Commits [next] as the replacement for [current] if [current] is still
-  /// the task registered for its tag — a stream whose task was replaced
-  /// (e.g. a retried download after a failure) keeps delivering events to
-  /// an orphaned closure-local task; this stops those stale events from
-  /// clobbering whatever replaced it. Returns [next] regardless, so the
-  /// caller's local variable keeps evolving for its own onDone/onError
-  /// decisions even once its updates stop landing. Mirrors
-  /// `DownloadsNotifier._commit` in downloads_state.dart (without the
-  /// throttling — Proton downloads don't throttle emits).
-  ProtonTask _commit(ProtonTask current, ProtonTask next) {
-    if (identical(state.tasks[next.tag], current)) {
-      state = ProtonState(
-        installed: state.installed,
-        defaultVersion: state.defaultVersion,
-        tasks: {...state.tasks, next.tag: next},
-      );
+  /// the task registered for its tag — either the latest buffered value in
+  /// [_buffer], or (if nothing's buffered) the value in [state.tasks]. A
+  /// stream whose task was replaced (e.g. a retried download after a
+  /// failure) keeps delivering events to an orphaned closure-local task;
+  /// this stops those stale events from clobbering whatever replaced it.
+  /// Returns [next] regardless, so the caller's local variable keeps
+  /// evolving for its own onDone/onError decisions even once its updates
+  /// stop landing. Mirrors `DownloadsNotifier._commit` in
+  /// downloads_state.dart.
+  ProtonTask _commit(ProtonTask current, ProtonTask next, {bool throttle = false}) {
+    final registered = _buffer[next.tag] ?? state.tasks[next.tag];
+    if (identical(registered, current)) {
+      _buffer.put(next.tag, next, throttle: throttle);
     }
     return next;
   }
@@ -158,6 +169,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
     final dir = targetDir ?? protonInstallDir();
     Directory(dir).createSync(recursive: true);
     var task = ProtonTask(tag: tag);
+    _buffer.remove(tag);
     state = ProtonState(
       installed: state.installed,
       defaultVersion: state.defaultVersion,
@@ -183,6 +195,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
             task = _commit(
               task,
               task.copyWith(total: field0.toInt(), stage: 'downloading'),
+              throttle: true,
             );
           case ProtonDownloadProgress_Progress(:final field0):
             final transferred = field0.toInt();
@@ -192,6 +205,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
             task = _commit(
               task,
               task.copyWith(transferred: transferred, stage: stage),
+              throttle: true,
             );
           case ProtonDownloadProgress_Extracted():
             // Entries are extracted as the tarball streams in, so these
@@ -264,6 +278,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
   /// already wiped the underlying prefs, so this notifier's state doesn't
   /// keep reporting versions as installed that were just cleared.
   void resetToEmpty() {
+    _buffer.clear();
     state = const ProtonState.empty();
   }
 
