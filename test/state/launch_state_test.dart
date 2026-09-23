@@ -844,8 +844,11 @@ exit $exitCode
       // The first launch's log was closed at its exit, so the late SIGTERM
       // note goes nowhere — and certainly not into the second game's log.
       expect(File(gameLogPath(1)).readAsStringSync(), isNot(contains('stop')));
-      // kill -0: the second game's process is still alive.
-      expect(Process.runSync('kill', ['-0', secondPid]).exitCode, 0);
+      // kill -0 via bash's builtin: the CI image has no standalone `kill`.
+      expect(
+        Process.runSync('bash', ['-c', 'kill -0 $secondPid']).exitCode,
+        0,
+      );
 
       expect(
         identical(container.read(launchStateProvider).gameFor(1), second),
