@@ -56,7 +56,13 @@ This goes before any feature work so that everything after it lands with tests.
 
 Follow-up patches (`v1.1.1+`), one per tag:
 1. `v1.1.1`: simplify or remove `GogState` stream caches (§4).
-2. `v1.1.2`: make error handling consistent in `GogState` / `getProtonReleases` (§4).
+2. `v1.1.2`: make error handling consistent in `GogState` / `getProtonReleases` (§4). Also:
+   in `DownloadsNotifier`, `stream.listen`'s `onError` sets a task `failed`, but
+   `cancelOnError` is false, so a `finished` event followed by a late stream error still lets
+   `onDone` run afterward and re-derive `completed`/installed from `stage`/`errorFiles` —
+   the error is effectively swallowed. Characterized (not fixed) in
+   `test/state/downloads_state_test.dart`'s "known gap" test (Phase 4a,
+   `v1.1.0-FOUNDATION_WORKPLAN.md`).
 3. `v1.1.3`: throttle `ProtonNotifier` and `SavesNotifier` emits (§4).
 4. `v1.1.4`: debounce game-settings persistence (§4).
 5. `v1.1.5`: add a schema version to the persisted `games` JSON (§4).
