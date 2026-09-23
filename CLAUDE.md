@@ -44,7 +44,11 @@ Tests live under `test/`, built against the `GogBackend` interface. `test/helper
 `FakeGogBackend` and `test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`
 (and `sharedPreferencesProvider`) with a fake, so a test never needs the Rust bridge's native library
 loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or call `RustLib.init()` —
-either would require that native library, which isn't available in CI.
+either would require that native library, which isn't available in CI. Anything that touches
+`lib/common/app_paths.dart` (Proton prefixes, the Proton install dir, the fake Steam compat client
+dir) must never read or write under the real `lumenDataDir()`; `test/helpers/temp_data_home.dart`'s
+`useTempDataHome()` points it at a temp dir for the test via `app_paths.dart`'s
+`xdgDataHomeOverride` test seam.
 
 ## Architecture
 
