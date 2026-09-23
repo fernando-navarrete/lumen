@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/models/launch_target.dart';
@@ -115,14 +116,18 @@ void main() {
 
     // Fakes every disk read, since the real scan runs on an isolate, which
     // never completes under testWidgets' fake async.
-    final fakeResolver = launchResolverProvider.overrideWith(
-      (ref) => LaunchResolver(
-        ref,
-        scan: (_) async => const ['bin/game.exe', 'other.exe'],
-        readPrimary: (_, _) async => gogTask,
-        listTasks: (_, _) async => const [(name: 'Game', target: gogTask)],
-      ),
-    );
+    Override fakeResolverWith({bool exeExists = true}) =>
+        launchResolverProvider.overrideWith(
+          (ref) => LaunchResolver(
+            ref,
+            scan: (_) async => const ['bin/game.exe', 'other.exe'],
+            readPrimary: (_, _) async => gogTask,
+            listTasks: (_, _) async => const [(name: 'Game', target: gogTask)],
+            fileExists: (_) async => exeExists,
+            dirExists: (_) async => true,
+          ),
+        );
+    final fakeResolver = fakeResolverWith();
 
     testWidgets("with no override, shows what auto resolves to and the GOG "
         "task's arguments and working dir", (tester) async {
@@ -156,6 +161,31 @@ void main() {
 
       expect(container.read(gamesStateProvider).getExecutable(gameId), isNull);
       expect(find.text('Auto — bin/game.exe (from GOG)'), findsOneWidget);
+    });
+
+    testWidgets('a missing override is marked, and not cleared', (
+      tester,
+    ) async {
+      final container = await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: installedPrefs(executable: 'other.exe'),
+        overrides: [fakeResolverWith(exeExists: false)],
+      );
+      await tester.pump();
+
+      expect(find.text('other.exe — missing'), findsOneWidget);
+      expect(
+        find.text(
+          'No longer in the install folder. Play will reset this to '
+          'auto.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        container.read(gamesStateProvider).getExecutable(gameId),
+        'other.exe',
+      );
     });
 
     testWidgets('Change lists GOG tasks first and saves the choice', (

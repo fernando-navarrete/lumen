@@ -180,6 +180,8 @@ void main() {
               },
               readPrimary: (_, _) async => null,
               listTasks: (_, _) async => const [],
+              fileExists: (_) async => true,
+              dirExists: (_) async => true,
             ),
           ),
         ],
@@ -204,6 +206,62 @@ void main() {
         ),
       ]);
       expect(find.text('Play'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Play with a missing override clears it and explains why in the picker',
+    (tester) async {
+      final recorder = _RecordingLaunchNotifier();
+
+      final container = await pumpApp(
+        tester,
+        const GameActionButtons(gameId: gameId),
+        prefs: {
+          'games': jsonEncode({
+            'version': GamesNotifier.gamesSchemaVersion,
+            'games': {
+              '$gameId': {
+                'status': 'downloaded',
+                'selectedBuild': 'b1',
+                'productIds': [1],
+                'installPath': '/games/foo',
+                'executable': 'old.exe',
+                'protonPrefixPath': '/games/prefix',
+              },
+            },
+          }),
+          'protonInstalled': jsonEncode({'GE-1': '/proton/GE-1'}),
+          'protonDefault': 'GE-1',
+        },
+        overrides: [
+          launchStateProvider.overrideWith(() => recorder),
+          launchResolverProvider.overrideWith(
+            (ref) => LaunchResolver(
+              ref,
+              scan: (_) async => const ['a.exe', 'b.exe'],
+              readPrimary: (_, _) async => null,
+              listTasks: (_, _) async => const [],
+              fileExists: (_) async => false,
+              dirExists: (_) async => true,
+            ),
+          ),
+        ],
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Play'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.text(
+          '"old.exe" is no longer in the install folder — choose another',
+        ),
+        findsOneWidget,
+      );
+      expect(container.read(gamesStateProvider).getExecutable(gameId), isNull);
+      expect(recorder.launched, isEmpty);
     },
   );
 }

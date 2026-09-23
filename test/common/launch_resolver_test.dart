@@ -81,7 +81,7 @@ void main() {
     );
   }
 
-  Future<String?> failPick(List<String> candidates) =>
+  Future<String?> failPick(List<String> candidates, {String? notice}) =>
       fail('picker should not be shown, got $candidates');
 
   test('a stored override wins over the .info', () async {
@@ -177,7 +177,7 @@ void main() {
     final result = await resolver.resolve(
       _gameId,
       installDir.path,
-      pick: (candidates) async {
+      pick: (candidates, {notice}) async {
         offered = candidates;
         return 'b.exe';
       },
@@ -201,7 +201,7 @@ void main() {
     final result = await resolver.resolve(
       _gameId,
       installDir.path,
-      pick: (_) async => null,
+      pick: (_, {notice}) async => null,
     );
 
     expect(result.target, isNull);
@@ -220,6 +220,99 @@ void main() {
 
     expect(result.target, isNull);
     expect(result.message, 'No launchable .exe found in ${installDir.path}');
+  });
+
+  group('stale override', () {
+    const stale = '"gone.exe" is no longer in the install folder';
+
+    test('is cleared, and the play task is used', () async {
+      writeInfo();
+      final (resolver, games) = await setUpResolver(executable: 'gone.exe');
+
+      final result = await resolver.resolve(
+        _gameId,
+        installDir.path,
+        pick: failPick,
+      );
+
+      expect(result.target?.executable, 'bin/x64/game.exe');
+      expect(result.target?.source, LaunchTargetSource.gogMetadata);
+      expect(result.message, '$stale — using bin/x64/game.exe instead');
+      expect(games().getExecutable(_gameId), isNull);
+    });
+
+    test('is cleared, and a lone scan result is used', () async {
+      writeFiles(['game.exe']);
+      final (resolver, games) = await setUpResolver(executable: 'gone.exe');
+
+      final result = await resolver.resolve(
+        _gameId,
+        installDir.path,
+        pick: failPick,
+      );
+
+      expect(
+        result.target,
+        const LaunchTarget(
+          executable: 'game.exe',
+          source: LaunchTargetSource.scan,
+        ),
+      );
+      expect(result.message, '$stale — using game.exe instead');
+      expect(games().getExecutable(_gameId), isNull);
+    });
+
+    test(
+      'with several scan results, offers the picker with a notice',
+      () async {
+        writeFiles(['a.exe', 'b.exe']);
+        final (resolver, games) = await setUpResolver(executable: 'gone.exe');
+        String? shownNotice;
+
+        final result = await resolver.resolve(
+          _gameId,
+          installDir.path,
+          pick: (candidates, {notice}) async {
+            shownNotice = notice;
+            return 'a.exe';
+          },
+        );
+
+        expect(shownNotice, '$stale — choose another');
+        expect(result.target?.executable, 'a.exe');
+        expect(result.message, isNull);
+        expect(games().getExecutable(_gameId), 'a.exe');
+      },
+    );
+
+    test('with nothing else to launch: cleared, with a message', () async {
+      final (resolver, games) = await setUpResolver(executable: 'gone.exe');
+
+      final result = await resolver.resolve(
+        _gameId,
+        installDir.path,
+        pick: failPick,
+      );
+
+      expect(result.target, isNull);
+      expect(
+        result.message,
+        '$stale, and no other .exe was found in ${installDir.path}',
+      );
+      expect(games().getExecutable(_gameId), isNull);
+    });
+  });
+
+  test('a missing install folder stops with a message and keeps the '
+      'override', () async {
+    final (resolver, games) = await setUpResolver(executable: 'game.exe');
+    final gone = '${installDir.path}/gone';
+
+    final result = await resolver.resolve(_gameId, gone, pick: failPick);
+
+    expect(result.target, isNull);
+    expect(result.message, 'The install folder $gone no longer exists');
+    expect(games().getExecutable(_gameId), 'game.exe');
   });
 
   group('previewAuto', () {

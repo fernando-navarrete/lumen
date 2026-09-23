@@ -8,13 +8,15 @@ import 'package:lumen/theme/text_styles.dart';
 /// directory, e.g. GOG play tasks and `findExecutables` results) and lets
 /// the user pick which one to use. A path with an entry in [labels] (a GOG
 /// play task's `GOG: <name>`) shows that label, with the path underneath.
-/// Returns the chosen path, or null if canceled.
+/// [message], when set, is a warning shown under the title (e.g. why the
+/// user is being asked). Returns the chosen path, or null if canceled.
 Future<String?> showExecutablePicker(
   BuildContext context, {
   required List<String> candidates,
   Map<String, String> labels = const {},
   String title = "Choose executable",
   String confirmLabel = "Select",
+  String? message,
 }) {
   return showDialog<String>(
     context: context,
@@ -23,6 +25,7 @@ Future<String?> showExecutablePicker(
       labels: labels,
       title: title,
       confirmLabel: confirmLabel,
+      message: message,
     ),
   );
 }
@@ -33,12 +36,14 @@ class _ExecutablePickerDialog extends StatefulWidget {
     required this.labels,
     required this.title,
     required this.confirmLabel,
+    this.message,
   });
 
   final List<String> candidates;
   final Map<String, String> labels;
   final String title;
   final String confirmLabel;
+  final String? message;
 
   @override
   State<_ExecutablePickerDialog> createState() =>
@@ -83,6 +88,11 @@ class _ExecutablePickerDialogState extends State<_ExecutablePickerDialog> {
                   ),
                 ],
               ),
+              if (widget.message != null)
+                Text(
+                  widget.message!,
+                  style: AppText.bodyMedium(color: AppColors.warning),
+                ),
               const SizedBox(height: AppSpacing.sm),
               Flexible(
                 child: SingleChildScrollView(

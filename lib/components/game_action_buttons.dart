@@ -411,7 +411,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         .resolve(
           gameId,
           installPath,
-          pick: (candidates) async {
+          pick: (candidates, {notice}) async {
             if (!context.mounted) {
               return null;
             }
@@ -419,6 +419,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
               context,
               candidates: candidates,
               confirmLabel: "Launch",
+              message: notice,
             );
           },
         );

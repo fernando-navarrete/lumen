@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/launch_target.dart';
 import '../state/games_state.dart';
@@ -6,8 +9,12 @@ import 'executable_finder.dart';
 import 'goggame_info.dart';
 
 /// Asks the user to choose one of several scanned executables; returns null
-/// if they canceled.
-typedef PickExecutable = Future<String?> Function(List<String> candidates);
+/// if they canceled. [notice], when set, explains why they're being asked
+/// (a stale override was just cleared).
+typedef PickExecutable =
+    Future<String?> Function(List<String> candidates, {String? notice});
+
+typedef PathExists = Future<bool> Function(String path);
 
 typedef ScanExecutables = Future<List<String>> Function(String installPath);
 typedef ReadPrimaryPlayTask =
@@ -40,7 +47,9 @@ class AutoPreview {
 
 /// Resolves which executable a game launches with, shared by Play and the
 /// game's Settings tab. The order is:
-/// 1. the user's override (`GameConfig.executable`), if set,
+/// 1. the user's override (`GameConfig.executable`), if set and still on
+///    disk. A stale one (deleted by a game update, say) is cleared, so the
+///    game falls back to auto, and the user is told why,
 /// 2. the install's `goggame-<gameId>.info` play task ([readPrimaryPlayTask]),
 /// 3. the [findExecutablesAsync] scan: one candidate is used directly,
 ///    several go to a picker.
@@ -49,12 +58,17 @@ class AutoPreview {
 /// re-resolved on every launch and never persisted, so a game update that
 /// changes its exe is followed automatically. Only a choice the user made
 /// in a picker is saved.
+///
+/// A missing install folder stops resolution with a message saying so,
+/// rather than scanning nothing, and leaves the override alone.
 class LaunchResolver {
   LaunchResolver(
     this._ref, {
     this.scan = findExecutablesAsync,
     this.readPrimary = readPrimaryPlayTask,
     this.listTasks = listPlayTasks,
+    this.fileExists = _fileExists,
+    this.dirExists = _dirExists,
   });
 
   final Ref _ref;
@@ -65,6 +79,11 @@ class LaunchResolver {
   final ScanExecutables scan;
   final ReadPrimaryPlayTask readPrimary;
   final ListPlayTasks listTasks;
+  final PathExists fileExists;
+  final PathExists dirExists;
+
+  static Future<bool> _fileExists(String path) => File(path).exists();
+  static Future<bool> _dirExists(String path) => Directory(path).exists();
 
   /// Resolves [gameId]'s launch target under [installPath], calling [pick]
   /// only when the scan finds several candidates. A picked executable is
@@ -74,32 +93,60 @@ class LaunchResolver {
     String installPath, {
     required PickExecutable pick,
   }) async {
-    final override = await overrideTarget(gameId, installPath);
-    if (override != null) {
-      return LaunchResolution(target: override);
+    if (!await dirExists(installPath)) {
+      return LaunchResolution(
+        message: "The install folder $installPath no longer exists",
+      );
     }
+
+    String? stale;
+    if (await isOverrideMissing(gameId, installPath)) {
+      stale = _ref.read(gamesStateProvider).getExecutable(gameId);
+      _ref.read(gamesStateProvider.notifier).setExecutable(gameId, null);
+    } else {
+      final override = await overrideTarget(gameId, installPath);
+      if (override != null) {
+        return LaunchResolution(target: override);
+      }
+    }
+    final staleNotice = stale == null
+        ? null
+        : '"$stale" is no longer in the install folder';
+
+    LaunchResolution auto(LaunchTarget target) => LaunchResolution(
+      target: target,
+      message: staleNotice == null
+          ? null
+          : "$staleNotice — using ${target.executable} instead",
+    );
 
     final playTask = await readPrimary(installPath, gameId);
     if (playTask != null) {
-      return LaunchResolution(target: playTask);
+      return auto(playTask);
     }
 
     final candidates = await scan(installPath);
     if (candidates.isEmpty) {
       return LaunchResolution(
-        message: "No launchable .exe found in $installPath",
+        message: staleNotice == null
+            ? "No launchable .exe found in $installPath"
+            : "$staleNotice, and no other .exe was found in $installPath",
       );
     }
     if (candidates.length == 1) {
-      return LaunchResolution(
-        target: LaunchTarget(
+      return auto(
+        LaunchTarget(
           executable: candidates.first,
           source: LaunchTargetSource.scan,
         ),
       );
     }
 
-    final chosen = await pick(candidates);
+    // The picker shows the notice itself, so there's no message after it.
+    final chosen = await pick(
+      candidates,
+      notice: staleNotice == null ? null : "$staleNotice — choose another",
+    );
     if (chosen == null) {
       return const LaunchResolution();
     }
@@ -110,6 +157,14 @@ class LaunchResolver {
         source: LaunchTargetSource.userOverride,
       ),
     );
+  }
+
+  /// Whether [gameId] has an override that no longer exists under
+  /// [installPath].
+  Future<bool> isOverrideMissing(int gameId, String installPath) async {
+    final executable = _ref.read(gamesStateProvider).getExecutable(gameId);
+    return executable != null &&
+        !await fileExists(p.join(installPath, executable));
   }
 
   /// [gameId]'s stored override as a target, or null if none is set. An

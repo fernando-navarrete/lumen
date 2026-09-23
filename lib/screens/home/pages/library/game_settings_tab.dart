@@ -64,6 +64,10 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
   LaunchTarget? _overrideTarget;
   AutoPreview? _autoPreview;
 
+  // Whether the stored override is no longer in the install folder. Play
+  // will clear it and fall back to auto; this just warns ahead of time.
+  bool _overrideMissing = false;
+
   // Bumped on every [_refreshResolved], so a slow earlier load can't
   // overwrite a newer one.
   int _resolveToken = 0;
@@ -112,6 +116,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     final token = ++_resolveToken;
     _overrideTarget = null;
     _autoPreview = null;
+    _overrideMissing = false;
 
     final gameId = widget.gameId;
     final gamesState = ref.read(gamesStateProvider);
@@ -124,9 +129,13 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
 
     () async {
       if (hasOverride) {
+        final missing = await resolver.isOverrideMissing(gameId, installPath);
         final target = await resolver.overrideTarget(gameId, installPath);
         if (mounted && token == _resolveToken) {
-          setState(() => _overrideTarget = target);
+          setState(() {
+            _overrideMissing = missing;
+            _overrideTarget = target;
+          });
         }
       } else {
         final preview = await resolver.previewAuto(gameId, installPath);
@@ -343,12 +352,32 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      executable ?? _autoLabel(installPath),
-                      style: executable != null
-                          ? AppText.code(color: Colors.white)
-                          : AppText.bodyMedium(color: AppColors.textSecondary),
-                    ),
+                    child: executable != null && _overrideMissing
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            spacing: 4,
+                            children: [
+                              Text(
+                                "$executable — missing",
+                                style: AppText.code(color: AppColors.warning),
+                              ),
+                              Text(
+                                "No longer in the install folder. Play will "
+                                "reset this to auto.",
+                                style: AppText.bodyMedium(
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            executable ?? _autoLabel(installPath),
+                            style: executable != null
+                                ? AppText.code(color: Colors.white)
+                                : AppText.bodyMedium(
+                                    color: AppColors.textSecondary,
+                                  ),
+                          ),
                   ),
                   if (installPath != null) ...[
                     if (_changing)
