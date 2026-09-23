@@ -1,5 +1,11 @@
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart'
+    hide GameBuild, DownloadableProduct, ProtonRelease;
+import 'package:gogdl_flutter/gogdl_flutter.dart' as bridge
+    show GameBuild, DownloadableProduct, ProtonRelease;
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/models/downloadable_product.dart';
+import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
 
@@ -50,14 +56,22 @@ class GogdlBackend implements GogBackend {
       _api.getGameScreenshots(gameId: gameId);
 
   @override
-  Future<List<GameBuild>> getGameBuilds(int gameId) =>
-      _api.getGameBuilds(gameId: gameId);
+  Future<List<GameBuild>> getGameBuilds(int gameId) async {
+    var result = await _api.getGameBuilds(gameId: gameId);
+    return result.map(_adaptBuild).toList();
+  }
 
   @override
   Future<List<DownloadableProduct>> getDownloadableProducts({
     required int gameId,
     required String buildName,
-  }) => _api.getDownloadableProducts(gameId: gameId, buildName: buildName);
+  }) async {
+    var result = await _api.getDownloadableProducts(
+      gameId: gameId,
+      buildName: buildName,
+    );
+    return result.map(_adaptProduct).toList();
+  }
 
   @override
   Stream<DownloadGameProgress> downloadGame({
@@ -108,7 +122,7 @@ class GogdlBackend implements GogBackend {
   Future<List<ProtonRelease>> getProtonReleases(int page) async {
     try {
       var result = await _api.getProtonReleases(page: page);
-      return result;
+      return result.map(_adaptRelease).toList();
     } on GogError catch (e) {
       logGogError(e);
       return [];
@@ -155,4 +169,17 @@ class GogdlBackend implements GogBackend {
 
   @override
   void dispose() => _api.dispose();
+
+  GameBuild _adaptBuild(bridge.GameBuild b) => GameBuild(
+    buildId: b.buildId,
+    versionName: b.versionName,
+    releaseDate: b.releaseDate,
+    releaseDateTimestamp: b.releaseDateTimestamp,
+  );
+
+  DownloadableProduct _adaptProduct(bridge.DownloadableProduct p) =>
+      DownloadableProduct(id: p.id, name: p.name, productType: p.productType);
+
+  ProtonRelease _adaptRelease(bridge.ProtonRelease r) =>
+      ProtonRelease(tagName: r.tagName, downloadSize: r.downloadSize.toInt());
 }

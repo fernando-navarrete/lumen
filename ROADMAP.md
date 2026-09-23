@@ -113,7 +113,9 @@ Follow-up patches (`v1.4.1+`), one per tag:
 
 Follow-up patches (`v1.5.1+`), one per tag:
 1. `v1.5.1`: check whether the GOG summary is HTML and render it correctly (§6).
-2. `v1.5.2`: merge `formatBytes`/`formatBytesBigint` and fix the stale `buildId` comment (§7).
+2. `v1.5.2`: `formatBytesBigint` has had no callers since `v1.1.0` Phase 2 (`ProtonRelease.downloadSize`
+   is a plain `int` now), so this is just deleting it, not merging. Also fix the stale `buildId`
+   comment (§7).
 
 ## v1.6.0 — Extras
 

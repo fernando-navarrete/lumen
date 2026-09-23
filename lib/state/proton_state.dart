@@ -2,8 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';

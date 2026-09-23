@@ -3,7 +3,11 @@ import 'dart:collection';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart'
+    hide GameBuild, DownloadableProduct, ProtonRelease;
+import 'package:lumen/models/downloadable_product.dart';
+import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
 import 'package:lumen/common/gog_error.dart';

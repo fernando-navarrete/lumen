@@ -1,4 +1,8 @@
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart'
+    hide GameBuild, DownloadableProduct, ProtonRelease;
+import 'package:lumen/models/downloadable_product.dart';
+import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/proton_release.dart';
 
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
 /// particular implementation. [GogState] talks only to this interface —
