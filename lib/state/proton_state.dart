@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/executable_lookup.dart';
+import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
@@ -275,19 +276,32 @@ class ProtonNotifier extends Notifier<ProtonState> {
     _persist();
   }
 
-  /// Drops [tag] from the installed registry (does not delete the files on
-  /// disk — the user picked that location and may want to keep it). Games
-  /// pinned to [tag] have their override cleared so they fall back to the
-  /// global default instead of failing at launch.
-  void removeVersion(String tag) {
-    final installed = {...state.installed}..remove(tag);
-    final defaultVersion = state.defaultVersion == tag
-        ? null
-        : state.defaultVersion;
+  /// Removes [tag] from the installed registry. With [deleteFiles], its
+  /// extracted directory is deleted first via [deleteDirectoryGuarded]; if
+  /// that throws (a refused path, a permissions error) nothing changes — the
+  /// version stays installed and the error reaches the caller. Without it the
+  /// files stay on disk. Games pinned to [tag] have their override cleared so
+  /// they fall back to the global default instead of failing at launch.
+  ///
+  /// A tag that isn't in [ProtonState.installed] (unknown, or hidden as
+  /// unavailable by [_load]) is left alone, so a hidden entry is neither
+  /// dropped from prefs nor resurrected.
+  Future<void> removeVersion(String tag, {bool deleteFiles = false}) async {
+    final path = state.installed[tag];
+    if (path == null) {
+      return;
+    }
+    if (deleteFiles) {
+      await deleteDirectoryGuarded(path, purpose: 'Proton-GE $tag');
+    }
+    // Rebuilt from the current state: it may have changed during the await.
+    // The tag's task goes too, or a stale `completed` one would show as a
+    // progress bar and stop the release from being installed again.
+    _buffer.remove(tag);
     state = ProtonState(
-      installed: installed,
-      defaultVersion: defaultVersion,
-      tasks: state.tasks,
+      installed: {...state.installed}..remove(tag),
+      defaultVersion: state.defaultVersion == tag ? null : state.defaultVersion,
+      tasks: {...state.tasks}..remove(tag),
     );
     _persist();
     ref.read(gamesStateProvider.notifier).clearProtonVersion(tag);

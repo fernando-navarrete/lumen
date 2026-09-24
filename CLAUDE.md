@@ -153,6 +153,12 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
 - Per-game launch logs at `<lumenDataDir>/logs/<gameId>.log`, rotated to `<gameId>.previous.log`
   (one generation, overwritten) at the start of every launch.
 
+`ProtonNotifier.removeVersion(tag, {deleteFiles})` (Settings' "Installed versions" list) deletes the
+release directory first via `lib/common/safe_delete.dart`'s `deleteDirectoryGuarded` and only drops the
+registry entry if that succeeds. That helper refuses `/`, `$HOME`, `lumenDataDir()`, their ancestors,
+symlinks and non-directories, and is the only sanctioned recursive delete in the app: any other
+deletion (cancelled downloads, uninstall) goes through it too.
+
 `ProtonNotifier._load` (`lib/state/proton_state.dart`) validates the persisted `protonInstalled`
 registry against disk on every load, via `executable_lookup.dart`'s `isExecutableFile` on each
 entry's `proton` script: a release deleted (or on an unmounted drive, for a custom `targetDir`)

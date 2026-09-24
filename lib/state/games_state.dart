@@ -121,6 +121,12 @@ class GamesState {
     return games[gameId]?.status ?? GameStatus.notInstalled;
   }
 
+  /// Ids of the games whose Proton-GE override is [tag].
+  List<int> gamesPinnedTo(String tag) => [
+    for (final entry in games.entries)
+      if (entry.value.protonVersion == tag) entry.key,
+  ];
+
   String? getInstallPath(int gameId) {
     return games[gameId]?.installPath;
   }

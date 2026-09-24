@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
+import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
@@ -183,7 +186,7 @@ void main() {
         games.setProtonVersion(3, 'B');
 
         final protonNotifier = container.read(protonStateProvider.notifier);
-        protonNotifier.removeVersion('A');
+        await protonNotifier.removeVersion('A');
 
         final gamesState = container.read(gamesStateProvider);
         expect(gamesState.getProtonVersion(1), null);
@@ -204,6 +207,138 @@ void main() {
         expect(prefs.getString('protonDefault'), null);
       },
     );
+  });
+
+  group('ProtonNotifier — removeVersion (v1.3.0)', () {
+    Future<ProviderContainer> seeded(
+      FakeGogBackend backend,
+      Map<String, String> paths, {
+      String? defaultTag,
+    }) => createContainer(
+      backend: backend,
+      prefs: {
+        'protonInstalled': jsonEncode(paths),
+        'protonDefault': ?defaultTag,
+      },
+    );
+
+    test('without deleteFiles keeps the directory', () async {
+      final backend = FakeGogBackend();
+      addTearDown(backend.closeAll);
+      final path = fakeProtonInstall('${dataHome.path}/A');
+      final container = await seeded(backend, {'A': path});
+
+      await container.read(protonStateProvider.notifier).removeVersion('A');
+
+      expect(container.read(protonStateProvider).isInstalled('A'), false);
+      expect(Directory(path).existsSync(), true);
+    });
+
+    test(
+      'with deleteFiles removes the directory and pinned overrides',
+      () async {
+        final backend = FakeGogBackend();
+        addTearDown(backend.closeAll);
+        final path = fakeProtonInstall('${protonInstallDir()}/A');
+        final container = await seeded(backend, {'A': path});
+        final games = container.read(gamesStateProvider.notifier);
+        games.setSelectedBuild(1, 'build-1');
+        games.setProtonVersion(1, 'A');
+
+        await container
+            .read(protonStateProvider.notifier)
+            .removeVersion('A', deleteFiles: true);
+
+        expect(Directory(path).existsSync(), false);
+        expect(container.read(gamesStateProvider).getProtonVersion(1), null);
+        expect(container.read(protonStateProvider).isInstalled('A'), false);
+      },
+    );
+
+    test('a refused delete keeps the entry, default and prefs', () async {
+      final backend = FakeGogBackend();
+      addTearDown(backend.closeAll);
+      final real = fakeProtonInstall('${dataHome.path}/real');
+      final link = '${dataHome.path}/link';
+      Link(link).createSync(real);
+      final container = await seeded(backend, {'A': link}, defaultTag: 'A');
+      // A symlink to a real install passes the on-disk check in _load.
+      expect(container.read(protonStateProvider).isInstalled('A'), true);
+
+      await expectLater(
+        container
+            .read(protonStateProvider.notifier)
+            .removeVersion('A', deleteFiles: true),
+        throwsA(isA<UnsafeDeleteError>()),
+      );
+
+      final state = container.read(protonStateProvider);
+      expect(state.isInstalled('A'), true);
+      expect(state.defaultVersion, 'A');
+      final prefs = container.read(sharedPreferencesProvider);
+      expect(jsonDecode(prefs.getString('protonInstalled')!), {'A': link});
+      expect(prefs.getString('protonDefault'), 'A');
+      expect(Directory(real).existsSync(), true);
+    });
+
+    test('removing the default leaves no default', () async {
+      final backend = FakeGogBackend();
+      addTearDown(backend.closeAll);
+      final a = fakeProtonInstall('${dataHome.path}/A');
+      final b = fakeProtonInstall('${dataHome.path}/B');
+      final container = await seeded(backend, {
+        'A': a,
+        'B': b,
+      }, defaultTag: 'A');
+
+      await container.read(protonStateProvider.notifier).removeVersion('A');
+
+      expect(container.read(protonStateProvider).defaultVersion, null);
+      expect(container.read(protonStateProvider).isInstalled('B'), true);
+    });
+
+    test('a removed tag can be downloaded again', () async {
+      final backend = FakeGogBackend();
+      addTearDown(backend.closeAll);
+      final container = await createContainer(backend: backend);
+      final notifier = container.read(protonStateProvider.notifier);
+      final targetDir = '${dataHome.path}/target';
+
+      await notifier.downloadRelease(_release, targetDir);
+      final first = backend.protonDownloadController(_release.tagName);
+      final reported = fakeProtonInstall('$targetDir/GE-Proton9_1');
+      first.add(ProtonDownloadProgress.finished(reported));
+      await first.close();
+      await settle();
+      expect(
+        container.read(protonStateProvider).taskFor(_release.tagName)!.status,
+        TaskStatus.completed,
+      );
+
+      await notifier.removeVersion(_release.tagName);
+      expect(
+        container.read(protonStateProvider).taskFor(_release.tagName),
+        null,
+      );
+
+      await notifier.downloadRelease(_release, targetDir);
+      expect(backend.callsTo('downloadProtonRelease'), hasLength(2));
+      await backend.protonDownloadController(_release.tagName).close();
+      await settle();
+    });
+
+    test('a hidden (unavailable) tag is a no-op and stays in prefs', () async {
+      final backend = FakeGogBackend();
+      addTearDown(backend.closeAll);
+      final missing = '${dataHome.path}/missing';
+      final container = await seeded(backend, {'A': missing}, defaultTag: 'A');
+
+      await container.read(protonStateProvider.notifier).removeVersion('A');
+
+      final prefs = container.read(sharedPreferencesProvider);
+      expect(jsonDecode(prefs.getString('protonInstalled')!), {'A': missing});
+      expect(prefs.getString('protonDefault'), 'A');
+    });
   });
 
   group('ProtonNotifier — validate on load (v1.2.5)', () {
@@ -238,9 +373,7 @@ void main() {
     test(
       'a directory that exists but has no executable proton is not installed',
       () async {
-        Directory(
-          '${dataHome.path}/empty',
-        ).createSync(recursive: true);
+        Directory('${dataHome.path}/empty').createSync(recursive: true);
         final container = await createContainer(
           prefs: {
             'protonInstalled': jsonEncode({'empty': '${dataHome.path}/empty'}),
