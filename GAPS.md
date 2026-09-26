@@ -57,12 +57,20 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 2. Missing features
 
-- [ ] **P1 — Uninstall.** There's no way to remove a game: delete its files, optionally delete its
-  prefix, and reset its `GameConfig`.
-- [ ] **P1 — Cancel / pause downloads, verifications and repairs.** Nothing can be stopped once started.
-  A comment in `games_state.dart:341` mentions a "Pause" that doesn't exist.
-- [ ] **P1 — Resume downloads interrupted by an app exit.** A game left in `downloading` is coerced to
-  `notInstalled` on load, and its partial files are orphaned.
+- [x] **P1 — Uninstall.** There's no way to remove a game: delete its files, optionally delete its
+  prefix, and reset its `GameConfig`. Fixed in `v1.3.0`: `Uninstaller.uninstallGame` refuses while
+  the game runs, stops any job, deletes the install folder (only if Lumen created it, or the user
+  confirms) and optionally the Lumen-owned prefix and logs through `deleteDirectoryGuarded`, then
+  removes the game's whole `GameConfig` entry. A failed delete leaves the game installed.
+- [x] **P1 — Cancel / pause downloads, verifications and repairs.** Nothing can be stopped once started.
+  A comment in `games_state.dart:341` mentions a "Pause" that doesn't exist. Fixed in `v1.3.0`:
+  every job takes an app-owned `JobCancel` that `GogdlBackend` forwards to the bridge's
+  `CancelToken`. Verification and repair end `TaskStatus.cancelled`; downloads can be paused
+  (`GameStatus.paused`, files kept) or cancelled with or without deleting their files.
+- [x] **P1 — Resume downloads interrupted by an app exit.** A game left in `downloading` is coerced to
+  `notInstalled` on load, and its partial files are orphaned. Fixed in `v1.3.0`: with a
+  `pendingInstallPath` it loads as `paused` ("Paused — interrupted", no auto-resume), and Resume
+  always runs `repairDownload`.
 - [x] **P1 — Stop a running game.** `LaunchNotifier` keeps no handle to kill the process tree (and
   Proton/wineserver). Fixed in `v1.2.0`: `LaunchNotifier.stopGame` runs the release's
   `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are
@@ -76,12 +84,15 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
   changes the stored set; nothing downloads until a manual repair.
 - [ ] **P1 — Update detection.** Nothing flags that a newer build exists than the installed one.
-- [ ] **P1 — Downloads page actions.** Add dismiss/clear for failed and completed tasks, and a Retry
+- [x] **P1 — Downloads page actions.** Add dismiss/clear for failed and completed tasks, and a Retry
   button for failed downloads and repairs (only failed verifications get "Repair" today). Surface the
-  actual error text for downloads and repairs.
-- [ ] **P1 — Proton version removal UI.** `removeVersion` exists but nothing calls it. It should also
+  actual error text for downloads and repairs. Fixed in `v1.3.0`: dismiss (×) and "Clear finished"
+  (sparing running and paused tasks), Retry via `retryDownload`/`startRepair`, and `jobErrorText`
+  maps `GogError.kind()` to Lumen's own wording.
+- [x] **P1 — Proton version removal UI.** `removeVersion` exists but nothing calls it. It should also
   optionally delete the files, since the default install dir is Lumen-owned (the doc comment claims
-  "the user picked that location", which is no longer true).
+  "the user picked that location", which is no longer true). Fixed in `v1.3.0`: a remove action per
+  installed row with a confirm dialog and an "Also delete its files" checkbox.
 - [x] **P2 — Per-game logs.** Game stdout/stderr is piped into Lumen's own stdout
   (`launch_state.dart:136`). Write it to `<lumenDataDir>/logs/<gameId>.log` and link it from the UI.
   Fixed in `v1.2.0`: each launch rotates `<gameId>.log` to `<gameId>.previous.log`, then writes a
@@ -95,7 +106,17 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   the head and tail) if that turns up in practice.
 - [ ] **P2 — Prefix tools.** Add "open prefix folder", "reset prefix", winecfg and winetricks, plus an
   "open install folder" action.
-- [ ] **P2 — Disk space check** before installing, using the download size.
+- [x] **P2 — Disk space check** before installing, using the download size. Fixed in `v1.3.0`:
+  Install shows the download and on-disk sizes against the folder's free space, blocks only when
+  the install can't fit, and never blocks on a failed lookup. Import, Resume and Retry skip it.
+- [ ] **P2 — Cancel a Proton-GE download.** Out of scope for `v1.3.0`. gogdl-lib `v1.2.0` now cleans
+  up a failed or dropped extraction and the bridge takes a `CancelToken`, so only Lumen's
+  `ProtonNotifier` (which ignores `Cancelled`) and a UI action are missing.
+- [ ] **P2 — Cancel a save sync.** Same as above for `SavesNotifier`, which maps `Cancelled` to
+  `failed` today.
+- [ ] **P2 — Big-game resume timing and free-space wording.** Resume's verification pass was only
+  timed on a small game (a resume journal in gogdl-lib may be needed for big ones), and the
+  free-space dialog can't name the mount because the bridge returns bytes only.
 - [ ] **P2 — Library refresh, sorting and metadata caching.** Since `v1.0.6`, `GogState` caches the
   owned-games list for the session (`gog_state.dart`'s `_ownedGamesCache`), so it's no longer
   refetched on every Library visit — only titles still are (see 5.1). There is still no manual
@@ -262,8 +283,8 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   "Select all products to download" is unclear. Also add select-all and select-none actions.
 - [ ] **P2 — Keyboard and accessibility.** `ClickableContainer` is a bare `GestureDetector`, so it has
   no focus, keyboard activation or semantics. Use `InkWell`/`FocusableActionDetector`.
-- [ ] **P2 — The "Installed" library filter also matches `downloading`** (`library_page.dart:61`).
-  Consider a separate "Installing" state or chip.
+- [ ] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
+  (`library_page.dart:61`). Consider a separate "Installing" state or chip.
 
 ## 7. Testing, tooling and docs
 
