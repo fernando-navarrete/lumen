@@ -1,16 +1,23 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/state/emit_throttle.dart';
 import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:path/path.dart' as p;
 
 enum TaskKind { download, verification, repair }
 
-/// [cancelled] is a user-requested stop (verification and repair only, for
-/// now): not a failure, and not shown as one.
-enum TaskStatus { running, completed, failed, cancelled }
+/// [cancelled] is a user-requested stop that discards the work (a cancelled
+/// verification or repair, or a download cancelled without keeping its
+/// files): not a failure, and not shown as one. [paused] is a download stopped
+/// with its partial files kept, resumable through [DownloadsNotifier.resumeDownload].
+enum TaskStatus { running, completed, failed, cancelled, paused }
 
 /// Why a file failed verification, from the three per-path failure events on
 /// the bridge's `VerifyDownloadProgress` stream.
@@ -64,6 +71,11 @@ class ActivityTask {
   // helpers.
   final String? error;
 
+  // Download only: this task is a resume of a paused download, running as a
+  // repair job underneath. It still reads as a download, but its first stages
+  // are "Resuming — verifying downloaded files…".
+  final bool resumed;
+
   ActivityTask({
     required this.gameId,
     required this.kind,
@@ -80,6 +92,7 @@ class ActivityTask {
     this.buildName,
     List<int> productIds = const [],
     this.error,
+    this.resumed = false,
   }) : errorFiles = List.unmodifiable(errorFiles),
        verifyFailures = Map.unmodifiable(verifyFailures),
        productIds = List.unmodifiable(productIds);
@@ -103,6 +116,7 @@ class ActivityTask {
     required this.buildName,
     required this.productIds,
     required this.error,
+    required this.resumed,
   });
 
   int verifyFailureCount(VerifyFailure kind) =>
@@ -143,6 +157,7 @@ class ActivityTask {
     Object? buildName = _unset,
     List<int>? productIds,
     Object? error = _unset,
+    bool? resumed,
   }) {
     return ActivityTask._(
       gameId: gameId,
@@ -170,8 +185,27 @@ class ActivityTask {
           ? this.productIds
           : List.unmodifiable(productIds),
       error: identical(error, _unset) ? this.error : error as String?,
+      resumed: resumed ?? this.resumed,
     );
   }
+}
+
+/// Why a running download job is being stopped: [pause] keeps the partial
+/// files for a later resume, [discard] is a cancel that throws them away.
+enum _StopIntent { pause, discard }
+
+/// The handle of one running job, kept out of the immutable [ActivityTask]
+/// snapshots (same idea as `LaunchNotifier`'s `_LiveLaunch`).
+class _LiveJob {
+  final JobCancel cancel = JobCancel();
+
+  /// Completes once the job's stream has ended, for whatever reason.
+  final Completer<void> done = Completer<void>();
+
+  /// Set before [cancel] fires on a download, so the terminal `Cancelled`
+  /// event knows which of pause/cancel it is. Unset means pause: keeping the
+  /// files is the safe reading.
+  _StopIntent? intent;
 }
 
 /// Immutable snapshot of in-flight/finished download & verification tasks,
@@ -222,23 +256,25 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   // trailing flush. See lib/state/emit_throttle.dart.
   late final ThrottledTaskBuffer<int, ActivityTask> _buffer;
 
-  // Cancel handles of the running jobs, kept out of the immutable
-  // [ActivityTask] snapshots (same idea as `LaunchNotifier`'s `_LiveLaunch`).
-  final Map<int, JobCancel> _cancels = {};
+  final Map<int, _LiveJob> _jobs = {};
 
-  /// Drops [cancel] from the registry, but only if it's still the handle
+  /// Drops [job] from the registry, but only if it's still the job
   /// registered for [gameId]: a stale stream finishing late must not
-  /// unregister the job that replaced it.
-  void _release(int gameId, JobCancel cancel) {
-    if (identical(_cancels[gameId], cancel)) {
-      _cancels.remove(gameId);
+  /// unregister the job that replaced it. Always completes [_LiveJob.done].
+  void _release(int gameId, _LiveJob job) {
+    if (identical(_jobs[gameId], job)) {
+      _jobs.remove(gameId);
+    }
+    if (!job.done.isCompleted) {
+      job.done.complete();
     }
   }
 
   /// Asks the running verification or repair for [gameId] to stop. A no-op
-  /// for anything else (no task, a finished task, a download — that's
-  /// Phase 5). Commits nothing itself: the job's terminal `Cancelled` event
-  /// does, through [_commit], so the stale-stream guard still applies.
+  /// for anything else (no task, a finished task, a download — use [pause] or
+  /// [cancelDownload]). Commits nothing itself: the job's terminal
+  /// `Cancelled` event does, through [_commit], so the stale-stream guard
+  /// still applies.
   void cancel(int gameId) {
     final task = state.tasks[gameId];
     if (task == null ||
@@ -246,7 +282,111 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task.kind == TaskKind.download) {
       return;
     }
-    _cancels[gameId]?.cancel();
+    _jobs[gameId]?.cancel.cancel();
+  }
+
+  /// Pauses the running download for [gameId]: the job stops and its partial
+  /// files stay put. The terminal `Cancelled` event commits
+  /// [TaskStatus.paused] and [GameStatus.paused]. A no-op for anything that
+  /// isn't a running download.
+  void pause(int gameId) {
+    final task = state.tasks[gameId];
+    final job = _jobs[gameId];
+    if (task == null ||
+        job == null ||
+        task.status != TaskStatus.running ||
+        task.kind != TaskKind.download) {
+      return;
+    }
+    job.intent = _StopIntent.pause;
+    job.cancel.cancel();
+  }
+
+  /// The task a download's terminal `Cancelled` event turns [task] into:
+  /// paused (files kept, the game becomes [GameStatus.paused]) unless the job
+  /// was being discarded by [cancelDownload], which finishes the job itself.
+  ActivityTask _stopped(ActivityTask task, _LiveJob job) {
+    if (job.intent == _StopIntent.discard) {
+      return task.copyWith(status: TaskStatus.cancelled);
+    }
+    _gamesNotifier.setGameStatus(task.gameId, GameStatus.paused);
+    return task.copyWith(status: TaskStatus.paused);
+  }
+
+  /// Whether [path] is missing or has nothing in it.
+  Future<bool> _isEmptyOrMissing(String path) async {
+    try {
+      final dir = Directory(path);
+      return !await dir.exists() || await dir.list().isEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Cancels the download for [gameId] (running or paused), stopping the job
+  /// first if it's running, then resets the game to not installed and drops
+  /// its task. With [deleteFiles] the partial files go too: the whole
+  /// install folder, but only if it was empty or missing when the download
+  /// started (`GameConfig.ownsPendingInstallDir`) and holds no other game's
+  /// install. A refused or failed delete rethrows and leaves the game
+  /// paused, since its files are still there to resume from.
+  Future<void> cancelDownload(int gameId, {required bool deleteFiles}) async {
+    final task = state.tasks[gameId];
+    final job = _jobs[gameId];
+    if (job != null &&
+        task != null &&
+        task.kind == TaskKind.download &&
+        task.status == TaskStatus.running) {
+      job.intent = _StopIntent.discard;
+      job.cancel.cancel();
+      await job.done.future;
+      if (state.tasks[gameId]?.status == TaskStatus.completed) {
+        return; // it finished before the cancel landed
+      }
+    }
+
+    final games = ref.read(gamesStateProvider);
+    final path = games.getPendingInstallPath(gameId) ?? task?.path;
+    if (deleteFiles && path != null) {
+      try {
+        if (games.games[gameId]?.ownsPendingInstallDir != true) {
+          throw const UnsafeDeleteError(
+            "That folder wasn't empty when the download started, so it "
+            'is not deleted — remove the downloaded files by hand',
+          );
+        }
+        for (final entry in games.games.entries) {
+          if (entry.key == gameId) continue;
+          for (final other in [
+            entry.value.installPath,
+            entry.value.pendingInstallPath,
+          ]) {
+            if (other != null &&
+                (p.equals(path, other) || p.isWithin(path, other))) {
+              throw const UnsafeDeleteError(
+                "That folder contains another game's install, so it is "
+                'not deleted',
+              );
+            }
+          }
+        }
+        await deleteDirectoryGuarded(path, purpose: 'partial download');
+      } catch (_) {
+        _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
+        final current = state.tasks[gameId];
+        if (current != null) {
+          _buffer.remove(gameId);
+          state = DownloadsState({
+            ...state.tasks,
+            gameId: current.copyWith(status: TaskStatus.paused),
+          });
+        }
+        rethrow;
+      }
+    }
+
+    _gamesNotifier.clearPendingInstall(gameId);
+    removeTask(gameId);
   }
 
   /// Commits [next] as the replacement for [current] if [current] is still
@@ -305,17 +445,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
-    final cancel = JobCancel();
-    _cancels[gameId] = cancel;
+    final job = _LiveJob();
+    _jobs[gameId] = job;
     final stream = _gogState.verifyGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: cancel,
+      cancel: job.cancel,
     );
     if (stream == null) {
-      _release(gameId, cancel);
+      _release(gameId, job);
       task = _commit(
         task,
         task.copyWith(status: TaskStatus.failed, error: 'could not start'),
@@ -352,7 +492,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        _release(gameId, cancel);
+        _release(gameId, job);
         if (task.status == TaskStatus.failed ||
             task.status == TaskStatus.cancelled) {
           return;
@@ -368,7 +508,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(task, next);
       },
       onError: (Object error) {
-        _release(gameId, cancel);
+        _release(gameId, job);
         logGogError(error);
         task = _commit(
           task,
@@ -418,9 +558,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
 
   /// Starts a download for [gameId], or restarts one whose previous attempt
   /// failed. A still-[TaskStatus.running] task for the same game blocks a
-  /// second start; a failed/completed one is dequeued first — same trick
-  /// [startRepair] uses — so a retry registers a fresh task instead of
-  /// silently no-oping against the old one.
+  /// second start, and so does a paused one (use [resumeDownload]); a
+  /// failed/completed one is dequeued first — same trick [startRepair] uses —
+  /// so a retry registers a fresh task instead of silently no-oping against
+  /// the old one.
   Future<void> startDownload(
     int gameId, {
     required String path,
@@ -428,8 +569,13 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     required List<int> productIds,
   }) async {
     final existing = state.tasks[gameId];
+    if (ref.read(gamesStateProvider).getGameStatus(gameId) ==
+        GameStatus.paused) {
+      return;
+    }
     if (existing != null) {
-      if (existing.status == TaskStatus.running) {
+      if (existing.status == TaskStatus.running ||
+          existing.status == TaskStatus.paused) {
         return;
       }
       removeTask(gameId);
@@ -444,24 +590,27 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
     _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
-    _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
 
-    final cancel = JobCancel();
-    _cancels[gameId] = cancel;
+    final job = _LiveJob();
+    _jobs[gameId] = job;
+    // The task is registered first, so a second start during this await is
+    // blocked; the folder is inspected before the job can write to it.
+    final ownsDir = await _isEmptyOrMissing(path);
+    _gamesNotifier.beginInstall(gameId, path, ownsDir: ownsDir);
     final stream = _gogState.downloadGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: cancel,
+      cancel: job.cancel,
     );
     if (stream == null) {
-      _release(gameId, cancel);
+      _release(gameId, job);
       final next = task.copyWith(
         status: TaskStatus.failed,
         error: 'could not start',
       );
-      _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
+      _gamesNotifier.clearPendingInstall(gameId);
       task = _commit(task, next);
       return;
     }
@@ -502,15 +651,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = _commit(prev, task);
             return;
           case DownloadGameProgress_Cancelled():
-            // Placeholder until Phase 5 (pause/cancel for downloads).
-            task = task.copyWith(error: 'cancelled');
+            task = _stopped(task, job);
+            task = _commit(prev, task);
+            return;
         }
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        _release(gameId, cancel);
+        _release(gameId, job);
         if (task.status == TaskStatus.failed ||
-            task.status == TaskStatus.cancelled) {
+            task.status == TaskStatus.cancelled ||
+            task.status == TaskStatus.paused) {
           return;
         }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
@@ -522,18 +673,18 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             _gamesNotifier.markInstalled(gameId, task.path!);
           }
         } else {
-          _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
+          _gamesNotifier.clearPendingInstall(gameId);
         }
         task = _commit(task, next);
       },
       onError: (Object error) {
-        _release(gameId, cancel);
+        _release(gameId, job);
         logGogError(error);
         final next = task.copyWith(
           status: TaskStatus.failed,
           error: gogErrorText(error),
         );
-        _gamesNotifier.setGameStatus(gameId, GameStatus.notInstalled);
+        _gamesNotifier.clearPendingInstall(gameId);
         task = _commit(task, next);
       },
     );
@@ -592,33 +743,79 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
   }
 
+  /// Resumes the paused download for [gameId]. Always a repair job
+  /// underneath, never `downloadGame`: a killed or paused download leaves
+  /// its files preallocated to full size, which `download_game`'s size check
+  /// would call done. The task still reads as a download ([ActivityTask.resumed]).
+  /// Its params come from the game's existing download task, else from the
+  /// persisted config (a pause that survived an app restart). A resume that
+  /// fails leaves the game paused again, since its files are still there.
+  Future<void> resumeDownload(int gameId) async {
+    final games = ref.read(gamesStateProvider);
+    if (games.getGameStatus(gameId) != GameStatus.paused) {
+      return;
+    }
+    var existing = state.tasks[gameId];
+    if (existing != null && existing.status == TaskStatus.running) {
+      return;
+    }
+    if (existing != null && existing.kind != TaskKind.download) {
+      existing = null;
+    }
+    final path = existing?.path ?? games.getPendingInstallPath(gameId);
+    final buildName = existing?.buildName ?? games.getSelectedBuild(gameId);
+    final productIds =
+        existing?.productIds ?? games.getProductIds(gameId).toList();
+    if (path == null || buildName == null || buildName.isEmpty) {
+      return;
+    }
+
+    removeTask(gameId);
+    _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
+    await _runRepair(
+      gameId,
+      path: path,
+      buildName: buildName,
+      productIds: productIds,
+      resumed: true,
+    );
+  }
+
+  /// Runs a repair stream for [gameId]. With [resumed] it's a paused
+  /// download being resumed: tracked as a [TaskKind.download] task, ending in
+  /// `markInstalled` on success and back to [GameStatus.paused] on failure.
   Future<void> _runRepair(
     int gameId, {
     required String path,
     required String buildName,
     required List<int> productIds,
+    bool resumed = false,
   }) async {
     var task = ActivityTask(
       gameId: gameId,
-      kind: TaskKind.repair,
+      kind: resumed ? TaskKind.download : TaskKind.repair,
       path: path,
       buildName: buildName,
       productIds: productIds,
+      resumed: resumed,
     );
     _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
-    final cancel = JobCancel();
-    _cancels[gameId] = cancel;
+    final job = _LiveJob();
+    _jobs[gameId] = job;
     final stream = _gogState.repairGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: cancel,
+      cancel: job.cancel,
     );
     if (stream == null) {
-      _release(gameId, cancel);
+      _release(gameId, job);
+      if (resumed) {
+        _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
+      }
       task = _commit(
         task,
         task.copyWith(status: TaskStatus.failed, error: 'could not start'),
@@ -673,16 +870,19 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = _commit(prev, task);
             return;
           case RepairGameProgress_Cancelled():
-            task = task.copyWith(status: TaskStatus.cancelled);
+            task = resumed
+                ? _stopped(task, job)
+                : task.copyWith(status: TaskStatus.cancelled);
             task = _commit(prev, task);
             return;
         }
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        _release(gameId, cancel);
+        _release(gameId, job);
         if (task.status == TaskStatus.failed ||
-            task.status == TaskStatus.cancelled) {
+            task.status == TaskStatus.cancelled ||
+            task.status == TaskStatus.paused) {
           return;
         }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
@@ -691,12 +891,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         );
         if (finished && task.path != null) {
           _gamesNotifier.markInstalled(gameId, task.path!);
+        } else if (resumed) {
+          _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
         }
         task = _commit(task, next);
       },
       onError: (Object error) {
-        _release(gameId, cancel);
+        _release(gameId, job);
         logGogError(error);
+        if (resumed) {
+          _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
+        }
         task = _commit(
           task,
           task.copyWith(status: TaskStatus.failed, error: gogErrorText(error)),

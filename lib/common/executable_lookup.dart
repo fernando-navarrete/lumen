@@ -25,7 +25,11 @@ bool isExecutableFile(String path) {
 /// match. Returns `null` if nothing executable is found. Empty entries in
 /// [pathEnv] are skipped (a shell treats an empty `PATH` entry as `.`, but
 /// that's not the behavior wanted here for a missing wrapper).
-String? resolveExecutable(String command, {required String? pathEnv, String? cwd}) {
+String? resolveExecutable(
+  String command, {
+  required String? pathEnv,
+  String? cwd,
+}) {
   if (command.contains('/')) {
     final resolved = p.isAbsolute(command)
         ? command

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/common/save_status.dart';
 import 'package:lumen/components/async_cover_image.dart';
+import 'package:lumen/components/cancel_download_dialog.dart';
 import 'package:lumen/components/gradient_progress_bar.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/downloads_state.dart';
@@ -22,11 +23,14 @@ class DownloadsPage extends ConsumerWidget {
     final savesState = ref.watch(savesStateProvider);
     final saveTasks = savesState.tasks.values.toList();
 
-    // Active section = running, failed or cancelled (a cancelled card stays
-    // until it's dismissed); completed installs move to the "recently
-    // installed" list below.
+    // Active section = running, paused, failed or cancelled (a cancelled
+    // card stays until it's dismissed); completed installs move to the
+    // "recently installed" list below.
     bool isActive(ActivityTask task) => switch (task.status) {
-      TaskStatus.running || TaskStatus.failed || TaskStatus.cancelled => true,
+      TaskStatus.running ||
+      TaskStatus.paused ||
+      TaskStatus.failed ||
+      TaskStatus.cancelled => true,
       TaskStatus.completed => false,
     };
 
@@ -53,6 +57,36 @@ class DownloadsPage extends ConsumerWidget {
       glowing: false,
       onTap: () =>
           ref.read(downloadsStateProvider.notifier).cancel(task.gameId),
+    );
+
+    Widget downloadActions(ActivityTask task) => Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: AppSpacing.sm,
+      children: [
+        if (task.status == TaskStatus.running)
+          PrimaryButton.icon(
+            icon: Icons.pause,
+            label: "Pause",
+            glowing: false,
+            onTap: () =>
+                ref.read(downloadsStateProvider.notifier).pause(task.gameId),
+          )
+        else
+          PrimaryButton.icon(
+            icon: Icons.play_arrow,
+            label: "Resume",
+            glowing: false,
+            onTap: () => ref
+                .read(downloadsStateProvider.notifier)
+                .resumeDownload(task.gameId),
+          ),
+        PrimaryButton.icon(
+          icon: Icons.close,
+          label: "Cancel",
+          glowing: false,
+          onTap: () => confirmCancelDownload(context, ref, task.gameId),
+        ),
+      ],
     );
 
     return Center(
@@ -91,10 +125,17 @@ class DownloadsPage extends ConsumerWidget {
                             : _repairStatusText(task),
                         failed: _hasErrors(task),
                         running: isRunning(task),
-                        trailing:
-                            task.kind == TaskKind.repair && isRunning(task)
-                            ? cancelButton(task)
-                            : null,
+                        trailing: switch ((task.kind, task.status)) {
+                          (TaskKind.repair, TaskStatus.running) => cancelButton(
+                            task,
+                          ),
+                          (
+                            TaskKind.download,
+                            TaskStatus.running || TaskStatus.paused,
+                          ) =>
+                            downloadActions(task),
+                          _ => null,
+                        },
                       ),
                   ],
                 ),
@@ -180,6 +221,12 @@ bool _hasErrors(ActivityTask task) =>
 String _downloadStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
+      if (task.resumed &&
+          (task.stage == "checkingFiles" ||
+              task.stage == "allocating" ||
+              task.stage == "verifyingChunks")) {
+        return "Resuming — verifying downloaded files…";
+      }
       switch (task.stage) {
         case "checkingFiles":
           return "Checking existing files… ${task.processedFiles}"
@@ -197,14 +244,18 @@ String _downloadStatusText(ActivityTask task) {
       }
     case TaskStatus.completed:
       return "Downloaded";
+    case TaskStatus.paused:
+      return task.totalBytes > 0
+          ? "Paused — ${formatBytes(task.downloadedBytes)}"
+                " of ${formatBytes(task.totalBytes)}"
+          : "Paused";
     case TaskStatus.failed:
+      final label = task.resumed ? "Resume failed" : "Download failed";
       if (task.errorFiles.isNotEmpty) {
-        return "Download failed — couldn't create"
+        return "$label — couldn't create"
             " ${task.errorFiles.length} file(s)";
       }
-      return task.error == null
-          ? "Download failed"
-          : "Download failed — ${task.error}";
+      return task.error == null ? label : "$label — ${task.error}";
     case TaskStatus.cancelled:
       return "Download cancelled";
   }
@@ -249,6 +300,8 @@ String _repairStatusText(ActivityTask task) {
           : "Repair failed — ${task.error}";
     case TaskStatus.cancelled:
       return "Repair cancelled — some files may still be damaged";
+    case TaskStatus.paused:
+      return "Repair paused";
   }
 }
 
@@ -273,6 +326,8 @@ String _verificationStatusText(ActivityTask task) {
           : "Verification failed — ${task.error}";
     case TaskStatus.cancelled:
       return "Verification cancelled";
+    case TaskStatus.paused:
+      return "Verification paused";
   }
 }
 

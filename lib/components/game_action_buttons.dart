@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/game_log.dart';
 import 'package:lumen/common/launch_resolver.dart';
+import 'package:lumen/components/cancel_download_dialog.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/models/downloadable_product.dart';
@@ -125,6 +126,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     final gamesState = ref.watch(gamesStateProvider);
     final GameStatus status = gamesState.getGameStatus(gameId);
     final bool installing = status == GameStatus.downloading;
+    final bool paused = status == GameStatus.paused;
     final bool installed = status == GameStatus.downloaded;
     final LaunchStatus? launchStatus = ref.watch(
       launchStateProvider.select((state) => state.gameFor(gameId)?.status),
@@ -157,25 +159,54 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         gameId,
         gamesState,
         installing: installing,
+        paused: paused,
         installed: installed,
         launchStatus: launchStatus,
       ),
     );
   }
 
-  /// Builds the action row based on the game's status: nothing while
-  /// installing, Play (or Launching…/Stop/Stopping… while launched) once
+  /// Builds the action row based on the game's status: Pause/Cancel while
+  /// installing, Resume/Cancel while paused, Play (or Launching…/Stop/Stopping… while launched) once
   /// installed, otherwise the Install/Import pair.
   List<Widget> _buildActionButtons(
     BuildContext context,
     int gameId,
     GamesState gamesState, {
     required bool installing,
+    required bool paused,
     required bool installed,
     required LaunchStatus? launchStatus,
   }) {
-    if (installing) {
-      return const [];
+    if (installing || paused) {
+      return [
+        if (installing)
+          PrimaryButton.icon(
+            icon: Icons.pause,
+            label: "Pause",
+            glowing: false,
+            large: widget.large,
+            onTap: () =>
+                ref.read(downloadsStateProvider.notifier).pause(gameId),
+          )
+        else
+          PrimaryButton.icon(
+            icon: Icons.play_arrow,
+            label: "Resume",
+            glowing: true,
+            large: widget.large,
+            onTap: () => ref
+                .read(downloadsStateProvider.notifier)
+                .resumeDownload(gameId),
+          ),
+        PrimaryButton.icon(
+          icon: Icons.close,
+          label: "Cancel",
+          glowing: false,
+          large: widget.large,
+          onTap: () => confirmCancelDownload(context, ref, gameId),
+        ),
+      ];
     }
     if (installed) {
       return [

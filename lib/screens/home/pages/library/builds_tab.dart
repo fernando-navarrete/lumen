@@ -79,6 +79,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
     final runningTask = ref.read(downloadsStateProvider).tasks[gameId];
 
     if (status == GameStatus.downloading ||
+        status == GameStatus.paused ||
         runningTask?.status == TaskStatus.running) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Wait for the current task to finish")),

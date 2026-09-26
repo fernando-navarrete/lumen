@@ -206,61 +206,55 @@ exit "\${FAKE_EXIT:-0}"
       expect(game.error, null);
     });
 
-    test(
-      'wineboot failure -> failed, game never spawned, pfx removed, next '
-      'launch retries init',
-      () async {
-        writeFakeProton();
-        final container = await createContainer();
-        final notifier = container.read(launchStateProvider.notifier);
+    test('wineboot failure -> failed, game never spawned, pfx removed, next '
+        'launch retries init', () async {
+      writeFakeProton();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
 
-        await notifier.launchGame(
-          1,
-          protonPath: protonDir.path,
-          installPath: installDir.path,
-          target: gameExe,
-          prefixPath: prefixDir.path,
-          envVars: {...baseEnv(), 'WINEBOOT_EXIT': '1'},
-        );
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: {...baseEnv(), 'WINEBOOT_EXIT': '1'},
+      );
 
-        final game = container.read(launchStateProvider).gameFor(1)!;
-        expect(game.status, LaunchStatus.failed);
-        expect(
-          game.error,
-          'Prefix initialization failed (exit 1) — see the log',
-        );
-        expect(log.readAsLinesSync(), hasLength(1));
-        expect(log.readAsLinesSync()[0], contains('run wineboot'));
-        expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.failed);
+      expect(game.error, 'Prefix initialization failed (exit 1) — see the log');
+      expect(log.readAsLinesSync(), hasLength(1));
+      expect(log.readAsLinesSync()[0], contains('run wineboot'));
+      expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
 
-        // The next launch sees no pfx and retries init.
-        await notifier.launchGame(
-          1,
-          protonPath: protonDir.path,
-          installPath: installDir.path,
-          target: gameExe,
-          prefixPath: prefixDir.path,
-          envVars: baseEnv(),
-        );
-        await waitFor(
-          () =>
-              container.read(launchStateProvider).gameFor(1)!.status !=
-              LaunchStatus.running,
-        );
+      // The next launch sees no pfx and retries init.
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+      );
+      await waitFor(
+        () =>
+            container.read(launchStateProvider).gameFor(1)!.status !=
+            LaunchStatus.running,
+      );
 
-        // The fake proton's own invocation log ($LOG) isn't rotated between
-        // launches like the real game log is, so it now holds both the
-        // first (failed) wineboot call and the second launch's wineboot +
-        // game calls.
-        final lines = log.readAsLinesSync();
-        expect(lines, hasLength(3));
-        expect(lines[1], contains('run wineboot'));
-        expect(lines[2], contains('run ${installDir.path}/game.exe'));
-        final second = container.read(launchStateProvider).gameFor(1)!;
-        expect(second.status, LaunchStatus.exited);
-        expect(Directory('${prefixDir.path}/pfx').existsSync(), true);
-      },
-    );
+      // The fake proton's own invocation log ($LOG) isn't rotated between
+      // launches like the real game log is, so it now holds both the
+      // first (failed) wineboot call and the second launch's wineboot +
+      // game calls.
+      final lines = log.readAsLinesSync();
+      expect(lines, hasLength(3));
+      expect(lines[1], contains('run wineboot'));
+      expect(lines[2], contains('run ${installDir.path}/game.exe'));
+      final second = container.read(launchStateProvider).gameFor(1)!;
+      expect(second.status, LaunchStatus.exited);
+      expect(Directory('${prefixDir.path}/pfx').existsSync(), true);
+    });
 
     test(
       'missing proton binary -> failed with an error, no log touched',
@@ -297,7 +291,9 @@ exit "\${FAKE_EXIT:-0}"
 
     test('non-executable proton binary -> failed with an error', () async {
       // Written but never chmod +x'd.
-      File('${protonDir.path}/proton').writeAsStringSync('#!/usr/bin/env bash\nexit 0\n');
+      File(
+        '${protonDir.path}/proton',
+      ).writeAsStringSync('#!/usr/bin/env bash\nexit 0\n');
       final container = await createContainer();
       final notifier = container.read(launchStateProvider.notifier);
 
@@ -344,31 +340,28 @@ exit "\${FAKE_EXIT:-0}"
       expect(Directory('${prefixDir.path}/pfx').existsSync(), false);
     });
 
-    test(
-      'launchWrapper not found by path -> failed with an error',
-      () async {
-        writeFakeProton();
-        final container = await createContainer();
-        final notifier = container.read(launchStateProvider.notifier);
+    test('launchWrapper not found by path -> failed with an error', () async {
+      writeFakeProton();
+      final container = await createContainer();
+      final notifier = container.read(launchStateProvider.notifier);
 
-        await notifier.launchGame(
-          1,
-          protonPath: protonDir.path,
-          installPath: installDir.path,
-          target: gameExe,
-          prefixPath: prefixDir.path,
-          envVars: baseEnv(),
-          launchWrapper: const ['/nonexistent/wrap'],
-        );
+      await notifier.launchGame(
+        1,
+        protonPath: protonDir.path,
+        installPath: installDir.path,
+        target: gameExe,
+        prefixPath: prefixDir.path,
+        envVars: baseEnv(),
+        launchWrapper: const ['/nonexistent/wrap'],
+      );
 
-        final game = container.read(launchStateProvider).gameFor(1)!;
-        expect(game.status, LaunchStatus.failed);
-        expect(
-          game.error,
-          'Launch wrapper "/nonexistent/wrap" not found or not executable',
-        );
-      },
-    );
+      final game = container.read(launchStateProvider).gameFor(1)!;
+      expect(game.status, LaunchStatus.failed);
+      expect(
+        game.error,
+        'Launch wrapper "/nonexistent/wrap" not found or not executable',
+      );
+    });
 
     test('a present launchWrapper resolved via PATH passes', () async {
       writeFakeProton();
@@ -701,9 +694,10 @@ exit "\${FAKE_EXIT:-0}"
       writeFakeProton();
       final container = await createContainer();
 
-      final game = await launchAndSettle(container, env: {
-        'WINEBOOT_EXIT': '1',
-      });
+      final game = await launchAndSettle(
+        container,
+        env: {'WINEBOOT_EXIT': '1'},
+      );
       expect(game.status, LaunchStatus.failed);
 
       final text = gameLog().readAsStringSync();
@@ -1011,10 +1005,7 @@ exit $exitCode
       // note goes nowhere — and certainly not into the second game's log.
       expect(File(gameLogPath(1)).readAsStringSync(), isNot(contains('stop')));
       // kill -0 via bash's builtin: the CI image has no standalone `kill`.
-      expect(
-        Process.runSync('bash', ['-c', 'kill -0 $secondPid']).exitCode,
-        0,
-      );
+      expect(Process.runSync('bash', ['-c', 'kill -0 $secondPid']).exitCode, 0);
 
       expect(
         identical(container.read(launchStateProvider).gameFor(1), second),

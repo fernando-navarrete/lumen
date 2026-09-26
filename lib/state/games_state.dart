@@ -7,7 +7,10 @@ import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lumen/common/gog_error.dart';
 
-enum GameStatus { downloading, downloaded, notInstalled }
+/// [paused] is a download stopped by the user (or interrupted) whose partial
+/// files are still on disk at [GameConfig.pendingInstallPath], resumable
+/// through a repair.
+enum GameStatus { downloading, paused, downloaded, notInstalled }
 
 /// Sentinel default for nullable [GameConfig.copyWith] parameters, so
 /// "argument omitted" (keep existing value) can be told apart from
@@ -22,6 +25,17 @@ class GameConfig {
   final String selectedBuild;
   final Set<int> productIds;
   final String? installPath;
+
+  /// Where an unfinished download is writing (or was writing, once paused).
+  /// Set when a download starts and cleared on completion (when
+  /// `markInstalled` moves it to [installPath]), on cancel and on uninstall,
+  /// so every reader of [installPath] can keep treating a path as "installed".
+  final String? pendingInstallPath;
+
+  /// Whether [pendingInstallPath] was empty or missing when the download
+  /// started, i.e. everything in it is the download's own and cancelling may
+  /// delete the whole folder.
+  final bool ownsPendingInstallDir;
 
   /// Per-game Proton-GE tag override; null means "use the global default
   /// selected in Settings".
@@ -50,6 +64,8 @@ class GameConfig {
     required this.selectedBuild,
     Set<int>? productIds,
     this.installPath,
+    this.pendingInstallPath,
+    this.ownsPendingInstallDir = false,
     this.protonVersion,
     this.protonPrefixPath,
     this.executable,
@@ -65,7 +81,7 @@ class GameConfig {
            ? List<String>.from(launchWrapper)
            : const [];
 
-  /// Nullable fields (`installPath`, `protonVersion`, `protonPrefixPath`,
+  /// Nullable fields (`installPath`, `pendingInstallPath`, `protonVersion`, `protonPrefixPath`,
   /// `executable`) default to the [_unset] sentinel rather than `null`, so
   /// omitting them keeps the existing value while explicitly passing `null`
   /// clears them — see [_unset].
@@ -74,6 +90,8 @@ class GameConfig {
     String? selectedBuild,
     Set<int>? productIds,
     Object? installPath = _unset,
+    Object? pendingInstallPath = _unset,
+    bool? ownsPendingInstallDir,
     Object? protonVersion = _unset,
     Object? protonPrefixPath = _unset,
     Object? executable = _unset,
@@ -88,6 +106,11 @@ class GameConfig {
       installPath: identical(installPath, _unset)
           ? this.installPath
           : installPath as String?,
+      pendingInstallPath: identical(pendingInstallPath, _unset)
+          ? this.pendingInstallPath
+          : pendingInstallPath as String?,
+      ownsPendingInstallDir:
+          ownsPendingInstallDir ?? this.ownsPendingInstallDir,
       protonVersion: identical(protonVersion, _unset)
           ? this.protonVersion
           : protonVersion as String?,
@@ -129,6 +152,10 @@ class GamesState {
 
   String? getInstallPath(int gameId) {
     return games[gameId]?.installPath;
+  }
+
+  String? getPendingInstallPath(int gameId) {
+    return games[gameId]?.pendingInstallPath;
   }
 
   String? getProtonVersion(int gameId) {
@@ -176,7 +203,7 @@ class GamesNotifier extends Notifier<GamesState> {
   /// type-sniffing [_decodeGames] used to do (the productId string/int
   /// fallback). Bump this and append a step to [_migrations] whenever the
   /// per-game JSON shape changes.
-  static const gamesSchemaVersion = 1;
+  static const gamesSchemaVersion = 2;
 
   /// `_migrations[n]` upgrades a raw games map (gameId string -> entry map,
   /// both still JSON-shaped, i.e. pre-[_decodeGames]) from version `n` to
@@ -195,6 +222,16 @@ class GamesNotifier extends Notifier<GamesState> {
         entry['productIds'] = productIds
             .map((id) => id is int ? id : int.parse(id as String))
             .toList();
+      }
+      return MapEntry(gameId, entry);
+    }),
+    // v1 -> v2: downloads became resumable, with their path in
+    // `pendingInstallPath`. A v1 `downloading` entry has no path to resume
+    // from, so it goes back to notInstalled (what _decodeGames used to do).
+    (games) => games.map((gameId, value) {
+      final entry = Map<String, dynamic>.from(value as Map<String, dynamic>);
+      if (entry['status'] == 'downloading') {
+        entry['status'] = 'notInstalled';
       }
       return MapEntry(gameId, entry);
     }),
@@ -258,6 +295,8 @@ class GamesNotifier extends Notifier<GamesState> {
         ? existing.copyWith(
             status: GameStatus.downloaded,
             installPath: installPath,
+            pendingInstallPath: null,
+            ownsPendingInstallDir: false,
           )
         : GameConfig(
             status: GameStatus.downloaded,
@@ -265,6 +304,39 @@ class GamesNotifier extends Notifier<GamesState> {
             installPath: installPath,
           );
     _update(gameId, updated);
+  }
+
+  /// Records that a download for [gameId] is starting in [path]. [ownsDir]
+  /// says the folder was empty or missing beforehand, so cancelling may
+  /// delete all of it.
+  void beginInstall(int gameId, String path, {required bool ownsDir}) {
+    final existing = state.games[gameId];
+    final updated =
+        (existing ??
+                GameConfig(status: GameStatus.downloading, selectedBuild: ''))
+            .copyWith(
+              status: GameStatus.downloading,
+              pendingInstallPath: path,
+              ownsPendingInstallDir: ownsDir,
+            );
+    _update(gameId, updated);
+  }
+
+  /// Forgets an unfinished download: back to notInstalled with no pending
+  /// path. Leaves [GameConfig.installPath] and the rest of the config alone.
+  void clearPendingInstall(int gameId) {
+    final existing = state.games[gameId];
+    if (existing == null) {
+      return;
+    }
+    _update(
+      gameId,
+      existing.copyWith(
+        status: GameStatus.notInstalled,
+        pendingInstallPath: null,
+        ownsPendingInstallDir: false,
+      ),
+    );
   }
 
   void setProductIds(int gameId, Set<int> productIds) {
@@ -434,6 +506,8 @@ class GamesNotifier extends Notifier<GamesState> {
         'selectedBuild': config.selectedBuild,
         'productIds': config.productIds.toList(),
         'installPath': config.installPath,
+        'pendingInstallPath': config.pendingInstallPath,
+        'ownsPendingInstallDir': config.ownsPendingInstallDir,
         'protonVersion': config.protonVersion,
         'protonPrefixPath': config.protonPrefixPath,
         'executable': config.executable,
@@ -454,9 +528,10 @@ class GamesNotifier extends Notifier<GamesState> {
       final launchArgs = entry['launchArgs'] as List<dynamic>?;
       final envVars = entry['envVars'] as Map<String, dynamic>?;
       final launchWrapper = entry['launchWrapper'] as List<dynamic>?;
-      // A game left mid-download when the app was killed can't resume, so
+      // A game left mid-download when the app was killed has no live job, so
       // it's coerced back to notInstalled rather than staying stuck showing
-      // "Installing…"/Pause forever.
+      // "Installing…" forever. Its `pendingInstallPath` is kept so Phase 6 can
+      // turn it into a resumable `paused` game instead.
       final status = GameStatus.values.byName(entry['status'] as String);
       return MapEntry(
         int.parse(gameId),
@@ -467,6 +542,9 @@ class GamesNotifier extends Notifier<GamesState> {
           selectedBuild: entry['selectedBuild'] as String,
           productIds: productIds?.map((id) => id as int).toSet(),
           installPath: entry['installPath'] as String?,
+          pendingInstallPath: entry['pendingInstallPath'] as String?,
+          ownsPendingInstallDir:
+              entry['ownsPendingInstallDir'] as bool? ?? false,
           protonVersion: entry['protonVersion'] as String?,
           protonPrefixPath: entry['protonPrefixPath'] as String?,
           executable: entry['executable'] as String?,

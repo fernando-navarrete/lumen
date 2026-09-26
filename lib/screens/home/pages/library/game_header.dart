@@ -35,6 +35,7 @@ class GameHeader extends ConsumerWidget {
 
     final (String statusLabel, Color statusColor) = switch (status) {
       GameStatus.downloading => ("● Installing", AppColors.primaryLight),
+      GameStatus.paused => ("❚❚ Paused", AppColors.text70),
       GameStatus.downloaded => ("● Installed", AppColors.primaryLight),
       GameStatus.notInstalled => ("↓ Not installed", AppColors.text70),
     };
