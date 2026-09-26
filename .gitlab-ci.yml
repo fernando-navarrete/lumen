@@ -47,6 +47,21 @@ variables:
     - eval "$(ssh-agent -s)"
     - ssh-add ~/.ssh/gogdl_deploy_key
     - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
+    # The Native Assets hook runs cargo with a scrubbed environment (only HOME
+    # and PATH), so SSH_AUTH_SOCK never reaches it and cargo's built-in git
+    # client can't use the agent to clone gogdl-lib. Give it file-based config
+    # instead: the system git CLI reads ~/.ssh/config, and cargo is told to use it.
+    - |
+      cat > ~/.ssh/config <<EOF
+      Host thinkcentre.home
+        Port 2200
+        User git
+        IdentityFile ~/.ssh/gogdl_deploy_key
+        IdentitiesOnly yes
+      EOF
+    - chmod 600 ~/.ssh/config
+    - mkdir -p ~/.cargo
+    - printf '[net]\ngit-fetch-with-cli = true\n' >> ~/.cargo/config.toml
     - flutter --version
     - flutter pub get
   cache:
