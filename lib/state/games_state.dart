@@ -37,6 +37,12 @@ class GameConfig {
   /// delete the whole folder.
   final bool ownsPendingInstallDir;
 
+  /// Whether [installPath] is a folder Lumen's own download created (it was
+  /// empty or missing when that download started), so uninstalling may delete
+  /// all of it by default. False for imports and installs from before this was
+  /// tracked: the folder may hold other things.
+  final bool ownsInstallDir;
+
   /// Per-game Proton-GE tag override; null means "use the global default
   /// selected in Settings".
   final String? protonVersion;
@@ -66,6 +72,7 @@ class GameConfig {
     this.installPath,
     this.pendingInstallPath,
     this.ownsPendingInstallDir = false,
+    this.ownsInstallDir = false,
     this.protonVersion,
     this.protonPrefixPath,
     this.executable,
@@ -92,6 +99,7 @@ class GameConfig {
     Object? installPath = _unset,
     Object? pendingInstallPath = _unset,
     bool? ownsPendingInstallDir,
+    bool? ownsInstallDir,
     Object? protonVersion = _unset,
     Object? protonPrefixPath = _unset,
     Object? executable = _unset,
@@ -111,6 +119,7 @@ class GameConfig {
           : pendingInstallPath as String?,
       ownsPendingInstallDir:
           ownsPendingInstallDir ?? this.ownsPendingInstallDir,
+      ownsInstallDir: ownsInstallDir ?? this.ownsInstallDir,
       protonVersion: identical(protonVersion, _unset)
           ? this.protonVersion
           : protonVersion as String?,
@@ -203,7 +212,7 @@ class GamesNotifier extends Notifier<GamesState> {
   /// type-sniffing [_decodeGames] used to do (the productId string/int
   /// fallback). Bump this and append a step to [_migrations] whenever the
   /// per-game JSON shape changes.
-  static const gamesSchemaVersion = 2;
+  static const gamesSchemaVersion = 3;
 
   /// `_migrations[n]` upgrades a raw games map (gameId string -> entry map,
   /// both still JSON-shaped, i.e. pre-[_decodeGames]) from version `n` to
@@ -233,6 +242,13 @@ class GamesNotifier extends Notifier<GamesState> {
       if (entry['status'] == 'downloading') {
         entry['status'] = 'notInstalled';
       }
+      return MapEntry(gameId, entry);
+    }),
+    // v2 -> v3: `ownsInstallDir` was added. Nothing recorded whether an
+    // existing install's folder was Lumen's own, so every entry is unknown.
+    (games) => games.map((gameId, value) {
+      final entry = Map<String, dynamic>.from(value as Map<String, dynamic>);
+      entry['ownsInstallDir'] = false;
       return MapEntry(gameId, entry);
     }),
   ];
@@ -297,6 +313,13 @@ class GamesNotifier extends Notifier<GamesState> {
             installPath: installPath,
             pendingInstallPath: null,
             ownsPendingInstallDir: false,
+            // A finished download into a folder it created, or a repair of an
+            // install that was already owned at the same path; an import is
+            // never owned.
+            ownsInstallDir: existing.pendingInstallPath == installPath
+                ? existing.ownsPendingInstallDir
+                : existing.installPath == installPath &&
+                      existing.ownsInstallDir,
           )
         : GameConfig(
             status: GameStatus.downloaded,
@@ -304,6 +327,18 @@ class GamesNotifier extends Notifier<GamesState> {
             installPath: installPath,
           );
     _update(gameId, updated);
+  }
+
+  /// Forgets [gameId] entirely (uninstall): its whole config entry goes, so a
+  /// later install starts fresh. Persists immediately, which also drops any
+  /// debounced write still pending for it.
+  void removeGame(int gameId) {
+    if (!state.games.containsKey(gameId)) {
+      return;
+    }
+    state = GamesState({...state.games}..remove(gameId));
+    _lastGames = state.games;
+    _persist();
   }
 
   /// Records that a download for [gameId] is starting in [path]. [ownsDir]
@@ -508,6 +543,7 @@ class GamesNotifier extends Notifier<GamesState> {
         'installPath': config.installPath,
         'pendingInstallPath': config.pendingInstallPath,
         'ownsPendingInstallDir': config.ownsPendingInstallDir,
+        'ownsInstallDir': config.ownsInstallDir,
         'protonVersion': config.protonVersion,
         'protonPrefixPath': config.protonPrefixPath,
         'executable': config.executable,
@@ -548,6 +584,7 @@ class GamesNotifier extends Notifier<GamesState> {
           pendingInstallPath: pendingInstallPath,
           ownsPendingInstallDir:
               entry['ownsPendingInstallDir'] as bool? ?? false,
+          ownsInstallDir: entry['ownsInstallDir'] as bool? ?? false,
           protonVersion: entry['protonVersion'] as String?,
           protonPrefixPath: entry['protonPrefixPath'] as String?,
           executable: entry['executable'] as String?,

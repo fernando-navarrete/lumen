@@ -257,6 +257,64 @@ void main() {
     });
   });
 
+  group('ownsInstallDir', () {
+    test('a v2 blob migrates with ownsInstallDir false', () async {
+      const json =
+          '{"version": 2, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "b", "productIds": [], '
+          '"installPath": "/games/one", "ownsPendingInstallDir": true}}}';
+
+      final container = await createContainer(prefs: {'games': json});
+
+      expect(
+        container.read(gamesStateProvider).games[1]!.ownsInstallDir,
+        isFalse,
+      );
+    });
+
+    test('a finished download into an owned folder is owned; an import and '
+        'a repair keep the right value', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      GameConfig cfg(int id) => container.read(gamesStateProvider).games[id]!;
+
+      notifier.beginInstall(1, '/games/one', ownsDir: true);
+      notifier.markInstalled(1, '/games/one');
+      expect(cfg(1).ownsInstallDir, isTrue);
+      // A repair of the same path keeps it; a different path (import) drops it.
+      notifier.markInstalled(1, '/games/one');
+      expect(cfg(1).ownsInstallDir, isTrue);
+      notifier.markInstalled(1, '/games/elsewhere');
+      expect(cfg(1).ownsInstallDir, isFalse);
+
+      notifier.beginInstall(2, '/games/two', ownsDir: false);
+      notifier.markInstalled(2, '/games/two');
+      expect(cfg(2).ownsInstallDir, isFalse);
+
+      notifier.markInstalled(3, '/games/three');
+      expect(cfg(3).ownsInstallDir, isFalse);
+    });
+
+    test('removeGame drops the entry and persists', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      notifier.markInstalled(1, '/games/one');
+      notifier.markInstalled(2, '/games/two');
+
+      notifier.removeGame(1);
+
+      expect(container.read(gamesStateProvider).games.keys, [2]);
+      final reloaded = await createContainer(
+        prefs: {
+          'games': container
+              .read(sharedPreferencesProvider)
+              .getString('games')!,
+        },
+      );
+      expect(reloaded.read(gamesStateProvider).games.keys, [2]);
+    });
+  });
+
   group('schema migration', () {
     test('a legacy (pre-v1.1.5) bare games map loads correctly', () async {
       // No "version"/"games" envelope -- this is what every prefs file

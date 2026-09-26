@@ -116,7 +116,9 @@ through `_migrations` — an ordered list of raw-map transforms, one per version
 bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Version 2 added `GameConfig.pendingInstallPath` (where an unfinished
 download writes, cleared by `markInstalled`/cancel, so `installPath` keeps meaning "installed") and
 `ownsPendingInstallDir` (the folder was empty or missing when the download started; only then may
-cancelling delete it, and never one containing another game's install). Any future change to the
+cancelling delete it, and never one containing another game's install). Version 3 added `GameConfig.ownsInstallDir` (the installed folder was created by Lumen's own
+download, carried over from `ownsPendingInstallDir` by `markInstalled`; imports and older installs are
+false). Any future change to the
 per-game JSON shape must bump `gamesSchemaVersion` and append a step to `_migrations`, rather than
 adding more type-sniffing to the decoder.
 
@@ -173,6 +175,10 @@ release directory first via `lib/common/safe_delete.dart`'s `deleteDirectoryGuar
 registry entry if that succeeds. That helper refuses `/`, `$HOME`, `lumenDataDir()`, their ancestors,
 symlinks and non-directories, and is the only sanctioned recursive delete in the app: any other
 deletion (cancelled downloads, uninstall) goes through it too.
+`Uninstaller.uninstallGame` (`lib/state/uninstall.dart`) is the uninstall flow: it refuses while the game
+runs, stops any job, optionally deletes the install folder (refused if it contains another game's install)
+and the Lumen-owned prefix and logs, then removes the game's whole `GameConfig` entry; a failed delete
+leaves the game installed.
 
 `ProtonNotifier._load` (`lib/state/proton_state.dart`) validates the persisted `protonInstalled`
 registry against disk on every load, via `executable_lookup.dart`'s `isExecutableFile` on each

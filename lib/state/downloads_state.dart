@@ -190,6 +190,23 @@ class ActivityTask {
   }
 }
 
+/// Whether [path] is, or contains, another game's install (or pending
+/// install) folder, so deleting it would take that game with it.
+bool containsOtherInstall(GamesState games, int gameId, String path) {
+  for (final entry in games.games.entries) {
+    if (entry.key == gameId) continue;
+    for (final other in [
+      entry.value.installPath,
+      entry.value.pendingInstallPath,
+    ]) {
+      if (other != null && (p.equals(path, other) || p.isWithin(path, other))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /// Why a running download job is being stopped: [pause] keeps the partial
 /// files for a later resume, [discard] is a cancel that throws them away.
 enum _StopIntent { pause, discard }
@@ -285,6 +302,20 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _jobs[gameId]?.cancel.cancel();
   }
 
+  /// Stops whatever job is running for [gameId] (verification, repair or
+  /// download) and waits for its stream to end. A download is discarded, not
+  /// paused. A no-op when nothing is running. Used by uninstall.
+  Future<void> stopJob(int gameId) async {
+    final task = state.tasks[gameId];
+    final job = _jobs[gameId];
+    if (task == null || job == null || task.status != TaskStatus.running) {
+      return;
+    }
+    job.intent = _StopIntent.discard;
+    job.cancel.cancel();
+    await job.done.future;
+  }
+
   /// Pauses the running download for [gameId]: the job stops and its partial
   /// files stay put. The terminal `Cancelled` event commits
   /// [TaskStatus.paused] and [GameStatus.paused]. A no-op for anything that
@@ -355,20 +386,11 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             'is not deleted — remove the downloaded files by hand',
           );
         }
-        for (final entry in games.games.entries) {
-          if (entry.key == gameId) continue;
-          for (final other in [
-            entry.value.installPath,
-            entry.value.pendingInstallPath,
-          ]) {
-            if (other != null &&
-                (p.equals(path, other) || p.isWithin(path, other))) {
-              throw const UnsafeDeleteError(
-                "That folder contains another game's install, so it is "
-                'not deleted',
-              );
-            }
-          }
+        if (containsOtherInstall(games, gameId, path)) {
+          throw const UnsafeDeleteError(
+            "That folder contains another game's install, so it is "
+            'not deleted',
+          );
         }
         await deleteDirectoryGuarded(path, purpose: 'partial download');
       } catch (_) {
