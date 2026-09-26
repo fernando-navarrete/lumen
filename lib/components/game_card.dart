@@ -124,6 +124,7 @@ class GameCard extends ConsumerWidget {
 
     final (String label, Color color) = switch (status) {
       GameStatus.downloading => ("● Installing", AppColors.primaryLight),
+      GameStatus.paused => ("❚❚ Paused", AppColors.text70),
       GameStatus.downloaded => ("● Installed", AppColors.primaryLight),
       GameStatus.notInstalled => ("↓ Not installed", AppColors.text70),
     };

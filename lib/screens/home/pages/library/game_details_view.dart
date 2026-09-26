@@ -85,6 +85,10 @@ class _GameDetailsViewState extends State<GameDetailsView> {
             child: _GameTabs(
               gameId: widget.gameId,
               selectedTab: _selectedTab,
+              onOpenSaves: () =>
+                  setState(() => _selectedTab = SelectedTab.saves),
+              onUninstalled: () =>
+                  setState(() => _selectedTab = SelectedTab.overview),
               onTabSelected: (tab) {
                 setState(() {
                   _selectedTab = tab;
@@ -144,11 +148,15 @@ class _GameTabs extends StatelessWidget {
     required this.gameId,
     required this.selectedTab,
     required this.onTabSelected,
+    required this.onOpenSaves,
+    required this.onUninstalled,
   });
 
   final int gameId;
   final SelectedTab selectedTab;
   final ValueChanged<SelectedTab> onTabSelected;
+  final VoidCallback onOpenSaves;
+  final VoidCallback onUninstalled;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +183,11 @@ class _GameTabs extends StatelessWidget {
           child: switch (selectedTab) {
             SelectedTab.overview => OverviewTab(gameId: gameId),
             SelectedTab.builds => BuildsTab(gameId: gameId),
-            SelectedTab.settings => GameSettingsTab(gameId: gameId),
+            SelectedTab.settings => GameSettingsTab(
+              gameId: gameId,
+              onOpenSaves: onOpenSaves,
+              onUninstalled: onUninstalled,
+            ),
             SelectedTab.dlc => ProductsTab(gameId: gameId),
             SelectedTab.saves => SavesTab(gameId: gameId),
           },

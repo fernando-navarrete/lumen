@@ -1,9 +1,11 @@
-import 'package:dir_picker/dir_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/directory_picker.dart';
 import 'package:lumen/common/game_log.dart';
 import 'package:lumen/common/launch_resolver.dart';
+import 'package:lumen/components/cancel_download_dialog.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
+import 'package:lumen/components/install_space_dialog.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
@@ -50,6 +52,10 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
   /// take seconds on a big install). Play is disabled meanwhile, so a double
   /// click can't start two scans or two pickers.
   bool _resolving = false;
+
+  /// Whether an Install press is still looking up the download size and free
+  /// space of the picked folder. Install is disabled meanwhile.
+  bool _checkingSpace = false;
 
   @override
   void initState() {
@@ -125,6 +131,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     final gamesState = ref.watch(gamesStateProvider);
     final GameStatus status = gamesState.getGameStatus(gameId);
     final bool installing = status == GameStatus.downloading;
+    final bool paused = status == GameStatus.paused;
     final bool installed = status == GameStatus.downloaded;
     final LaunchStatus? launchStatus = ref.watch(
       launchStateProvider.select((state) => state.gameFor(gameId)?.status),
@@ -157,25 +164,60 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         gameId,
         gamesState,
         installing: installing,
+        paused: paused,
         installed: installed,
         launchStatus: launchStatus,
       ),
     );
   }
 
-  /// Builds the action row based on the game's status: nothing while
-  /// installing, Play (or Launching…/Stop/Stopping… while launched) once
+  /// Builds the action row based on the game's status: Pause/Cancel while
+  /// installing, Resume/Cancel while paused, Play (or Launching…/Stop/Stopping… while launched) once
   /// installed, otherwise the Install/Import pair.
   List<Widget> _buildActionButtons(
     BuildContext context,
     int gameId,
     GamesState gamesState, {
     required bool installing,
+    required bool paused,
     required bool installed,
     required LaunchStatus? launchStatus,
   }) {
-    if (installing) {
-      return const [];
+    if (installing || paused) {
+      return [
+        if (installing)
+          PrimaryButton.icon(
+            icon: Icons.pause,
+            label: "Pause",
+            glowing: false,
+            large: widget.large,
+            onTap: () =>
+                ref.read(downloadsStateProvider.notifier).pause(gameId),
+          )
+        else
+          PrimaryButton.icon(
+            icon: Icons.play_arrow,
+            label: "Resume",
+            glowing: true,
+            large: widget.large,
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final notifier = ref.read(downloadsStateProvider.notifier);
+              await notifier.resumeDownload(gameId);
+              final task = ref.read(downloadsStateProvider).tasks[gameId];
+              if (task?.status == TaskStatus.failed && task?.error != null) {
+                messenger.showSnackBar(SnackBar(content: Text(task!.error!)));
+              }
+            },
+          ),
+        PrimaryButton.icon(
+          icon: Icons.close,
+          label: "Cancel",
+          glowing: false,
+          large: widget.large,
+          onTap: () => confirmCancelDownload(context, ref, gameId),
+        ),
+      ];
     }
     if (installed) {
       return [
@@ -219,45 +261,12 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     }
     return [
       PrimaryButton.icon(
-        enabled: _ready,
+        enabled: _ready && !_checkingSpace,
         glowing: true,
         large: widget.large,
-        icon: Icons.arrow_downward,
-        label: "Install",
-        onTap: () async {
-          final PickedLocation? location = await DirPicker.pick();
-          if (location == null) {
-            return;
-          }
-
-          final String path = location.uri!.toFilePath();
-          final List<int> productIds = gamesState
-              .getProductIds(gameId)
-              .toList();
-          final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
-          if (productIds.isEmpty) {
-            return;
-          }
-
-          await ref
-              .read(downloadsStateProvider.notifier)
-              .startDownload(
-                gameId,
-                path: path,
-                buildName: buildName,
-                productIds: productIds,
-              );
-
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  "Downloading — check the Downloads tab for progress",
-                ),
-              ),
-            );
-          }
-        },
+        icon: _checkingSpace ? Icons.hourglass_top : Icons.arrow_downward,
+        label: _checkingSpace ? "Checking space…" : "Install",
+        onTap: () => _onInstall(context, gameId, gamesState),
       ),
       PrimaryButton.icon(
         icon: Icons.folder_open,
@@ -266,12 +275,11 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         large: widget.large,
         enabled: _ready,
         onTap: () async {
-          final PickedLocation? location = await DirPicker.pick();
-          if (location == null) {
+          final String? path = await ref.read(pickDirectoryProvider)();
+          if (path == null) {
             return;
           }
 
-          final String path = location.uri!.toFilePath();
           final List<int> productIds = gamesState
               .getProductIds(gameId)
               .toList();
@@ -301,6 +309,69 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         },
       ),
     ];
+  }
+
+  /// Install: picks a folder, checks the install size against its free space
+  /// and confirms in [showInstallSpaceDialog] before starting the download.
+  /// A failed lookup never blocks — gogdl-lib's own pre-flight still stops a
+  /// download that really doesn't fit. Loops while the user asks for another
+  /// folder.
+  Future<void> _onInstall(
+    BuildContext context,
+    int gameId,
+    GamesState gamesState,
+  ) async {
+    if (_checkingSpace) return;
+    final List<int> productIds = gamesState.getProductIds(gameId).toList();
+    final String buildName = gamesState.getSelectedBuild(gameId) ?? "";
+    if (productIds.isEmpty) return;
+
+    final gogState = ref.read(gogStateProvider);
+    final downloads = ref.read(downloadsStateProvider.notifier);
+    final messenger = ScaffoldMessenger.of(context);
+
+    while (true) {
+      final String? path = await ref.read(pickDirectoryProvider)();
+      if (path == null || !mounted) return;
+
+      setState(() => _checkingSpace = true);
+      final InstallSpaceChoice? choice;
+      try {
+        final (size, free, name) = await (
+          gogState.getInstallSize(gameId, buildName, productIds),
+          gogState.getFreeSpace(path),
+          gogState.getGameName(gameId),
+        ).wait;
+        if (!context.mounted) return;
+        setState(() => _checkingSpace = false);
+        choice = await showInstallSpaceDialog(
+          context,
+          gameName: name ?? 'this game',
+          path: path,
+          size: size,
+          free: free,
+        );
+      } finally {
+        if (mounted && _checkingSpace) {
+          setState(() => _checkingSpace = false);
+        }
+      }
+      if (choice == InstallSpaceChoice.chooseAnother) continue;
+      if (choice != InstallSpaceChoice.install) return;
+
+      await downloads.startDownload(
+        gameId,
+        path: path,
+        buildName: buildName,
+        productIds: productIds,
+      );
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text("Downloading — check the Downloads tab for progress"),
+        ),
+      );
+      return;
+    }
   }
 
   /// Returns an error message if [buildName] can't be used to verify/repair

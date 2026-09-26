@@ -5,9 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease;
+    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
@@ -246,6 +247,33 @@ class GogState {
     }
   }
 
+  Future<InstallSize?> getInstallSize(
+    int gameId,
+    String buildName,
+    List<int> productIds,
+  ) async {
+    try {
+      return await _backend.getInstallSize(
+        gameId: gameId,
+        buildName: buildName,
+        selectedProducts: productIds,
+      );
+    } catch (e) {
+      logGogError(e);
+      return null;
+    }
+  }
+
+  /// Free bytes on the disk [path] is on, or `null` if it can't be read.
+  Future<int?> getFreeSpace(String path) async {
+    try {
+      return await _backend.getFreeSpace(path);
+    } catch (e) {
+      logGogError(e);
+      return null;
+    }
+  }
+
   Future<String?> getGameName(int gameId) =>
       _gameNameCache.putIfAbsent(gameId, () => _fetchGameName(gameId));
 
@@ -281,19 +309,22 @@ class GogState {
   /// stream — nothing here is cached or deduplicated. The caller (the one
   /// owning notifier for that job kind) must be the stream's only listener,
   /// and must not call the method again for the same key while a previous
-  /// stream from it is still in use.
+  /// stream from it is still in use. The caller also owns the [JobCancel]
+  /// it passes in: cancelling it ends that job's stream with `*_Cancelled`.
   Stream<VerifyDownloadProgress>? verifyGameFiles(
     int gameId,
     String path,
     String buildName,
-    List<int> productIds,
-  ) {
+    List<int> productIds, {
+    required JobCancel cancel,
+  }) {
     try {
       return _backend.verifyDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
+        cancel: cancel,
       );
     } catch (e) {
       logGogError(e);
@@ -305,14 +336,16 @@ class GogState {
     int gameId,
     String path,
     String buildName,
-    List<int> productIds,
-  ) {
+    List<int> productIds, {
+    required JobCancel cancel,
+  }) {
     try {
       return _backend.repairDownload(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
+        cancel: cancel,
       );
     } catch (e) {
       logGogError(e);
@@ -324,14 +357,16 @@ class GogState {
     int gameId,
     String path,
     String buildName,
-    List<int> productIds,
-  ) {
+    List<int> productIds, {
+    required JobCancel cancel,
+  }) {
     try {
       return _backend.downloadGame(
         gameId: gameId,
         path: path,
         buildName: buildName,
         selectedProducts: productIds,
+        cancel: cancel,
       );
     } catch (e) {
       logGogError(e);
@@ -350,10 +385,15 @@ class GogState {
 
   Stream<ProtonDownloadProgress>? downloadProtonRelease(
     String tagName,
-    String path,
-  ) {
+    String path, {
+    required JobCancel cancel,
+  }) {
     try {
-      return _backend.downloadProtonRelease(tagName: tagName, path: path);
+      return _backend.downloadProtonRelease(
+        tagName: tagName,
+        path: path,
+        cancel: cancel,
+      );
     } catch (e) {
       logGogError(e);
       return null;
@@ -364,14 +404,16 @@ class GogState {
     int gameId,
     String buildName,
     String prefix,
-    String installPath,
-  ) {
+    String installPath, {
+    required JobCancel cancel,
+  }) {
     try {
       return _backend.downloadSaves(
         gameId: gameId,
         buildName: buildName,
         prefix: prefix,
         installPath: installPath,
+        cancel: cancel,
       );
     } catch (e) {
       logGogError(e);
@@ -383,14 +425,16 @@ class GogState {
     int gameId,
     String buildName,
     String prefix,
-    String installPath,
-  ) {
+    String installPath, {
+    required JobCancel cancel,
+  }) {
     try {
       return _backend.uploadSaves(
         gameId: gameId,
         buildName: buildName,
         prefix: prefix,
         installPath: installPath,
+        cancel: cancel,
       );
     } catch (e) {
       logGogError(e);

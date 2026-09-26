@@ -96,6 +96,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
     final GameStatus gameStatus = gamesState.getGameStatus(gameId);
     final String statusLabel = switch (gameStatus) {
       GameStatus.downloading => 'Installing',
+      GameStatus.paused => 'Paused',
       GameStatus.downloaded => 'Installed',
       GameStatus.notInstalled => 'Not installed',
     };

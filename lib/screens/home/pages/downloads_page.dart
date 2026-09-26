@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/common/save_status.dart';
 import 'package:lumen/components/async_cover_image.dart';
+import 'package:lumen/components/cancel_download_dialog.dart';
 import 'package:lumen/components/gradient_progress_bar.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/downloads_state.dart';
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/saves_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -21,14 +23,30 @@ class DownloadsPage extends ConsumerWidget {
     final downloadsState = ref.watch(downloadsStateProvider);
     final savesState = ref.watch(savesStateProvider);
     final saveTasks = savesState.tasks.values.toList();
+    final games = ref.watch(gamesStateProvider);
 
-    // Active = running or failed; completed installs move to the
+    // Active section = running, paused, failed or cancelled (a cancelled
+    // card stays until it's dismissed); completed installs move to the
     // "recently installed" list below.
-    bool isActive(ActivityTask task) => task.status != TaskStatus.completed;
+    bool isActive(ActivityTask task) => switch (task.status) {
+      TaskStatus.running ||
+      TaskStatus.paused ||
+      TaskStatus.failed ||
+      TaskStatus.cancelled => true,
+      TaskStatus.completed => false,
+    };
 
     final activeTransfers = [
       ...downloadsState.downloadTasks.where(isActive),
       ...downloadsState.repairTasks.where(isActive),
+    ];
+    // Paused games with no task: a download interrupted by an app exit. The
+    // page has nothing else to derive them from after a restart.
+    final interrupted = [
+      for (final entry in games.games.entries)
+        if (entry.value.status == GameStatus.paused &&
+            !downloadsState.tasks.containsKey(entry.key))
+          entry.key,
     ];
     final activeVerifications = downloadsState.verificationTasks
         .where(isActive)
@@ -37,10 +55,68 @@ class DownloadsPage extends ConsumerWidget {
         .where((task) => task.status == TaskStatus.completed)
         .toList();
 
+    final notifier = ref.read(downloadsStateProvider.notifier);
+    bool isRunning(ActivityTask task) => task.status == TaskStatus.running;
+    bool dismissible(ActivityTask task) => notifier.isDismissible(task);
+    final hasFinished = downloadsState.tasks.values.any(dismissible);
+    VoidCallback? dismiss(ActivityTask task) =>
+        dismissible(task) ? () => notifier.removeTask(task.gameId) : null;
     final int activeCount =
-        activeTransfers.length +
-        activeVerifications.length +
+        activeTransfers.where(isRunning).length +
+        activeVerifications.where(isRunning).length +
         saveTasks.where((task) => task.status == TaskStatus.running).length;
+
+    Widget cancelButton(ActivityTask task) => PrimaryButton.icon(
+      icon: Icons.close,
+      label: "Cancel",
+      glowing: false,
+      onTap: () => notifier.cancel(task.gameId),
+    );
+
+    Widget retryRepairButton(ActivityTask task) => PrimaryButton.icon(
+      icon: Icons.refresh,
+      label: "Retry",
+      glowing: false,
+      onTap: () => notifier.startRepair(task.gameId),
+    );
+
+    Widget downloadActions(
+      int gameId, {
+      required bool running,
+      bool failed = false,
+    }) => Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: AppSpacing.sm,
+      children: [
+        if (running)
+          PrimaryButton.icon(
+            icon: Icons.pause,
+            label: "Pause",
+            glowing: false,
+            onTap: () => notifier.pause(gameId),
+          )
+        else if (failed)
+          PrimaryButton.icon(
+            icon: Icons.refresh,
+            label: "Retry",
+            glowing: false,
+            onTap: () => notifier.retryDownload(gameId),
+          )
+        else
+          PrimaryButton.icon(
+            icon: Icons.play_arrow,
+            label: "Resume",
+            glowing: false,
+            onTap: () => notifier.resumeDownload(gameId),
+          ),
+        PrimaryButton.icon(
+          icon: Icons.close,
+          label: "Cancel",
+          glowing: false,
+          onTap: () => confirmCancelDownload(context, ref, gameId),
+        ),
+      ],
+    );
 
     return Center(
       child: ConstrainedBox(
@@ -50,20 +126,39 @@ class DownloadsPage extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Downloads", style: AppText.pageTitle),
-              const SizedBox(height: 6),
-              Text(
-                "$activeCount active · ${completed.length} completed",
-                style: AppText.onest(
-                  size: 13.5,
-                  weight: FontWeight.w400,
-                  color: AppColors.textSecondary,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Downloads", style: AppText.pageTitle),
+                        const SizedBox(height: 6),
+                        Text(
+                          "$activeCount active · ${completed.length} completed",
+                          style: AppText.onest(
+                            size: 13.5,
+                            weight: FontWeight.w400,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (hasFinished)
+                    PrimaryButton.icon(
+                      icon: Icons.clear_all,
+                      label: "Clear finished",
+                      glowing: false,
+                      onTap: notifier.clearFinished,
+                    ),
+                ],
               ),
               const SizedBox(height: AppSpacing.lg),
               Text("ACTIVE", style: AppText.microLabel),
               const SizedBox(height: AppSpacing.sm),
-              if (activeTransfers.isEmpty)
+              if (activeTransfers.isEmpty && interrupted.isEmpty)
                 const _EmptyState(message: "No active downloads")
               else
                 Column(
@@ -77,6 +172,53 @@ class DownloadsPage extends ConsumerWidget {
                             ? _downloadStatusText(task)
                             : _repairStatusText(task),
                         failed: _hasErrors(task),
+                        running: isRunning(task),
+                        trailing: switch ((task.kind, task.status)) {
+                          (TaskKind.repair, TaskStatus.running) => cancelButton(
+                            task,
+                          ),
+                          (
+                            TaskKind.download,
+                            TaskStatus.running || TaskStatus.paused,
+                          ) =>
+                            downloadActions(
+                              task.gameId,
+                              running: isRunning(task),
+                            ),
+                          // A failed download with files on disk leaves the
+                          // game paused: retry resumes it, or cancel resets it.
+                          (TaskKind.download, TaskStatus.failed)
+                              when games.getGameStatus(task.gameId) ==
+                                  GameStatus.paused =>
+                            downloadActions(
+                              task.gameId,
+                              running: false,
+                              failed: true,
+                            ),
+                          (TaskKind.download, TaskStatus.failed) =>
+                            PrimaryButton.icon(
+                              icon: Icons.refresh,
+                              label: "Retry",
+                              glowing: false,
+                              onTap: () => notifier.retryDownload(task.gameId),
+                            ),
+                          (
+                            TaskKind.repair,
+                            TaskStatus.failed || TaskStatus.cancelled,
+                          ) =>
+                            retryRepairButton(task),
+                          _ => null,
+                        },
+                        onDismiss: dismiss(task),
+                      ),
+                    for (final gameId in interrupted)
+                      _ActiveTaskCard(
+                        gameId: gameId,
+                        progress: null,
+                        statusText: "Paused — interrupted",
+                        failed: false,
+                        running: false,
+                        trailing: downloadActions(gameId, running: false),
                       ),
                   ],
                 ),
@@ -95,16 +237,18 @@ class DownloadsPage extends ConsumerWidget {
                         progress: task.progress,
                         statusText: _verificationStatusText(task),
                         failed: _hasErrors(task),
-                        trailing: task.status == TaskStatus.failed
-                            ? PrimaryButton.icon(
-                                icon: Icons.build,
-                                label: "Repair",
-                                glowing: false,
-                                onTap: () => ref
-                                    .read(downloadsStateProvider.notifier)
-                                    .startRepair(task.gameId),
-                              )
-                            : null,
+                        running: isRunning(task),
+                        trailing: switch (task.status) {
+                          TaskStatus.running => cancelButton(task),
+                          TaskStatus.failed => PrimaryButton.icon(
+                            icon: Icons.build,
+                            label: "Repair",
+                            glowing: false,
+                            onTap: () => notifier.startRepair(task.gameId),
+                          ),
+                          _ => null,
+                        },
+                        onDismiss: dismiss(task),
                       ),
                   ],
                 ),
@@ -122,6 +266,7 @@ class DownloadsPage extends ConsumerWidget {
                         gameId: task.gameId,
                         statusText: _completedStatusText(task),
                         failed: _hasErrors(task),
+                        onDismiss: dismiss(task),
                       ),
                   ],
                 ),
@@ -140,6 +285,7 @@ class DownloadsPage extends ConsumerWidget {
                         progress: task.progress,
                         statusText: saveStatusText(task),
                         failed: task.status == TaskStatus.failed,
+                        running: task.status == TaskStatus.running,
                       ),
                   ],
                 ),
@@ -158,6 +304,12 @@ bool _hasErrors(ActivityTask task) =>
 String _downloadStatusText(ActivityTask task) {
   switch (task.status) {
     case TaskStatus.running:
+      if (task.resumed &&
+          (task.stage == "checkingFiles" ||
+              task.stage == "allocating" ||
+              task.stage == "verifyingChunks")) {
+        return "Resuming — verifying downloaded files…";
+      }
       switch (task.stage) {
         case "checkingFiles":
           return "Checking existing files… ${task.processedFiles}"
@@ -175,14 +327,20 @@ String _downloadStatusText(ActivityTask task) {
       }
     case TaskStatus.completed:
       return "Downloaded";
+    case TaskStatus.paused:
+      return task.totalBytes > 0
+          ? "Paused — ${formatBytes(task.downloadedBytes)}"
+                " of ${formatBytes(task.totalBytes)}"
+          : "Paused";
     case TaskStatus.failed:
+      final label = task.resumed ? "Resume failed" : "Download failed";
       if (task.errorFiles.isNotEmpty) {
-        return "Download failed — couldn't create"
+        return "$label — couldn't create"
             " ${task.errorFiles.length} file(s)";
       }
-      return task.error == null
-          ? "Download failed"
-          : "Download failed — ${task.error}";
+      return task.error == null ? label : "$label — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Download cancelled";
   }
 }
 
@@ -223,6 +381,10 @@ String _repairStatusText(ActivityTask task) {
       return task.error == null
           ? "Repair failed"
           : "Repair failed — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Repair cancelled — some files may still be damaged";
+    case TaskStatus.paused:
+      return "Repair paused";
   }
 }
 
@@ -245,6 +407,10 @@ String _verificationStatusText(ActivityTask task) {
       return task.error == null
           ? "Verification failed"
           : "Verification failed — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Verification cancelled";
+    case TaskStatus.paused:
+      return "Verification paused";
   }
 }
 
@@ -277,6 +443,20 @@ String _completedStatusText(ActivityTask task) {
       : "$base — ${task.errorFiles.length} file(s) failed";
 }
 
+class _DismissButton extends StatelessWidget {
+  const _DismissButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: "Dismiss",
+    icon: const Icon(Icons.close, size: 18),
+    color: AppColors.textSecondary,
+    onPressed: onPressed,
+  );
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.message});
 
@@ -302,14 +482,23 @@ class _ActiveTaskCard extends ConsumerWidget {
     required this.progress,
     required this.statusText,
     required this.failed,
+    required this.running,
     this.trailing,
+    this.onDismiss,
   });
 
   final int gameId;
   final double? progress;
   final String statusText;
   final bool failed;
+
+  /// False for a cancelled card: its bar is static instead of the animated
+  /// indeterminate one.
+  final bool running;
   final Widget? trailing;
+
+  /// Set on a finished card: shows a dismiss (×) button after [trailing].
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -359,15 +548,15 @@ class _ActiveTaskCard extends ConsumerWidget {
                       ),
                   ],
                 ),
-                failed
+                failed || !running
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
                           value: progress ?? 0,
                           minHeight: 6,
                           backgroundColor: AppColors.progressTrack,
-                          valueColor: const AlwaysStoppedAnimation(
-                            AppColors.error,
+                          valueColor: AlwaysStoppedAnimation(
+                            failed ? AppColors.error : AppColors.textSecondary,
                           ),
                         ),
                       )
@@ -391,6 +580,7 @@ class _ActiveTaskCard extends ConsumerWidget {
             ),
           ),
           ?trailing,
+          if (onDismiss != null) _DismissButton(onPressed: onDismiss!),
         ],
       ),
     );
@@ -403,11 +593,13 @@ class _RecentInstallRow extends ConsumerWidget {
     required this.gameId,
     required this.statusText,
     required this.failed,
+    this.onDismiss,
   });
 
   final int gameId;
   final String statusText;
   final bool failed;
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -460,6 +652,7 @@ class _RecentInstallRow extends ConsumerWidget {
               color: failed ? AppColors.error : AppColors.primary,
             ),
           ),
+          if (onDismiss != null) _DismissButton(onPressed: onDismiss!),
         ],
       ),
     );

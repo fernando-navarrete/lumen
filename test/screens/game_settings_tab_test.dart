@@ -254,4 +254,73 @@ void main() {
       expect(openLogButton(tester).onPressed, isNotNull);
     });
   });
+
+  group('GameSettingsTab uninstall', () {
+    Map<String, Object> prefsWith(String status, {bool owns = false}) => {
+      'games': jsonEncode({
+        'version': GamesNotifier.gamesSchemaVersion,
+        'games': {
+          '$gameId': {
+            'status': status,
+            'selectedBuild': 'b1',
+            'installPath': '/games/foo',
+            'ownsInstallDir': owns,
+          },
+        },
+      }),
+    };
+
+    Finder uninstallButton() => find.widgetWithText(TextButton, 'Uninstall');
+
+    testWidgets('is shown only for an installed game', (tester) async {
+      await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: prefsWith('notInstalled'),
+      );
+      expect(uninstallButton(), findsNothing);
+    });
+
+    Future<void> openDialog(WidgetTester tester) async {
+      await tester.ensureVisible(uninstallButton());
+      await tester.tap(uninstallButton());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    bool deleteFilesChecked(WidgetTester tester) => tester
+        .widget<CheckboxListTile>(
+          find.widgetWithText(CheckboxListTile, 'Delete game files'),
+        )
+        .value!;
+
+    testWidgets("'Delete game files' defaults on for a folder Lumen created", (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: prefsWith('downloaded', owns: true),
+      );
+      await openDialog(tester);
+
+      expect(deleteFilesChecked(tester), isTrue);
+    });
+
+    testWidgets("'Delete game files' defaults off, with a warning once "
+        'checked, for a folder of unknown origin', (tester) async {
+      await pumpApp(
+        tester,
+        const GameSettingsTab(gameId: gameId),
+        prefs: prefsWith('downloaded'),
+      );
+      await openDialog(tester);
+
+      expect(deleteFilesChecked(tester), isFalse);
+      expect(find.textContaining("Lumen didn't create"), findsNothing);
+      await tester.tap(find.text('Delete game files'));
+      await tester.pump();
+      expect(find.textContaining("Lumen didn't create"), findsOneWidget);
+    });
+  });
 }

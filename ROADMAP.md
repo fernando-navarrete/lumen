@@ -97,7 +97,7 @@ Follow-up patches (`v1.2.1+`), one per tag:
 4. `v1.2.4` ✅: remove the `[DIAG]` prints (§3).
 5. `v1.2.5` ✅: validate installed Proton versions against disk on load (§3).
 
-## v1.3.0 — Download management
+## v1.3.0 ✅ — Download management
 
 - Cancel and pause for downloads, verifications and repairs (§2).
 - Resume downloads interrupted by an app exit (§2).

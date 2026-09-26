@@ -10,7 +10,8 @@ import 'dart:io';
 /// `writeFakeProton`.
 String fakeProtonInstall(String dir) {
   Directory(dir).createSync(recursive: true);
-  final script = File('$dir/proton')..writeAsStringSync('#!/usr/bin/env bash\nexit 0\n');
+  final script = File('$dir/proton')
+    ..writeAsStringSync('#!/usr/bin/env bash\nexit 0\n');
   Process.runSync('chmod', ['+x', script.path]);
   return dir;
 }

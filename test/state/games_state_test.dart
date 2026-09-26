@@ -21,6 +21,16 @@ void expectSameConfig(GameConfig actual, GameConfig expected) {
   expect(actual.selectedBuild, expected.selectedBuild, reason: 'selectedBuild');
   expect(actual.productIds, expected.productIds, reason: 'productIds');
   expect(actual.installPath, expected.installPath, reason: 'installPath');
+  expect(
+    actual.pendingInstallPath,
+    expected.pendingInstallPath,
+    reason: 'pendingInstallPath',
+  );
+  expect(
+    actual.ownsPendingInstallDir,
+    expected.ownsPendingInstallDir,
+    reason: 'ownsPendingInstallDir',
+  );
   expect(actual.protonVersion, expected.protonVersion, reason: 'protonVersion');
   expect(
     actual.protonPrefixPath,
@@ -152,10 +162,156 @@ void main() {
       );
     });
 
+    test('a v2 "downloading" entry with a pending path loads as paused, '
+        'and one without loads as notInstalled', () async {
+      const json =
+          '{"version": 2, "games": {'
+          '"1": {"status": "downloading", "selectedBuild": "b", '
+          '"productIds": [], "pendingInstallPath": "/games/foo"}, '
+          '"2": {"status": "downloading", "selectedBuild": "b", '
+          '"productIds": []}}}';
+
+      final container = await createContainer(prefs: {'games': json});
+      final games = container.read(gamesStateProvider);
+
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), '/games/foo');
+      expect(games.getGameStatus(2), GameStatus.notInstalled);
+    });
+
     test('corrupt JSON loads as empty state instead of throwing', () async {
       final container = await createContainer(prefs: {'games': 'not json'});
 
       expect(container.read(gamesStateProvider).games, isEmpty);
+    });
+  });
+
+  group('pending installs (v2)', () {
+    test('a paused download and its pending fields survive a reload', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      notifier.setSelectedBuild(1, 'b');
+      notifier.beginInstall(1, '/games/foo', ownsDir: true);
+      notifier.setGameStatus(1, GameStatus.paused);
+
+      final saved = container
+          .read(sharedPreferencesProvider)
+          .getString('games');
+      final reloaded = await createContainer(prefs: {'games': saved!});
+      final config = reloaded.read(gamesStateProvider).games[1]!;
+
+      expect(config.status, GameStatus.paused);
+      expect(config.pendingInstallPath, '/games/foo');
+      expect(config.ownsPendingInstallDir, isTrue);
+      expect(config.installPath, isNull);
+    });
+
+    test('markInstalled clears the pending fields', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      notifier.setSelectedBuild(1, 'b');
+      notifier.beginInstall(1, '/games/foo', ownsDir: true);
+
+      notifier.markInstalled(1, '/games/foo');
+
+      final config = container.read(gamesStateProvider).games[1]!;
+      expect(config.status, GameStatus.downloaded);
+      expect(config.installPath, '/games/foo');
+      expect(config.pendingInstallPath, isNull);
+      expect(config.ownsPendingInstallDir, isFalse);
+    });
+
+    test('clearPendingInstall resets status and pending fields only', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      notifier.setSelectedBuild(1, 'b');
+      notifier.setProductIds(1, {5});
+      notifier.beginInstall(1, '/games/foo', ownsDir: true);
+
+      notifier.clearPendingInstall(1);
+
+      final config = container.read(gamesStateProvider).games[1]!;
+      expect(config.status, GameStatus.notInstalled);
+      expect(config.pendingInstallPath, isNull);
+      expect(config.ownsPendingInstallDir, isFalse);
+      expect(config.selectedBuild, 'b');
+      expect(config.productIds, {5});
+    });
+
+    test('a v1 blob with a downloading entry migrates to notInstalled and '
+        'keeps its other fields', () async {
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloading", '
+          '"selectedBuild": "b", "productIds": [3]}, '
+          '"2": {"status": "downloaded", "selectedBuild": "c", '
+          '"productIds": [], "installPath": "/games/two"}}}';
+
+      final container = await createContainer(prefs: {'games': json});
+      final games = container.read(gamesStateProvider);
+
+      expect(games.getGameStatus(1), GameStatus.notInstalled);
+      expect(games.getProductIds(1), {3});
+      expect(games.getGameStatus(2), GameStatus.downloaded);
+      expect(games.getInstallPath(2), '/games/two');
+      expect(games.getPendingInstallPath(2), isNull);
+    });
+  });
+
+  group('ownsInstallDir', () {
+    test('a v2 blob migrates with ownsInstallDir false', () async {
+      const json =
+          '{"version": 2, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "b", "productIds": [], '
+          '"installPath": "/games/one", "ownsPendingInstallDir": true}}}';
+
+      final container = await createContainer(prefs: {'games': json});
+
+      expect(
+        container.read(gamesStateProvider).games[1]!.ownsInstallDir,
+        isFalse,
+      );
+    });
+
+    test('a finished download into an owned folder is owned; an import and '
+        'a repair keep the right value', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      GameConfig cfg(int id) => container.read(gamesStateProvider).games[id]!;
+
+      notifier.beginInstall(1, '/games/one', ownsDir: true);
+      notifier.markInstalled(1, '/games/one');
+      expect(cfg(1).ownsInstallDir, isTrue);
+      // A repair of the same path keeps it; a different path (import) drops it.
+      notifier.markInstalled(1, '/games/one');
+      expect(cfg(1).ownsInstallDir, isTrue);
+      notifier.markInstalled(1, '/games/elsewhere');
+      expect(cfg(1).ownsInstallDir, isFalse);
+
+      notifier.beginInstall(2, '/games/two', ownsDir: false);
+      notifier.markInstalled(2, '/games/two');
+      expect(cfg(2).ownsInstallDir, isFalse);
+
+      notifier.markInstalled(3, '/games/three');
+      expect(cfg(3).ownsInstallDir, isFalse);
+    });
+
+    test('removeGame drops the entry and persists', () async {
+      final container = await createContainer();
+      final notifier = container.read(gamesStateProvider.notifier);
+      notifier.markInstalled(1, '/games/one');
+      notifier.markInstalled(2, '/games/two');
+
+      notifier.removeGame(1);
+
+      expect(container.read(gamesStateProvider).games.keys, [2]);
+      final reloaded = await createContainer(
+        prefs: {
+          'games': container
+              .read(sharedPreferencesProvider)
+              .getString('games')!,
+        },
+      );
+      expect(reloaded.read(gamesStateProvider).games.keys, [2]);
     });
   });
 

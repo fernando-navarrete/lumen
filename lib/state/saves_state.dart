@@ -7,6 +7,7 @@ import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
@@ -216,9 +217,21 @@ class SavesNotifier extends Notifier<SavesState> {
 
     final Stream<Object?>? stream;
     if (direction == SaveDirection.download) {
-      stream = _gogState.downloadSaves(gameId, buildName, prefix, installPath);
+      stream = _gogState.downloadSaves(
+        gameId,
+        buildName,
+        prefix,
+        installPath,
+        cancel: JobCancel(),
+      );
     } else {
-      stream = _gogState.uploadSaves(gameId, buildName, prefix, installPath);
+      stream = _gogState.uploadSaves(
+        gameId,
+        buildName,
+        prefix,
+        installPath,
+        cancel: JobCancel(),
+      );
     }
     if (stream == null) {
       _commit(
@@ -286,6 +299,10 @@ class SavesNotifier extends Notifier<SavesState> {
         );
       case DownloadSavesProgress_Finished():
         return task.copyWith(status: TaskStatus.completed);
+      case DownloadSavesProgress_Cancelled():
+        // Nothing cancels a sync in v1.3.0; without this case the `default`
+        // below would let `onDone` mark a cancelled sync completed.
+        return task.copyWith(status: TaskStatus.failed, error: 'cancelled');
       case UploadSavesProgress_Started(:final totalFiles):
         return task.copyWith(filesTotal: totalFiles.toInt());
       case UploadSavesProgress_FileStarted(:final name, :final totalBytes):
@@ -309,6 +326,8 @@ class SavesNotifier extends Notifier<SavesState> {
         );
       case UploadSavesProgress_Finished():
         return task.copyWith(status: TaskStatus.completed);
+      case UploadSavesProgress_Cancelled():
+        return task.copyWith(status: TaskStatus.failed, error: 'cancelled');
       default:
         return task;
     }

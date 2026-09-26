@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
@@ -6,6 +9,7 @@ import 'package:lumen/state/games_state.dart';
 
 import '../helpers/container.dart';
 import '../helpers/fake_gog_backend.dart';
+import '../helpers/temp_data_home.dart';
 
 /// The notifier throttles progress emits to ~10Hz with a trailing flush (see
 /// `DownloadsNotifier._emitThrottle`). Tests wait past that window before
@@ -788,7 +792,7 @@ void main() {
 
         final task = container.read(downloadsStateProvider).tasks[1]!;
         expect(task.status, TaskStatus.failed);
-        expect(task.error, 'could not start');
+        expect(task.error, contains("couldn't start"));
       },
     );
   });
@@ -929,6 +933,771 @@ void main() {
       expect(afterStaleEvent.totalBytes, beforeStaleEvent.totalBytes);
       expect(afterStaleEvent.buildName, 'build-2');
       expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
+    });
+  });
+
+  group('DownloadsNotifier — cancel (Phase 4)', () {
+    test(
+      'cancelling a verification ends cancelled and installs nothing',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startVerification(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        backend
+            .verifyController(1)
+            .add(VerifyDownloadProgress.started(BigInt.from(500)));
+        await settle();
+
+        notifier.cancel(1);
+        expect(backend.jobCancel('verifyDownload').isCancelled, isTrue);
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.cancelled);
+        expect(task.error, isNull);
+        final games = container.read(gamesStateProvider);
+        expect(games.getGameStatus(1), GameStatus.notInstalled);
+        expect(games.getInstallPath(1), isNull);
+      },
+    );
+
+    test(
+      'cancelling a repair ends cancelled and the game stays downloaded',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        container
+            .read(gamesStateProvider.notifier)
+            .markInstalled(1, '/games/foo');
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startRepairForInstalled(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        backend
+            .repairController(1)
+            .add(
+              RepairGameProgress.verification(checkedBytes: BigInt.from(10)),
+            );
+        await settle();
+
+        notifier.cancel(1);
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.cancelled);
+        expect(task.error, isNull);
+        expect(
+          container.read(gamesStateProvider).getGameStatus(1),
+          GameStatus.downloaded,
+        );
+      },
+    );
+
+    test('a cancelled task can be restarted', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      notifier.cancel(1);
+      await settle();
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.cancelled,
+      );
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.running,
+      );
+    });
+
+    test("a replaced job's late Cancelled can't clobber the new task, and "
+        'cancel reaches the new job', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final staleController = backend.verifyController(1);
+      final staleCancel = backend.jobCancel('verifyDownload');
+
+      await notifier.startVerificationForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-2',
+        productIds: [1],
+      );
+      final freshCancel = backend.jobCancel('verifyDownload');
+      expect(identical(staleCancel, freshCancel), isFalse);
+
+      // The orphaned stream ends with Cancelled and closes.
+      staleController.add(const VerifyDownloadProgress.cancelled());
+      await staleController.close();
+      await settle();
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.running);
+      expect(task.buildName, 'build-2');
+
+      // The stale stream's terminal events didn't unregister the new handle.
+      notifier.cancel(1);
+      expect(freshCancel.isCancelled, isTrue);
+      expect(staleCancel.isCancelled, isFalse);
+      await settle();
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.cancelled,
+      );
+    });
+
+    test(
+      'cancel is a no-op without a running verification or repair',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        // No task at all.
+        notifier.cancel(1);
+
+        // A running download (cancel for downloads is Phase 5).
+        await notifier.startDownload(
+          2,
+          path: '/games/bar',
+          buildName: 'build-1',
+          productIds: [2],
+        );
+        notifier.cancel(2);
+        expect(backend.jobCancel('downloadGame').isCancelled, isFalse);
+        expect(
+          container.read(downloadsStateProvider).tasks[2]!.status,
+          TaskStatus.running,
+        );
+
+        // A finished verification.
+        await notifier.startVerification(
+          3,
+          path: '/games/baz',
+          buildName: 'build-1',
+          productIds: [3],
+        );
+        final controller = backend.verifyController(3);
+        controller.add(VerifyDownloadProgress.finished(BigInt.zero));
+        await controller.close();
+        await settle();
+        expect(
+          container.read(downloadsStateProvider).tasks[3]!.status,
+          TaskStatus.completed,
+        );
+        notifier.cancel(3);
+        expect(backend.jobCancel('verifyDownload').isCancelled, isFalse);
+      },
+    );
+  });
+
+  group('DownloadsNotifier — pause, resume and cancel downloads (Phase 5)', () {
+    /// Seeds a config for game 1 (and 2, for the containment test) so
+    /// `setGameStatus` has something to update.
+    Future<(FakeGogBackend, ProviderContainer, DownloadsNotifier)> setUp(
+      Map<String, Object> prefs,
+    ) async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend, prefs: prefs);
+      final notifier = container.read(downloadsStateProvider.notifier);
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
+      container.read(gamesStateProvider.notifier).addProductId(1, 7);
+      return (backend, container, notifier);
+    }
+
+    Future<Directory> emptyDir() async {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      return dir;
+    }
+
+    Future<void> startAndProgress(
+      FakeGogBackend backend,
+      DownloadsNotifier notifier,
+      String path,
+    ) async {
+      await notifier.startDownload(
+        1,
+        path: path,
+        buildName: 'build-1',
+        productIds: [7],
+      );
+      backend
+          .downloadController(1)
+          .add(
+            DownloadGameProgress.started(
+              totalFiles: BigInt.from(2),
+              totalBytes: BigInt.from(1000),
+            ),
+          );
+      backend
+          .downloadController(1)
+          .add(
+            DownloadGameProgress.downloadProgress(
+              downloadedBytes: BigInt.from(400),
+            ),
+          );
+      await settle();
+    }
+
+    test(
+      'pause ends paused, the game is paused and its path is persisted',
+      () async {
+        final (backend, container, notifier) = await setUp({});
+        await startAndProgress(backend, notifier, '/games/foo');
+        expect(
+          container.read(gamesStateProvider).getPendingInstallPath(1),
+          '/games/foo',
+        );
+
+        notifier.pause(1);
+        expect(backend.jobCancel('downloadGame').isCancelled, isTrue);
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.paused);
+        expect(task.error, isNull);
+        final games = container.read(gamesStateProvider);
+        expect(games.getGameStatus(1), GameStatus.paused);
+        expect(games.getPendingInstallPath(1), '/games/foo');
+        expect(games.getInstallPath(1), isNull);
+      },
+    );
+
+    test('pausing while allocating behaves the same', () async {
+      final (backend, container, notifier) = await setUp({});
+      await notifier.startDownload(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [7],
+      );
+      backend
+          .downloadController(1)
+          .add(
+            DownloadGameProgress.fileAllocationStarted(
+              totalFiles: BigInt.from(3),
+              totalBytes: BigInt.from(1000),
+            ),
+          );
+      await settle();
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.stage,
+        'allocating',
+      );
+
+      notifier.pause(1);
+      await settle();
+
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.paused,
+      );
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.paused,
+      );
+    });
+
+    test('pause is a no-op for anything but a running download', () async {
+      final (backend, container, notifier) = await setUp({});
+      await notifier.startRepairForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [7],
+      );
+      notifier.pause(1);
+      notifier.pause(99);
+      expect(backend.jobCancel('repairDownload').isCancelled, isFalse);
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.running,
+      );
+    });
+
+    test('resume runs repairDownload (not downloadGame) with the saved params '
+        'and installs the game', () async {
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      notifier.pause(1);
+      await settle();
+
+      await notifier.resumeDownload(1);
+
+      expect(backend.callsTo('downloadGame'), hasLength(1));
+      final repair = backend.callsTo('repairDownload');
+      expect(repair, hasLength(1));
+      expect(repair.single.args['path'], dir.path);
+      expect(repair.single.args['buildName'], 'build-1');
+      var task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.kind, TaskKind.download);
+      expect(task.resumed, isTrue);
+      expect(task.status, TaskStatus.running);
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.downloading,
+      );
+
+      final controller = backend.repairController(1);
+      controller.add(const RepairGameProgress.finished());
+      await controller.close();
+      await settle();
+
+      task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.completed);
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.downloaded);
+      expect(games.getInstallPath(1), dir.path);
+      expect(games.getPendingInstallPath(1), isNull);
+      expect(games.games[1]!.ownsPendingInstallDir, isFalse);
+    });
+
+    test(
+      'resume with no task takes its params from the persisted config',
+      () async {
+        final dir = await emptyDir();
+        final json =
+            '{"version": 2, "games": {"1": {"status": "paused", '
+            '"selectedBuild": "b-9", "productIds": [4, 5], '
+            '"pendingInstallPath": "${dir.path}"}}}';
+        final (backend, container, notifier) = await setUp({'games': json});
+        // setUp's seeding must not have clobbered the persisted values.
+        container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'b-9');
+        container.read(gamesStateProvider.notifier).setProductIds(1, {4, 5});
+
+        await notifier.resumeDownload(1);
+
+        final call = backend.callsTo('repairDownload').single;
+        expect(call.args['path'], dir.path);
+        expect(call.args['buildName'], 'b-9');
+        expect(call.args['selectedProducts'], [4, 5]);
+        expect(
+          container.read(downloadsStateProvider).tasks[1]!.resumed,
+          isTrue,
+        );
+      },
+    );
+
+    test('resume is a no-op unless the game is paused', () async {
+      final (backend, _, notifier) = await setUp({});
+      await notifier.resumeDownload(1);
+      expect(backend.callsTo('repairDownload'), isEmpty);
+    });
+
+    test('a failed resume goes back to paused, not notInstalled', () async {
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      notifier.pause(1);
+      await settle();
+      await notifier.resumeDownload(1);
+
+      final controller = backend.repairController(1);
+      controller.addError(Exception('network down'));
+      await controller.close();
+      await settle();
+
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(task.error, contains('network down'));
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), dir.path);
+    });
+
+    test('a persisted "downloading" entry resumes after a restart through '
+        'repairDownload with its persisted params', () async {
+      final dir = await emptyDir();
+      final json =
+          '{"version": 2, "games": {"1": {"status": "downloading", '
+          '"selectedBuild": "b-9", "productIds": [4], '
+          '"pendingInstallPath": "${dir.path}"}}}';
+      final (backend, container, notifier) = await setUp({'games': json});
+      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'b-9');
+      container.read(gamesStateProvider.notifier).setProductIds(1, {4});
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.paused,
+      );
+
+      await notifier.resumeDownload(1);
+
+      expect(backend.callsTo('downloadGame'), isEmpty);
+      expect(backend.callsTo('repairDownload').single.args['path'], dir.path);
+    });
+
+    test('resume with a missing folder fails with a specific message and '
+        'clears nothing', () async {
+      final dir = await emptyDir();
+      final missing = '${dir.path}/gone';
+      final json =
+          '{"version": 2, "games": {"1": {"status": "paused", '
+          '"selectedBuild": "b-9", "productIds": [4], '
+          '"pendingInstallPath": "$missing"}}}';
+      final (backend, container, notifier) = await setUp({'games': json});
+
+      await notifier.resumeDownload(1);
+
+      expect(backend.callsTo('repairDownload'), isEmpty);
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(task.error, 'The install folder $missing no longer exists');
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), missing);
+    });
+
+    test('two quick resumes start only one job', () async {
+      final dir = await emptyDir();
+      final (backend, _, notifier) = await setUp({});
+      await startAndProgress(backend, notifier, dir.path);
+      notifier.pause(1);
+      await settle();
+
+      await Future.wait([
+        notifier.resumeDownload(1),
+        notifier.resumeDownload(1),
+      ]);
+
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+    });
+
+    test('startDownload on a paused game is a no-op', () async {
+      final (backend, _, notifier) = await setUp({});
+      await startAndProgress(backend, notifier, '/games/foo');
+      notifier.pause(1);
+      await settle();
+
+      await notifier.startDownload(
+        1,
+        path: '/games/other',
+        buildName: 'build-1',
+        productIds: [7],
+      );
+
+      expect(backend.callsTo('downloadGame'), hasLength(1));
+    });
+
+    test(
+      'a failed download clears the pending path and resets the game',
+      () async {
+        final (backend, container, notifier) = await setUp({});
+        await startAndProgress(backend, notifier, '/games/foo');
+        final controller = backend.downloadController(1);
+        controller.addError(Exception('boom'));
+        await controller.close();
+        await settle();
+
+        final games = container.read(gamesStateProvider);
+        expect(games.getGameStatus(1), GameStatus.notInstalled);
+        expect(games.getPendingInstallPath(1), isNull);
+      },
+    );
+
+    test('cancelling a running download stops the job first, then deletes '
+        'the folder it owned and resets the game', () async {
+      useTempDataHome();
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      File('${dir.path}/data.bin').writeAsStringSync('partial');
+      expect(
+        container.read(gamesStateProvider).games[1]!.ownsPendingInstallDir,
+        isTrue,
+      );
+
+      await notifier.cancelDownload(1, deleteFiles: true);
+
+      expect(backend.jobCancel('downloadGame').isCancelled, isTrue);
+      expect(dir.existsSync(), isFalse);
+      expect(container.read(downloadsStateProvider).tasks[1], isNull);
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.notInstalled);
+      expect(games.getPendingInstallPath(1), isNull);
+      expect(games.games[1]!.ownsPendingInstallDir, isFalse);
+    });
+
+    test('cancelling with "keep files" leaves the folder alone', () async {
+      useTempDataHome();
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      File('${dir.path}/data.bin').writeAsStringSync('partial');
+
+      await notifier.cancelDownload(1, deleteFiles: false);
+
+      expect(File('${dir.path}/data.bin').existsSync(), isTrue);
+      expect(container.read(downloadsStateProvider).tasks[1], isNull);
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.notInstalled,
+      );
+    });
+
+    test('a paused download can be cancelled too', () async {
+      useTempDataHome();
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      notifier.pause(1);
+      await settle();
+
+      await notifier.cancelDownload(1, deleteFiles: true);
+
+      expect(dir.existsSync(), isFalse);
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.notInstalled,
+      );
+    });
+
+    test("deleting is refused for a folder that wasn't empty at the start, "
+        'and the game stays paused', () async {
+      useTempDataHome();
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      File('${dir.path}/mine.txt').writeAsStringSync('not the download\'s');
+      await startAndProgress(backend, notifier, dir.path);
+      expect(
+        container.read(gamesStateProvider).games[1]!.ownsPendingInstallDir,
+        isFalse,
+      );
+
+      await expectLater(
+        notifier.cancelDownload(1, deleteFiles: true),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(File('${dir.path}/mine.txt').existsSync(), isTrue);
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.paused,
+      );
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.paused,
+      );
+    });
+
+    test("deleting is refused for a folder that contains another game's "
+        'install', () async {
+      useTempDataHome();
+      final (backend, container, notifier) = await setUp({});
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
+      container
+          .read(gamesStateProvider.notifier)
+          .markInstalled(2, '${dir.path}/other-game');
+
+      await expectLater(
+        notifier.cancelDownload(1, deleteFiles: true),
+        throwsA(isA<Exception>()),
+      );
+
+      expect(dir.existsSync(), isTrue);
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.paused,
+      );
+    });
+  });
+
+  group('DownloadsNotifier — retry and clear finished (Phase 8)', () {
+    Future<(FakeGogBackend, ProviderContainer, DownloadsNotifier)>
+    setUp() async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      final notifier = container.read(downloadsStateProvider.notifier);
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
+      return (backend, container, notifier);
+    }
+
+    Directory tempDir({bool withFile = false}) {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      if (withFile) File('${dir.path}/data.bin').writeAsBytesSync([1, 2, 3]);
+      return dir;
+    }
+
+    Future<void> failDownload(
+      FakeGogBackend backend,
+      DownloadsNotifier notifier,
+      String path,
+    ) async {
+      await notifier.startDownload(
+        1,
+        path: path,
+        buildName: 'build-1',
+        productIds: [7],
+      );
+      final controller = backend.downloadController(1);
+      controller.addError(Exception('network down'));
+      await controller.close();
+      await settle();
+    }
+
+    test('a failed download with files on disk becomes paused, and retry '
+        'resumes it through repairDownload', () async {
+      final (backend, container, notifier) = await setUp();
+      final dir = tempDir(withFile: true);
+
+      await failDownload(backend, notifier, dir.path);
+
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), dir.path);
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.failed,
+      );
+
+      await notifier.retryDownload(1);
+
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+      expect(backend.callsTo('downloadGame'), hasLength(1));
+      expect(backend.callsTo('repairDownload').single.args['path'], dir.path);
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.resumed, isTrue);
+      expect(task.status, TaskStatus.running);
+    });
+
+    test('a failed download into an empty folder resets the game, and retry '
+        'starts a fresh download', () async {
+      final (backend, container, notifier) = await setUp();
+      final dir = tempDir();
+
+      await failDownload(backend, notifier, dir.path);
+
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.notInstalled);
+      expect(games.getPendingInstallPath(1), isNull);
+
+      await notifier.retryDownload(1);
+
+      expect(backend.callsTo('downloadGame'), hasLength(2));
+      expect(backend.callsTo('repairDownload'), isEmpty);
+    });
+
+    test('retryDownload is a no-op without a failed download', () async {
+      final (backend, container, notifier) = await setUp();
+
+      await notifier.retryDownload(1);
+      await notifier.startRepairForInstalled(
+        2,
+        path: '/games/bar',
+        buildName: 'build-1',
+        productIds: [2],
+      );
+      await notifier.retryDownload(2);
+
+      expect(backend.callsTo('downloadGame'), isEmpty);
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+      expect(container.read(downloadsStateProvider).tasks, hasLength(1));
+    });
+
+    test('clearFinished removes completed, failed and cancelled tasks but '
+        'keeps running, paused and resumable ones', () async {
+      final (backend, container, notifier) = await setUp();
+      addTearDown(backend.closeAll);
+      TaskStatus? statusOf(int id) =>
+          container.read(downloadsStateProvider).tasks[id]?.status;
+
+      // 2: completed verification. 3: failed repair. 4: cancelled repair.
+      await notifier.startVerification(
+        2,
+        path: '/games/b',
+        buildName: 'build-1',
+        productIds: [2],
+      );
+      backend
+          .verifyController(2)
+          .add(VerifyDownloadProgress.finished(BigInt.zero));
+      await backend.verifyController(2).close();
+      await notifier.startRepairForInstalled(
+        3,
+        path: '/games/c',
+        buildName: 'build-1',
+        productIds: [3],
+      );
+      backend.repairController(3).addError(Exception('boom'));
+      await backend.repairController(3).close();
+      await notifier.startRepairForInstalled(
+        4,
+        path: '/games/d',
+        buildName: 'build-1',
+        productIds: [4],
+      );
+      notifier.cancel(4);
+      // 5: running repair. 1: failed download of a paused (resumable) game.
+      await notifier.startRepairForInstalled(
+        5,
+        path: '/games/e',
+        buildName: 'build-1',
+        productIds: [5],
+      );
+      final dir = tempDir(withFile: true);
+      await failDownload(backend, notifier, dir.path);
+      await settle();
+
+      expect(statusOf(2), TaskStatus.completed);
+      expect(statusOf(3), TaskStatus.failed);
+      expect(statusOf(4), TaskStatus.cancelled);
+      expect(statusOf(5), TaskStatus.running);
+      expect(statusOf(1), TaskStatus.failed);
+
+      notifier.clearFinished();
+
+      expect(statusOf(2), isNull);
+      expect(statusOf(3), isNull);
+      expect(statusOf(4), isNull);
+      expect(statusOf(5), TaskStatus.running);
+      expect(statusOf(1), TaskStatus.failed);
     });
   });
 }

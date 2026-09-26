@@ -8,6 +8,7 @@ import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/executable_picker_dialog.dart';
 import 'package:lumen/components/section_card.dart';
+import 'package:lumen/components/uninstall_dialog.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/launch_state.dart';
@@ -38,9 +39,20 @@ class _EnvVarRow {
 /// arguments and environment variables, and show the game's Proton prefix
 /// directory.
 class GameSettingsTab extends ConsumerStatefulWidget {
-  const GameSettingsTab({super.key, required this.gameId});
+  const GameSettingsTab({
+    super.key,
+    required this.gameId,
+    this.onOpenSaves,
+    this.onUninstalled,
+  });
 
   final int gameId;
+
+  /// Called from the uninstall dialog's "Open Saves tab" link.
+  final VoidCallback? onOpenSaves;
+
+  /// Called after the game was uninstalled, so the host can leave this tab.
+  final VoidCallback? onUninstalled;
 
   @override
   ConsumerState<GameSettingsTab> createState() => _GameSettingsTabState();
@@ -322,6 +334,10 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
     // as the first launch creates the file.
     ref.watch(launchStateProvider.select((s) => s.gameFor(gameId)?.status));
     final hasLog = gameLogExists(gameId);
+    final installed = gamesState.getGameStatus(gameId) == GameStatus.downloaded;
+    final gameActive = ref.watch(
+      launchStateProvider.select((s) => s.isActive(gameId)),
+    );
 
     return SingleChildScrollView(
       child: ConstrainedBox(
@@ -543,6 +559,39 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                 ],
               ),
             ),
+            if (installed)
+              SectionCard(
+                title: "Uninstall",
+                description: gameActive
+                    ? "Stop the game first."
+                    : "Remove this game's files, and optionally its Wine "
+                          "prefix, and reset its settings.",
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    onPressed: gameActive
+                        ? null
+                        : () => confirmUninstall(
+                            context,
+                            ref,
+                            gameId,
+                            onOpenSaves: widget.onOpenSaves,
+                            onUninstalled: widget.onUninstalled,
+                          ),
+                    child: Text(
+                      "Uninstall",
+                      style: AppText.button(
+                        color: gameActive
+                            ? AppColors.textMuted
+                            : AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: AppSpacing.lg),
           ],
         ),

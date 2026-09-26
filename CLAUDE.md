@@ -15,7 +15,7 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`) are app-owned plain-Dart
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `InstallSize`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
 these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
 `DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
@@ -24,7 +24,13 @@ the exceptions: all six stay the bridge's own freezed unions, and their owning n
 `lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for downloads,
 `VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair, and `SavesNotifier`
 in `lib/state/saves_state.dart` for both save-sync unions) adapt them directly rather than going
-through an app-owned model.
+through an app-owned model. Each of those six unions ends in a terminal `*_Cancelled` variant. `DownloadsNotifier.cancel(gameId)` (verification and repair) fires the job's `JobCancel`; the verify/repair `Cancelled` event then commits `TaskStatus.cancelled` — not a failure — and `onDone` leaves it alone, so a cancelled verification never marks the game installed. Downloads have their own pair: `pause(gameId)` (`Cancelled` commits `TaskStatus.paused` and `GameStatus.paused`, files kept) and `cancelDownload(gameId, {deleteFiles})` (discards the job, then optionally deletes the folder). A paused download resumes through `resumeDownload`, which always runs `repairDownload` — never `downloadGame`, since a killed or paused download's files are preallocated to full size and would pass its size check — as a `TaskKind.download` task with `resumed: true`; a failed resume goes back to `paused`. A `downloading` entry that has a `pendingInstallPath` loads as `paused` after an app restart (no auto-resume; the Downloads page lists it as "Paused — interrupted"), and `resumeDownload` fails without starting a job, clearing nothing, if that folder no longer exists. A download that fails with files in its folder also ends `paused` (an empty or missing folder resets the game to `notInstalled` instead), so the Downloads page's Retry is `retryDownload`: `resumeDownload` for a paused game, else a fresh `startDownload`; failed/cancelled repairs retry through `startRepair`. `clearFinished()` and the per-card dismiss go through `isDismissible`, which spares running and paused tasks and a failed download of a paused game. Download, verification and repair failures record `jobErrorText` (`lib/common/gog_error.dart`), which maps `GogError.kind()` to Lumen's own wording and falls back to `gogErrorText`.
+
+The six job streams (verify, download, repair, Proton download, both save syncs) each take an
+app-owned `JobCancel` (`lib/state/gog_backend.dart`: plain Dart, `cancel()` plus `isCancelled`/
+`whenCancelled`). The bridge's `CancelToken` is native, so it appears only in `GogdlBackend`, which
+makes one per job and forwards `JobCancel.cancel()` to it; the caller owns the `JobCancel`. A
+cancelled job ends its stream with its `Cancelled` event and no error.
 
 ## Commands
 
@@ -37,7 +43,7 @@ fvm flutter pub get                        # install dependencies
 fvm flutter analyze                        # static analysis / lints (flutter_lints)
 fvm flutter run -d linux                    # run the app (only Linux target exists)
 fvm flutter build linux                     # build the Linux release binary
-fvm flutter test                            # run the test suite (no native library needed)
+fvm flutter test                            # run the test suite (no native library loaded by tests)
 ```
 
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
@@ -58,6 +64,12 @@ font (it silently falls back to the default font instead). Widget tests (`test/s
 backed by a `createContainer()`-style `ProviderContainer` and sizes the test surface to a desktop
 window; it doesn't call `pumpAndSettle()` itself because several screens show an indefinitely
 spinning `CenteredLoader` while their first fetch is pending.
+
+Since `gogdl_flutter` v1.2.1 its native library is built by a Native Assets build hook that runs
+cargo, so `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the
+bridge's `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
+CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
+bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes.
 
 CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
 `flutter analyze --fatal-infos` and `flutter test` on every tag push (branch pushes don't
@@ -101,7 +113,12 @@ The persisted `games` JSON is versioned: `GamesNotifier` writes
 `{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`, and `_load` runs the stored value
 through `_migrations` — an ordered list of raw-map transforms, one per version step — up to
 `gamesSchemaVersion` before decoding, so `_decodeGames` only ever has to read the current shape. A
-bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Any future change to the
+bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Version 2 added `GameConfig.pendingInstallPath` (where an unfinished
+download writes, cleared by `markInstalled`/cancel, so `installPath` keeps meaning "installed") and
+`ownsPendingInstallDir` (the folder was empty or missing when the download started; only then may
+cancelling delete it, and never one containing another game's install). Version 3 added `GameConfig.ownsInstallDir` (the installed folder was created by Lumen's own
+download, carried over from `ownsPendingInstallDir` by `markInstalled`; imports and older installs are
+false). Any future change to the
 per-game JSON shape must bump `gamesSchemaVersion` and append a step to `_migrations`, rather than
 adding more type-sniffing to the decoder.
 
@@ -152,6 +169,16 @@ Games run under an app-managed Proton-GE (not system Steam). Filesystem layout i
   `STEAM_COMPAT_CLIENT_INSTALL_PATH` (mirrors how Lutris/Heroic/non-Steam Proton launchers work).
 - Per-game launch logs at `<lumenDataDir>/logs/<gameId>.log`, rotated to `<gameId>.previous.log`
   (one generation, overwritten) at the start of every launch.
+
+`ProtonNotifier.removeVersion(tag, {deleteFiles})` (Settings' "Installed versions" list) deletes the
+release directory first via `lib/common/safe_delete.dart`'s `deleteDirectoryGuarded` and only drops the
+registry entry if that succeeds. That helper refuses `/`, `$HOME`, `lumenDataDir()`, their ancestors,
+symlinks and non-directories, and is the only sanctioned recursive delete in the app: any other
+deletion (cancelled downloads, uninstall) goes through it too.
+`Uninstaller.uninstallGame` (`lib/state/uninstall.dart`) is the uninstall flow: it refuses while the game
+runs, stops any job, optionally deletes the install folder (refused if it contains another game's install)
+and the Lumen-owned prefix and logs, then removes the game's whole `GameConfig` entry; a failed delete
+leaves the game installed.
 
 `ProtonNotifier._load` (`lib/state/proton_state.dart`) validates the persisted `protonInstalled`
 registry against disk on every load, via `executable_lookup.dart`'s `isExecutableFile` on each
@@ -204,7 +231,7 @@ prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `game
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never
 wrapped. This subsystem never talks to the bridge.
 
-Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`).
+Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`). The picker goes through `pickDirectoryProvider` (`lib/common/directory_picker.dart`) so tests can override it. Install, after picking, checks the folder's free space against `GogState.getInstallSize` in `lib/components/install_space_dialog.dart`: it blocks only when `diskBytes > free`, warns under 5% headroom, and never blocks on a failed lookup. Import, Resume and Retry skip the check.
 
 ### Cloud saves
 

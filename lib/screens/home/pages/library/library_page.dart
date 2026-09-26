@@ -59,7 +59,9 @@ extension _LibraryFilterLabel on _LibraryFilter {
   bool matches(GameStatus status) => switch (this) {
     _LibraryFilter.all => true,
     _LibraryFilter.installed =>
-      status == GameStatus.downloaded || status == GameStatus.downloading,
+      status == GameStatus.downloaded ||
+          status == GameStatus.downloading ||
+          status == GameStatus.paused,
     _LibraryFilter.notInstalled => status == GameStatus.notInstalled,
   };
 }
