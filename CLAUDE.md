@@ -231,7 +231,7 @@ prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `game
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never
 wrapped. This subsystem never talks to the bridge.
 
-Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`).
+Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`). The picker goes through `pickDirectoryProvider` (`lib/common/directory_picker.dart`) so tests can override it. Install, after picking, checks the folder's free space against `GogState.getInstallSize` in `lib/components/install_space_dialog.dart`: it blocks only when `diskBytes > free`, warns under 5% headroom, and never blocks on a failed lookup. Import, Resume and Retry skip the check.
 
 ### Cloud saves
 

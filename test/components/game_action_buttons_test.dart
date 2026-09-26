@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/directory_picker.dart';
 import 'package:lumen/common/launch_resolver.dart';
 import 'package:lumen/components/game_action_buttons.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
@@ -384,6 +387,164 @@ void main() {
 
       expect(find.text('Spawn failed'), findsOneWidget);
       expect(find.text('Open log'), findsNothing);
+    });
+  });
+
+  group('Install space check', () {
+    late List<String> picks;
+    late int pickCount;
+
+    Future<(FakeGogBackend, ProviderContainer)> pumpInstall(
+      WidgetTester tester, {
+      required List<String> folders,
+      int freeSpace = 1000,
+      Object? sizeFailure,
+    }) async {
+      final backend = FakeGogBackend()
+        ..installSize = const InstallSize(downloadBytes: 500, diskBytes: 800)
+        ..freeSpace = freeSpace;
+      if (sizeFailure != null) backend.throwOn['getInstallSize'] = sizeFailure;
+      pickCount = 0;
+      picks = folders;
+      final container = await pumpApp(
+        tester,
+        const GameActionButtons(gameId: gameId),
+        backend: backend,
+        prefs: {
+          'games': jsonEncode({
+            'version': GamesNotifier.gamesSchemaVersion,
+            'games': {
+              '$gameId': {
+                'status': 'notInstalled',
+                'selectedBuild': 'b1',
+                'productIds': [1],
+              },
+            },
+          }),
+        },
+        overrides: [
+          pickDirectoryProvider.overrideWith(
+            (ref) =>
+                () async => picks[pickCount++ % picks.length],
+          ),
+        ],
+      );
+      await tester.pump();
+      await tester.pump();
+      return (backend, container);
+    }
+
+    testWidgets('shows the sizes and installs on confirm', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final (backend, container) = await pumpInstall(
+        tester,
+        folders: [dir.path],
+      );
+
+      await tester.tap(find.text('Install'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('Download 500 B'), findsOneWidget);
+      expect(find.textContaining('Needs 800 B on disk'), findsOneWidget);
+      expect(find.textContaining('1000 B free in ${dir.path}'), findsOneWidget);
+      expect(backend.callsTo('getInstallSize').single.args, {
+        'gameId': gameId,
+        'buildName': 'b1',
+        'selectedProducts': [1],
+      });
+      expect(backend.callsTo('getFreeSpace').single.args['path'], dir.path);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Install').last);
+      await tester.pump();
+
+      // startDownload registers its task before it lists the folder.
+      expect(container.read(downloadsStateProvider).tasks[gameId], isNotNull);
+    });
+
+    testWidgets('blocks when there is not enough space', (tester) async {
+      final (backend, _) = await pumpInstall(
+        tester,
+        folders: ['/games'],
+        freeSpace: 700,
+      );
+
+      await tester.tap(find.text('Install'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.text('Not enough space: needs 800 B, only 700 B free'),
+        findsOneWidget,
+      );
+      // Only the button behind the dialog is left; the dialog has none.
+      expect(find.text('Install'), findsOneWidget);
+
+      await tester.tap(find.text('Back'));
+      await tester.pump();
+
+      expect(backend.callsTo('downloadGame'), isEmpty);
+    });
+
+    testWidgets('Choose another folder asks for a new folder', (tester) async {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final (backend, _) = await pumpInstall(
+        tester,
+        folders: ['/games', dir.path],
+      );
+      backend.freeSpace = 700;
+
+      await tester.tap(find.text('Install'));
+      await tester.pump();
+      await tester.pump();
+      backend.freeSpace = 5000;
+      await tester.tap(find.text('Choose another folder'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(pickCount, 2);
+      expect(find.textContaining('4.9 KB free in ${dir.path}'), findsOneWidget);
+      expect(backend.callsTo('downloadGame'), isEmpty);
+    });
+
+    testWidgets('warns but allows a tight fit', (tester) async {
+      await pumpInstall(tester, folders: ['/games'], freeSpace: 820);
+
+      await tester.tap(find.text('Install'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('Less than 5%'), findsOneWidget);
+      expect(find.text('Install'), findsNWidgets(2));
+    });
+
+    testWidgets('a failed size lookup does not block the install', (
+      tester,
+    ) async {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final (backend, container) = await pumpInstall(
+        tester,
+        folders: [dir.path],
+        sizeFailure: Exception('boom'),
+      );
+
+      await tester.tap(find.text('Install'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text("Couldn't determine the download size"), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('Install').last);
+      await tester.pump();
+
+      // startDownload registers its task before it lists the folder.
+      expect(container.read(downloadsStateProvider).tasks[gameId], isNotNull);
     });
   });
 
