@@ -8,7 +8,9 @@ import 'package:lumen/common/gog_error.dart';
 
 enum TaskKind { download, verification, repair }
 
-enum TaskStatus { running, completed, failed }
+/// [cancelled] is a user-requested stop (verification and repair only, for
+/// now): not a failure, and not shown as one.
+enum TaskStatus { running, completed, failed, cancelled }
 
 /// Why a file failed verification, from the three per-path failure events on
 /// the bridge's `VerifyDownloadProgress` stream.
@@ -220,6 +222,33 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   // trailing flush. See lib/state/emit_throttle.dart.
   late final ThrottledTaskBuffer<int, ActivityTask> _buffer;
 
+  // Cancel handles of the running jobs, kept out of the immutable
+  // [ActivityTask] snapshots (same idea as `LaunchNotifier`'s `_LiveLaunch`).
+  final Map<int, JobCancel> _cancels = {};
+
+  /// Drops [cancel] from the registry, but only if it's still the handle
+  /// registered for [gameId]: a stale stream finishing late must not
+  /// unregister the job that replaced it.
+  void _release(int gameId, JobCancel cancel) {
+    if (identical(_cancels[gameId], cancel)) {
+      _cancels.remove(gameId);
+    }
+  }
+
+  /// Asks the running verification or repair for [gameId] to stop. A no-op
+  /// for anything else (no task, a finished task, a download — that's
+  /// Phase 5). Commits nothing itself: the job's terminal `Cancelled` event
+  /// does, through [_commit], so the stale-stream guard still applies.
+  void cancel(int gameId) {
+    final task = state.tasks[gameId];
+    if (task == null ||
+        task.status != TaskStatus.running ||
+        task.kind == TaskKind.download) {
+      return;
+    }
+    _cancels[gameId]?.cancel();
+  }
+
   /// Commits [next] as the replacement for [current] if [current] is still
   /// the task registered for its game — either the latest buffered value in
   /// [_buffer], or (if nothing's buffered) the value in [state.tasks]. A
@@ -276,14 +305,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
+    final cancel = JobCancel();
+    _cancels[gameId] = cancel;
     final stream = _gogState.verifyGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: JobCancel(),
+      cancel: cancel,
     );
     if (stream == null) {
+      _release(gameId, cancel);
       task = _commit(
         task,
         task.copyWith(status: TaskStatus.failed, error: 'could not start'),
@@ -313,14 +345,16 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = _commit(prev, task);
             return;
           case VerifyDownloadProgress_Cancelled():
-            // Placeholder until Phase 4 gives a cancel its own TaskStatus:
-            // no `Finished` follows, so `onDone` ends it as not-finished.
-            task = task.copyWith(error: 'cancelled');
+            task = task.copyWith(status: TaskStatus.cancelled);
+            task = _commit(prev, task);
+            return;
         }
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        if (task.status == TaskStatus.failed) {
+        _release(gameId, cancel);
+        if (task.status == TaskStatus.failed ||
+            task.status == TaskStatus.cancelled) {
           return;
         }
         final finished =
@@ -334,6 +368,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(task, next);
       },
       onError: (Object error) {
+        _release(gameId, cancel);
         logGogError(error);
         task = _commit(
           task,
@@ -411,14 +446,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     state = DownloadsState({...state.tasks, gameId: task});
     _gamesNotifier.setGameStatus(gameId, GameStatus.downloading);
 
+    final cancel = JobCancel();
+    _cancels[gameId] = cancel;
     final stream = _gogState.downloadGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: JobCancel(),
+      cancel: cancel,
     );
     if (stream == null) {
+      _release(gameId, cancel);
       final next = task.copyWith(
         status: TaskStatus.failed,
         error: 'could not start',
@@ -464,13 +502,15 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = _commit(prev, task);
             return;
           case DownloadGameProgress_Cancelled():
-            // Placeholder until Phase 4/5 give a cancel its own status.
+            // Placeholder until Phase 5 (pause/cancel for downloads).
             task = task.copyWith(error: 'cancelled');
         }
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        if (task.status == TaskStatus.failed) {
+        _release(gameId, cancel);
+        if (task.status == TaskStatus.failed ||
+            task.status == TaskStatus.cancelled) {
           return;
         }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
@@ -487,6 +527,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(task, next);
       },
       onError: (Object error) {
+        _release(gameId, cancel);
         logGogError(error);
         final next = task.copyWith(
           status: TaskStatus.failed,
@@ -567,14 +608,17 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     _buffer.remove(gameId);
     state = DownloadsState({...state.tasks, gameId: task});
 
+    final cancel = JobCancel();
+    _cancels[gameId] = cancel;
     final stream = _gogState.repairGameFiles(
       gameId,
       path,
       buildName,
       productIds,
-      cancel: JobCancel(),
+      cancel: cancel,
     );
     if (stream == null) {
+      _release(gameId, cancel);
       task = _commit(
         task,
         task.copyWith(status: TaskStatus.failed, error: 'could not start'),
@@ -629,13 +673,16 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = _commit(prev, task);
             return;
           case RepairGameProgress_Cancelled():
-            // Placeholder until Phase 4 gives a cancel its own status.
-            task = task.copyWith(error: 'cancelled');
+            task = task.copyWith(status: TaskStatus.cancelled);
+            task = _commit(prev, task);
+            return;
         }
         task = _commit(prev, task, throttle: true);
       },
       onDone: () {
-        if (task.status == TaskStatus.failed) {
+        _release(gameId, cancel);
+        if (task.status == TaskStatus.failed ||
+            task.status == TaskStatus.cancelled) {
           return;
         }
         final finished = task.stage == 'finished' && task.errorFiles.isEmpty;
@@ -648,6 +695,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         task = _commit(task, next);
       },
       onError: (Object error) {
+        _release(gameId, cancel);
         logGogError(error);
         task = _commit(
           task,

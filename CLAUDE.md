@@ -24,7 +24,7 @@ the exceptions: all six stay the bridge's own freezed unions, and their owning n
 `lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for downloads,
 `VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair, and `SavesNotifier`
 in `lib/state/saves_state.dart` for both save-sync unions) adapt them directly rather than going
-through an app-owned model. Each of those six unions ends in a terminal `*_Cancelled` variant.
+through an app-owned model. Each of those six unions ends in a terminal `*_Cancelled` variant. `DownloadsNotifier.cancel(gameId)` (verification and repair only, so far) fires the job's `JobCancel`; the verify/repair `Cancelled` event then commits `TaskStatus.cancelled` — not a failure — and `onDone` leaves it alone, so a cancelled verification never marks the game installed.
 
 The six job streams (verify, download, repair, Proton download, both save syncs) each take an
 app-owned `JobCancel` (`lib/state/gog_backend.dart`: plain Dart, `cancel()` plus `isCancelled`/

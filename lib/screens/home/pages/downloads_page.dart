@@ -22,9 +22,13 @@ class DownloadsPage extends ConsumerWidget {
     final savesState = ref.watch(savesStateProvider);
     final saveTasks = savesState.tasks.values.toList();
 
-    // Active = running or failed; completed installs move to the
-    // "recently installed" list below.
-    bool isActive(ActivityTask task) => task.status != TaskStatus.completed;
+    // Active section = running, failed or cancelled (a cancelled card stays
+    // until it's dismissed); completed installs move to the "recently
+    // installed" list below.
+    bool isActive(ActivityTask task) => switch (task.status) {
+      TaskStatus.running || TaskStatus.failed || TaskStatus.cancelled => true,
+      TaskStatus.completed => false,
+    };
 
     final activeTransfers = [
       ...downloadsState.downloadTasks.where(isActive),
@@ -37,10 +41,19 @@ class DownloadsPage extends ConsumerWidget {
         .where((task) => task.status == TaskStatus.completed)
         .toList();
 
+    bool isRunning(ActivityTask task) => task.status == TaskStatus.running;
     final int activeCount =
-        activeTransfers.length +
-        activeVerifications.length +
+        activeTransfers.where(isRunning).length +
+        activeVerifications.where(isRunning).length +
         saveTasks.where((task) => task.status == TaskStatus.running).length;
+
+    Widget cancelButton(ActivityTask task) => PrimaryButton.icon(
+      icon: Icons.close,
+      label: "Cancel",
+      glowing: false,
+      onTap: () =>
+          ref.read(downloadsStateProvider.notifier).cancel(task.gameId),
+    );
 
     return Center(
       child: ConstrainedBox(
@@ -77,6 +90,11 @@ class DownloadsPage extends ConsumerWidget {
                             ? _downloadStatusText(task)
                             : _repairStatusText(task),
                         failed: _hasErrors(task),
+                        running: isRunning(task),
+                        trailing:
+                            task.kind == TaskKind.repair && isRunning(task)
+                            ? cancelButton(task)
+                            : null,
                       ),
                   ],
                 ),
@@ -95,16 +113,19 @@ class DownloadsPage extends ConsumerWidget {
                         progress: task.progress,
                         statusText: _verificationStatusText(task),
                         failed: _hasErrors(task),
-                        trailing: task.status == TaskStatus.failed
-                            ? PrimaryButton.icon(
-                                icon: Icons.build,
-                                label: "Repair",
-                                glowing: false,
-                                onTap: () => ref
-                                    .read(downloadsStateProvider.notifier)
-                                    .startRepair(task.gameId),
-                              )
-                            : null,
+                        running: isRunning(task),
+                        trailing: switch (task.status) {
+                          TaskStatus.running => cancelButton(task),
+                          TaskStatus.failed => PrimaryButton.icon(
+                            icon: Icons.build,
+                            label: "Repair",
+                            glowing: false,
+                            onTap: () => ref
+                                .read(downloadsStateProvider.notifier)
+                                .startRepair(task.gameId),
+                          ),
+                          _ => null,
+                        },
                       ),
                   ],
                 ),
@@ -140,6 +161,7 @@ class DownloadsPage extends ConsumerWidget {
                         progress: task.progress,
                         statusText: saveStatusText(task),
                         failed: task.status == TaskStatus.failed,
+                        running: task.status == TaskStatus.running,
                       ),
                   ],
                 ),
@@ -183,6 +205,8 @@ String _downloadStatusText(ActivityTask task) {
       return task.error == null
           ? "Download failed"
           : "Download failed — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Download cancelled";
   }
 }
 
@@ -223,6 +247,8 @@ String _repairStatusText(ActivityTask task) {
       return task.error == null
           ? "Repair failed"
           : "Repair failed — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Repair cancelled — some files may still be damaged";
   }
 }
 
@@ -245,6 +271,8 @@ String _verificationStatusText(ActivityTask task) {
       return task.error == null
           ? "Verification failed"
           : "Verification failed — ${task.error}";
+    case TaskStatus.cancelled:
+      return "Verification cancelled";
   }
 }
 
@@ -302,6 +330,7 @@ class _ActiveTaskCard extends ConsumerWidget {
     required this.progress,
     required this.statusText,
     required this.failed,
+    required this.running,
     this.trailing,
   });
 
@@ -309,6 +338,10 @@ class _ActiveTaskCard extends ConsumerWidget {
   final double? progress;
   final String statusText;
   final bool failed;
+
+  /// False for a cancelled card: its bar is static instead of the animated
+  /// indeterminate one.
+  final bool running;
   final Widget? trailing;
 
   @override
@@ -359,15 +392,15 @@ class _ActiveTaskCard extends ConsumerWidget {
                       ),
                   ],
                 ),
-                failed
+                failed || !running
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(99),
                         child: LinearProgressIndicator(
                           value: progress ?? 0,
                           minHeight: 6,
                           backgroundColor: AppColors.progressTrack,
-                          valueColor: const AlwaysStoppedAnimation(
-                            AppColors.error,
+                          valueColor: AlwaysStoppedAnimation(
+                            failed ? AppColors.error : AppColors.textSecondary,
                           ),
                         ),
                       )

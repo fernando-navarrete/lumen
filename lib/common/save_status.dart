@@ -23,5 +23,9 @@ String saveStatusText(SaveTask task) {
     case TaskStatus.failed:
       final label = download ? "Save download failed" : "Save upload failed";
       return task.error == null ? label : "$label: ${task.error}";
+    case TaskStatus.cancelled:
+      // Save syncs can't be cancelled yet (the notifier maps a bridge
+      // `Cancelled` to `failed`), so this is only for exhaustiveness.
+      return download ? "Save download cancelled" : "Save upload cancelled";
   }
 }

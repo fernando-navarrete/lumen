@@ -931,4 +931,195 @@ void main() {
       expect(identical(afterStaleEvent, beforeStaleEvent), isTrue);
     });
   });
+
+  group('DownloadsNotifier — cancel (Phase 4)', () {
+    test(
+      'cancelling a verification ends cancelled and installs nothing',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startVerification(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        backend
+            .verifyController(1)
+            .add(VerifyDownloadProgress.started(BigInt.from(500)));
+        await settle();
+
+        notifier.cancel(1);
+        expect(backend.jobCancel('verifyDownload').isCancelled, isTrue);
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.cancelled);
+        expect(task.error, isNull);
+        final games = container.read(gamesStateProvider);
+        expect(games.getGameStatus(1), GameStatus.notInstalled);
+        expect(games.getInstallPath(1), isNull);
+      },
+    );
+
+    test(
+      'cancelling a repair ends cancelled and the game stays downloaded',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        container
+            .read(gamesStateProvider.notifier)
+            .markInstalled(1, '/games/foo');
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        await notifier.startRepairForInstalled(
+          1,
+          path: '/games/foo',
+          buildName: 'build-1',
+          productIds: [1],
+        );
+        backend
+            .repairController(1)
+            .add(
+              RepairGameProgress.verification(checkedBytes: BigInt.from(10)),
+            );
+        await settle();
+
+        notifier.cancel(1);
+        await settle();
+
+        final task = container.read(downloadsStateProvider).tasks[1]!;
+        expect(task.status, TaskStatus.cancelled);
+        expect(task.error, isNull);
+        expect(
+          container.read(gamesStateProvider).getGameStatus(1),
+          GameStatus.downloaded,
+        );
+      },
+    );
+
+    test('a cancelled task can be restarted', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      notifier.cancel(1);
+      await settle();
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.cancelled,
+      );
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.running,
+      );
+    });
+
+    test("a replaced job's late Cancelled can't clobber the new task, and "
+        'cancel reaches the new job', () async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      addTearDown(backend.closeAll);
+      final notifier = container.read(downloadsStateProvider.notifier);
+
+      await notifier.startVerification(
+        1,
+        path: '/games/foo',
+        buildName: 'build-1',
+        productIds: [1],
+      );
+      final staleController = backend.verifyController(1);
+      final staleCancel = backend.jobCancel('verifyDownload');
+
+      await notifier.startVerificationForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: 'build-2',
+        productIds: [1],
+      );
+      final freshCancel = backend.jobCancel('verifyDownload');
+      expect(identical(staleCancel, freshCancel), isFalse);
+
+      // The orphaned stream ends with Cancelled and closes.
+      staleController.add(const VerifyDownloadProgress.cancelled());
+      await staleController.close();
+      await settle();
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.running);
+      expect(task.buildName, 'build-2');
+
+      // The stale stream's terminal events didn't unregister the new handle.
+      notifier.cancel(1);
+      expect(freshCancel.isCancelled, isTrue);
+      expect(staleCancel.isCancelled, isFalse);
+      await settle();
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.cancelled,
+      );
+    });
+
+    test(
+      'cancel is a no-op without a running verification or repair',
+      () async {
+        final backend = FakeGogBackend();
+        final container = await createContainer(backend: backend);
+        addTearDown(backend.closeAll);
+        final notifier = container.read(downloadsStateProvider.notifier);
+
+        // No task at all.
+        notifier.cancel(1);
+
+        // A running download (cancel for downloads is Phase 5).
+        await notifier.startDownload(
+          2,
+          path: '/games/bar',
+          buildName: 'build-1',
+          productIds: [2],
+        );
+        notifier.cancel(2);
+        expect(backend.jobCancel('downloadGame').isCancelled, isFalse);
+        expect(
+          container.read(downloadsStateProvider).tasks[2]!.status,
+          TaskStatus.running,
+        );
+
+        // A finished verification.
+        await notifier.startVerification(
+          3,
+          path: '/games/baz',
+          buildName: 'build-1',
+          productIds: [3],
+        );
+        final controller = backend.verifyController(3);
+        controller.add(VerifyDownloadProgress.finished(BigInt.zero));
+        await controller.close();
+        await settle();
+        expect(
+          container.read(downloadsStateProvider).tasks[3]!.status,
+          TaskStatus.completed,
+        );
+        notifier.cancel(3);
+        expect(backend.jobCancel('verifyDownload').isCancelled, isFalse);
+      },
+    );
+  });
 }
