@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/proton_release.dart';
 
 void main() {
@@ -23,6 +24,21 @@ void main() {
       releaseDate: '2024-02-01',
       releaseDateTimestamp: 1706745600,
     );
+
+    test('equal values are ==, with matching hashCode', () {
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('differing values are not ==', () {
+      expect(a, isNot(equals(c)));
+    });
+  });
+
+  group('InstallSize', () {
+    const a = InstallSize(downloadBytes: 10, diskBytes: 25);
+    const b = InstallSize(downloadBytes: 10, diskBytes: 25);
+    const c = InstallSize(downloadBytes: 10, diskBytes: 26);
 
     test('equal values are ==, with matching hashCode', () {
       expect(a, equals(b));

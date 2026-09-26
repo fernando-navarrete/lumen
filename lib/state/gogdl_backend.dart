@@ -1,10 +1,13 @@
+import 'dart:async';
+
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease;
+    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     as bridge
-    show GameBuild, DownloadableProduct, ProtonRelease;
+    show GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
@@ -74,17 +77,38 @@ class GogdlBackend implements GogBackend {
   }
 
   @override
+  Future<InstallSize> getInstallSize({
+    required int gameId,
+    required String buildName,
+    required List<int> selectedProducts,
+  }) async {
+    final size = await _api.getInstallSize(
+      gameId: gameId,
+      buildName: buildName,
+      selectedProducts: selectedProducts,
+    );
+    return _adaptInstallSize(size);
+  }
+
+  @override
+  Future<int> getFreeSpace(String path) async =>
+      (await _api.getFreeSpace(path: path)).toInt();
+
+  @override
   Stream<DownloadGameProgress> downloadGame({
     required int gameId,
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => guardBridgeStream(
-    () => _api.downloadGame(
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) => _api.downloadGame(
       gameId: gameId,
       path: path,
       buildName: buildName,
       selectedProducts: selectedProducts,
+      cancel: token,
     ),
   );
 
@@ -94,12 +118,15 @@ class GogdlBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => guardBridgeStream(
-    () => _api.verifyDownload(
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) => _api.verifyDownload(
       gameId: gameId,
       path: path,
       buildName: buildName,
       selectedProducts: selectedProducts,
+      cancel: token,
     ),
   );
 
@@ -109,12 +136,15 @@ class GogdlBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
-  }) => guardBridgeStream(
-    () => _api.repairGame(
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) => _api.repairGame(
       gameId: gameId,
       path: path,
       buildName: buildName,
       selectedProducts: selectedProducts,
+      cancel: token,
     ),
   );
 
@@ -128,8 +158,11 @@ class GogdlBackend implements GogBackend {
   Stream<ProtonDownloadProgress> downloadProtonRelease({
     required String tagName,
     required String path,
-  }) => guardBridgeStream(
-    () => _api.downloadProtonRelease(tagName: tagName, path: path),
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) =>
+        _api.downloadProtonRelease(tagName: tagName, path: path, cancel: token),
   );
 
   @override
@@ -138,12 +171,15 @@ class GogdlBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
-  }) => guardBridgeStream(
-    () => _api.downloadSaveFiles(
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) => _api.downloadSaveFiles(
       gameId: gameId,
       buildName: buildName,
       prefix: prefix,
       installPath: installPath,
+      cancel: token,
     ),
   );
 
@@ -153,17 +189,38 @@ class GogdlBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
-  }) => guardBridgeStream(
-    () => _api.uploadSaveFiles(
+    required JobCancel cancel,
+  }) => _job(
+    cancel,
+    (token) => _api.uploadSaveFiles(
       gameId: gameId,
       buildName: buildName,
       prefix: prefix,
       installPath: installPath,
+      cancel: token,
     ),
   );
 
   @override
   void dispose() => _api.dispose();
+
+  /// Starts a bridge job with a fresh [CancelToken] wired to [cancel]. The
+  /// token is made when the stream is first listened to, and a [cancel]
+  /// that's already fired (even before that) cancels it straight away — the
+  /// bridge then ends the job with `Cancelled` before doing any work.
+  Stream<T> _job<T>(
+    JobCancel cancel,
+    Stream<T> Function(CancelToken token) start,
+  ) => guardBridgeStream(() {
+    final token = CancelToken();
+    unawaited(cancel.whenCancelled.then((_) => token.cancel()));
+    return start(token);
+  });
+
+  InstallSize _adaptInstallSize(bridge.InstallSize s) => InstallSize(
+    downloadBytes: s.downloadBytes.toInt(),
+    diskBytes: s.diskBytes.toInt(),
+  );
 
   GameBuild _adaptBuild(bridge.GameBuild b) => GameBuild(
     buildId: b.buildId,

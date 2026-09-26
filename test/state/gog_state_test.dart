@@ -1,6 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart'
+    show DownloadGameProgress_Cancelled;
 import 'package:lumen/common/keyring_error.dart';
+import 'package:lumen/models/install_size.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/gog_state.dart';
 
 import '../helpers/container.dart';
@@ -199,6 +203,79 @@ void main() {
     });
   });
 
+  group('v1.3.0 — install size and free space', () {
+    test(
+      'getInstallSize forwards its arguments and returns the value',
+      () async {
+        final backend = FakeGogBackend()
+          ..installSize = const InstallSize(downloadBytes: 10, diskBytes: 25);
+        final state = await _state(backend);
+
+        final size = await state.getInstallSize(7, 'build', [1, 2]);
+
+        expect(size, const InstallSize(downloadBytes: 10, diskBytes: 25));
+        final call = backend.callsTo('getInstallSize').single;
+        expect(call.args['gameId'], 7);
+        expect(call.args['buildName'], 'build');
+        expect(call.args['selectedProducts'], [1, 2]);
+      },
+    );
+
+    test('getInstallSize returns null on a thrown error', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getInstallSize'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getInstallSize(7, 'build', [1]), isNull);
+    });
+
+    test('getFreeSpace returns the value', () async {
+      final backend = FakeGogBackend()..freeSpace = 1234;
+      final state = await _state(backend);
+
+      expect(await state.getFreeSpace('/games'), 1234);
+      expect(backend.callsTo('getFreeSpace').single.args['path'], '/games');
+    });
+
+    test('getFreeSpace returns null on a thrown error', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['getFreeSpace'] = Exception('boom');
+      final state = await _state(backend);
+
+      expect(await state.getFreeSpace('/games'), isNull);
+    });
+  });
+
+  group('v1.3.0 — cancelling a job', () {
+    test('ends the stream with Cancelled and no error', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+      final cancel = JobCancel();
+      final events = <Object?>[];
+      var done = false;
+
+      state
+          .downloadGameFiles(1, '/path', 'build', [1], cancel: cancel)!
+          .listen(events.add, onDone: () => done = true);
+      expect(backend.jobCancel('downloadGame'), same(cancel));
+      cancel.cancel();
+      await pumpEventQueue();
+
+      expect(events, hasLength(1));
+      expect(events.single, isA<DownloadGameProgress_Cancelled>());
+      expect(done, isTrue);
+    });
+
+    test('cancel is idempotent', () {
+      final cancel = JobCancel();
+      expect(cancel.isCancelled, isFalse);
+      cancel
+        ..cancel()
+        ..cancel();
+      expect(cancel.isCancelled, isTrue);
+    });
+  });
+
   group('v1.1.1 — job-starting streams are never cached', () {
     test(
       'verifyGameFiles hits the backend and returns a fresh stream every call',
@@ -206,8 +283,12 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.verifyGameFiles(1, '/path', 'build', [1]);
-        final second = state.verifyGameFiles(1, '/path', 'build', [1]);
+        final first = state.verifyGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
+        final second = state.verifyGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
 
         expect(backend.callsTo('verifyDownload'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -219,7 +300,10 @@ void main() {
         ..throwOn['verifyDownload'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.verifyGameFiles(1, '/path', 'build', [1]), isNull);
+      expect(
+        state.verifyGameFiles(1, '/path', 'build', [1], cancel: JobCancel()),
+        isNull,
+      );
     });
 
     test(
@@ -228,8 +312,12 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.repairGameFiles(1, '/path', 'build', [1]);
-        final second = state.repairGameFiles(1, '/path', 'build', [1]);
+        final first = state.repairGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
+        final second = state.repairGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
 
         expect(backend.callsTo('repairDownload'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -241,7 +329,10 @@ void main() {
         ..throwOn['repairDownload'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.repairGameFiles(1, '/path', 'build', [1]), isNull);
+      expect(
+        state.repairGameFiles(1, '/path', 'build', [1], cancel: JobCancel()),
+        isNull,
+      );
     });
 
     test(
@@ -250,8 +341,12 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.downloadGameFiles(1, '/path', 'build', [1]);
-        final second = state.downloadGameFiles(1, '/path', 'build', [1]);
+        final first = state.downloadGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
+        final second = state.downloadGameFiles(1, '/path', 'build', [
+          1,
+        ], cancel: JobCancel());
 
         expect(backend.callsTo('downloadGame'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -263,7 +358,10 @@ void main() {
         ..throwOn['downloadGame'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.downloadGameFiles(1, '/path', 'build', [1]), isNull);
+      expect(
+        state.downloadGameFiles(1, '/path', 'build', [1], cancel: JobCancel()),
+        isNull,
+      );
     });
 
     test(
@@ -272,8 +370,16 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.downloadProtonRelease('tag', '/dir');
-        final second = state.downloadProtonRelease('tag', '/dir');
+        final first = state.downloadProtonRelease(
+          'tag',
+          '/dir',
+          cancel: JobCancel(),
+        );
+        final second = state.downloadProtonRelease(
+          'tag',
+          '/dir',
+          cancel: JobCancel(),
+        );
 
         expect(backend.callsTo('downloadProtonRelease'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -285,7 +391,10 @@ void main() {
         ..throwOn['downloadProtonRelease'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.downloadProtonRelease('tag', '/dir'), isNull);
+      expect(
+        state.downloadProtonRelease('tag', '/dir', cancel: JobCancel()),
+        isNull,
+      );
     });
 
     test(
@@ -294,8 +403,20 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.downloadSaves(1, 'build', '/prefix', '/install');
-        final second = state.downloadSaves(1, 'build', '/prefix', '/install');
+        final first = state.downloadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        );
+        final second = state.downloadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        );
 
         expect(backend.callsTo('downloadSaves'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -307,7 +428,16 @@ void main() {
         ..throwOn['downloadSaves'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.downloadSaves(1, 'build', '/prefix', '/install'), isNull);
+      expect(
+        state.downloadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        ),
+        isNull,
+      );
     });
 
     test(
@@ -316,8 +446,20 @@ void main() {
         final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        final first = state.uploadSaves(1, 'build', '/prefix', '/install');
-        final second = state.uploadSaves(1, 'build', '/prefix', '/install');
+        final first = state.uploadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        );
+        final second = state.uploadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        );
 
         expect(backend.callsTo('uploadSaves'), hasLength(2));
         expect(identical(first, second), isFalse);
@@ -329,7 +471,16 @@ void main() {
         ..throwOn['uploadSaves'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(state.uploadSaves(1, 'build', '/prefix', '/install'), isNull);
+      expect(
+        state.uploadSaves(
+          1,
+          'build',
+          '/prefix',
+          '/install',
+          cancel: JobCancel(),
+        ),
+        isNull,
+      );
     });
   });
 

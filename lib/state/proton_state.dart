@@ -9,6 +9,7 @@ import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
@@ -194,7 +195,11 @@ class ProtonNotifier extends Notifier<ProtonState> {
       tasks: {...state.tasks, tag: task},
     );
 
-    final stream = _gogState.downloadProtonRelease(tag, dir);
+    final stream = _gogState.downloadProtonRelease(
+      tag,
+      dir,
+      cancel: JobCancel(),
+    );
     if (stream == null) {
       _commit(task, task.copyWith(status: TaskStatus.failed));
       return;
@@ -232,6 +237,10 @@ class ProtonNotifier extends Notifier<ProtonState> {
             return;
           case ProtonDownloadProgress_Finished(:final field0):
             extractedPath = field0;
+          case ProtonDownloadProgress_Cancelled():
+            // Nothing cancels a Proton download in v1.3.0. With no
+            // `Finished`, `onDone` fails the task.
+            return;
         }
       },
       onDone: () {

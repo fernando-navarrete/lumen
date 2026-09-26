@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease;
+    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 
@@ -33,6 +34,10 @@ class FakeCall {
 ///   for that key, mirroring the bridge (a finished stream can't be
 ///   re-listened to) and letting a re-run get a new one. Tests drive it with
 ///   the matching `*Controller` accessor, then `add`/`addError`/`close`.
+/// - Every job also records the [JobCancel] it was given (see [jobCancel]).
+///   Cancelling it emits the union's `Cancelled` variant and closes the
+///   stream, like the bridge (`Cancelled` last, no error) — unless the test
+///   already closed that controller.
 class FakeGogBackend implements GogBackend {
   // ---- Canned metadata ----
   String loginUrl = '';
@@ -48,6 +53,8 @@ class FakeGogBackend implements GogBackend {
   final Map<int, List<GameBuild>> builds = {};
   final Map<int, List<DownloadableProduct>> products = {};
   List<ProtonRelease> protonReleases = [];
+  InstallSize installSize = const InstallSize(downloadBytes: 0, diskBytes: 0);
+  int freeSpace = 0;
 
   /// Set by [setTokenRefreshCallback]; call it in a test to simulate the
   /// bridge refreshing the token. Cleared by [removeTokenRefreshCallback].
@@ -63,6 +70,26 @@ class FakeGogBackend implements GogBackend {
 
   List<FakeCall> callsTo(String method) =>
       calls.where((c) => c.method == method).toList();
+
+  /// The [JobCancel] the latest call to [method] (e.g. `'downloadGame'`) was
+  /// started with.
+  JobCancel jobCancel(String method) =>
+      callsTo(method).last.args['cancel']! as JobCancel;
+
+  /// Ends [controller]'s stream with [cancelled] once [cancel] fires, if the
+  /// test hasn't already closed it.
+  void _onCancel<T>(
+    JobCancel cancel,
+    StreamController<T> controller,
+    T cancelled,
+  ) {
+    cancel.whenCancelled.then((_) {
+      if (!controller.isClosed) {
+        controller.add(cancelled);
+        controller.close();
+      }
+    });
+  }
 
   void _record(String method, [Map<String, Object?> args = const {}]) {
     calls.add(FakeCall(method, args));
@@ -224,6 +251,28 @@ class FakeGogBackend implements GogBackend {
     return products[gameId] ?? [];
   }
 
+  @override
+  Future<InstallSize> getInstallSize({
+    required int gameId,
+    required String buildName,
+    required List<int> selectedProducts,
+  }) async {
+    _record('getInstallSize', {
+      'gameId': gameId,
+      'buildName': buildName,
+      'selectedProducts': selectedProducts,
+    });
+    _maybeThrow('getInstallSize');
+    return installSize;
+  }
+
+  @override
+  Future<int> getFreeSpace(String path) async {
+    _record('getFreeSpace', {'path': path});
+    _maybeThrow('getFreeSpace');
+    return freeSpace;
+  }
+
   // ---- Downloads / verify / repair ----
   @override
   Stream<DownloadGameProgress> downloadGame({
@@ -231,16 +280,19 @@ class FakeGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   }) {
     _record('downloadGame', {
       'gameId': gameId,
       'path': path,
       'buildName': buildName,
       'selectedProducts': selectedProducts,
+      'cancel': cancel,
     });
     _maybeThrow('downloadGame');
     final controller = StreamController<DownloadGameProgress>();
     _downloadControllers[gameId] = controller;
+    _onCancel(cancel, controller, const DownloadGameProgress_Cancelled());
     return controller.stream;
   }
 
@@ -250,16 +302,19 @@ class FakeGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   }) {
     _record('verifyDownload', {
       'gameId': gameId,
       'path': path,
       'buildName': buildName,
       'selectedProducts': selectedProducts,
+      'cancel': cancel,
     });
     _maybeThrow('verifyDownload');
     final controller = StreamController<VerifyDownloadProgress>();
     _verifyControllers[gameId] = controller;
+    _onCancel(cancel, controller, const VerifyDownloadProgress_Cancelled());
     return controller.stream;
   }
 
@@ -269,16 +324,19 @@ class FakeGogBackend implements GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   }) {
     _record('repairDownload', {
       'gameId': gameId,
       'path': path,
       'buildName': buildName,
       'selectedProducts': selectedProducts,
+      'cancel': cancel,
     });
     _maybeThrow('repairDownload');
     final controller = StreamController<RepairGameProgress>();
     _repairControllers[gameId] = controller;
+    _onCancel(cancel, controller, const RepairGameProgress_Cancelled());
     return controller.stream;
   }
 
@@ -294,11 +352,17 @@ class FakeGogBackend implements GogBackend {
   Stream<ProtonDownloadProgress> downloadProtonRelease({
     required String tagName,
     required String path,
+    required JobCancel cancel,
   }) {
-    _record('downloadProtonRelease', {'tagName': tagName, 'path': path});
+    _record('downloadProtonRelease', {
+      'tagName': tagName,
+      'path': path,
+      'cancel': cancel,
+    });
     _maybeThrow('downloadProtonRelease');
     final controller = StreamController<ProtonDownloadProgress>();
     _protonDownloadControllers[tagName] = controller;
+    _onCancel(cancel, controller, const ProtonDownloadProgress_Cancelled());
     return controller.stream;
   }
 
@@ -309,16 +373,19 @@ class FakeGogBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
+    required JobCancel cancel,
   }) {
     _record('downloadSaves', {
       'gameId': gameId,
       'buildName': buildName,
       'prefix': prefix,
       'installPath': installPath,
+      'cancel': cancel,
     });
     _maybeThrow('downloadSaves');
     final controller = StreamController<DownloadSavesProgress>();
     _saveDownloadControllers[gameId] = controller;
+    _onCancel(cancel, controller, const DownloadSavesProgress_Cancelled());
     return controller.stream;
   }
 
@@ -328,16 +395,19 @@ class FakeGogBackend implements GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
+    required JobCancel cancel,
   }) {
     _record('uploadSaves', {
       'gameId': gameId,
       'buildName': buildName,
       'prefix': prefix,
       'installPath': installPath,
+      'cancel': cancel,
     });
     _maybeThrow('uploadSaves');
     final controller = StreamController<UploadSavesProgress>();
     _saveUploadControllers[gameId] = controller;
+    _onCancel(cancel, controller, const UploadSavesProgress_Cancelled());
     return controller.stream;
   }
 

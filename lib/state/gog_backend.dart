@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease;
+    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/proton_release.dart';
 
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
@@ -12,6 +15,12 @@ import 'package:lumen/models/proton_release.dart';
 ///
 /// Long-running operations are exposed as `Stream<T>`, matching the
 /// convention the bridge established — never `Future`.
+///
+/// Every job stream takes a [JobCancel], the app-owned cancel handle. The
+/// bridge's own cancel token never appears here, so tests never construct a
+/// native object: [GogdlBackend] creates one per job and forwards
+/// [JobCancel.cancel] to it. A cancelled job ends its stream with its
+/// `*_Cancelled` event and no error.
 abstract class GogBackend {
   // Auth
   String getLoginUrl();
@@ -43,6 +52,17 @@ abstract class GogBackend {
     required String buildName,
   });
 
+  /// The download and on-disk size of [selectedProducts] of [buildName].
+  Future<InstallSize> getInstallSize({
+    required int gameId,
+    required String buildName,
+    required List<int> selectedProducts,
+  });
+
+  /// Free bytes on the disk [path] is on — the figure the download's own
+  /// pre-flight check uses. [path] needn't exist.
+  Future<int> getFreeSpace(String path);
+
   // Downloads / verify / repair
   /// Bridge-owned freezed union, like [downloadProtonRelease]'s
   /// `ProtonDownloadProgress` — not an app-owned model. [DownloadsNotifier]
@@ -52,6 +72,7 @@ abstract class GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   });
 
   /// Bridge-owned freezed union, like [downloadProtonRelease]'s
@@ -62,6 +83,7 @@ abstract class GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   });
 
   /// Bridge-owned freezed union, like [downloadProtonRelease]'s
@@ -72,6 +94,7 @@ abstract class GogBackend {
     required String path,
     required String buildName,
     required List<int> selectedProducts,
+    required JobCancel cancel,
   });
 
   // Proton-GE
@@ -79,6 +102,7 @@ abstract class GogBackend {
   Stream<ProtonDownloadProgress> downloadProtonRelease({
     required String tagName,
     required String path,
+    required JobCancel cancel,
   });
 
   // Cloud saves
@@ -94,6 +118,7 @@ abstract class GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
+    required JobCancel cancel,
   });
 
   /// Uploads every local save file of [gameId] to the cloud. [prefix] and
@@ -104,7 +129,26 @@ abstract class GogBackend {
     required String buildName,
     required String prefix,
     required String installPath,
+    required JobCancel cancel,
   });
 
   void dispose();
+}
+
+/// Cancels one backend job. Plain Dart, so tests can hold one without the
+/// native bridge. Idempotent; a job started with an already-cancelled handle
+/// is cancelled before it does anything.
+class JobCancel {
+  final Completer<void> _cancelled = Completer<void>();
+
+  bool get isCancelled => _cancelled.isCompleted;
+
+  /// Completes when [cancel] is first called.
+  Future<void> get whenCancelled => _cancelled.future;
+
+  void cancel() {
+    if (!_cancelled.isCompleted) {
+      _cancelled.complete();
+    }
+  }
 }

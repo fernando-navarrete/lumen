@@ -24,15 +24,22 @@ workflow:
 stages:
   - check
 
+# Jobs run in gogdl_flutter's prebuilt CI image: since gogdl_flutter v1.2.1 its
+# native library is built by a Native Assets hook (hook/build.dart runs cargo)
+# on every `flutter pub get`/`analyze`/`test`, so the job needs Flutter *and* the
+# pinned Rust toolchain. Flutter (/opt/flutter) and Rust (/opt/cargo) are baked
+# in; the image is built on the runner host from the gogdl_flutter repo
+# (ci/build-image.sh). Bump the tag below whenever .fvmrc or the bridge's
+# rust/rust-toolchain.toml changes, keeping it in step with the gogdl_flutter
+# tag pinned in pubspec.yaml.
 variables:
   PUB_CACHE: "$CI_PROJECT_DIR/.ci/pub-cache"
-  FLUTTER_HOME: "$CI_PROJECT_DIR/.ci/flutter"
 
 .setup: &setup
-  image: debian:bookworm-slim
+  image:
+    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0
+    pull_policy: if-not-present
   before_script:
-    - apt-get update -qq
-    - apt-get install -qq -y --no-install-recommends git curl unzip xz-utils ca-certificates openssh-client >/dev/null
     # SSH access to gogdl_flutter via the base64-encoded deploy key variable.
     - mkdir -p ~/.ssh
     - echo "$GOGDL_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/gogdl_deploy_key
@@ -40,16 +47,6 @@ variables:
     - eval "$(ssh-agent -s)"
     - ssh-add ~/.ssh/gogdl_deploy_key
     - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
-    # Flutter, pinned to the version in .fvmrc; cached in .ci/flutter/ (see cache: below).
-    # (A literal block, not a plain list-item string: the sed script's `": *"`
-    # would otherwise parse as a YAML mapping value followed by an alias.)
-    - |
-      FLUTTER_VERSION=$(sed -n 's/.*"flutter": *"\([^"]*\)".*/\1/p' .fvmrc)
-      if [ ! -x "$FLUTTER_HOME/bin/flutter" ]; then
-        git clone --depth 1 -b "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$FLUTTER_HOME"
-      fi
-    - export PATH="$FLUTTER_HOME/bin:$PATH"
-    - flutter config --no-analytics >/dev/null
     - flutter --version
     - flutter pub get
   cache:
@@ -58,8 +55,8 @@ variables:
         - .fvmrc
         - pubspec.lock
     paths:
-      - .ci/flutter/
       - .ci/pub-cache/
+      - .dart_tool/hooks_runner/
 
 analyze:
   stage: check

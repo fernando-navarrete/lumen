@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/state/emit_throttle.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/common/gog_error.dart';
@@ -280,6 +281,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       path,
       buildName,
       productIds,
+      cancel: JobCancel(),
     );
     if (stream == null) {
       task = _commit(
@@ -310,6 +312,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = task.copyWith(chunksToRedownload: field0.toInt());
             task = _commit(prev, task);
             return;
+          case VerifyDownloadProgress_Cancelled():
+            // Placeholder until Phase 4 gives a cancel its own TaskStatus:
+            // no `Finished` follows, so `onDone` ends it as not-finished.
+            task = task.copyWith(error: 'cancelled');
         }
         task = _commit(prev, task, throttle: true);
       },
@@ -410,6 +416,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       path,
       buildName,
       productIds,
+      cancel: JobCancel(),
     );
     if (stream == null) {
       final next = task.copyWith(
@@ -456,6 +463,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = task.copyWith(stage: 'finished');
             task = _commit(prev, task);
             return;
+          case DownloadGameProgress_Cancelled():
+            // Placeholder until Phase 4/5 give a cancel its own status.
+            task = task.copyWith(error: 'cancelled');
         }
         task = _commit(prev, task, throttle: true);
       },
@@ -562,6 +572,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       path,
       buildName,
       productIds,
+      cancel: JobCancel(),
     );
     if (stream == null) {
       task = _commit(
@@ -617,6 +628,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             task = task.copyWith(stage: 'finished');
             task = _commit(prev, task);
             return;
+          case RepairGameProgress_Cancelled():
+            // Placeholder until Phase 4 gives a cancel its own status.
+            task = task.copyWith(error: 'cancelled');
         }
         task = _commit(prev, task, throttle: true);
       },

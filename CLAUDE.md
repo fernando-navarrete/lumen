@@ -15,7 +15,7 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`) are app-owned plain-Dart
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `InstallSize`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
 these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
 `DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
@@ -24,7 +24,13 @@ the exceptions: all six stay the bridge's own freezed unions, and their owning n
 `lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for downloads,
 `VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair, and `SavesNotifier`
 in `lib/state/saves_state.dart` for both save-sync unions) adapt them directly rather than going
-through an app-owned model.
+through an app-owned model. Each of those six unions ends in a terminal `*_Cancelled` variant.
+
+The six job streams (verify, download, repair, Proton download, both save syncs) each take an
+app-owned `JobCancel` (`lib/state/gog_backend.dart`: plain Dart, `cancel()` plus `isCancelled`/
+`whenCancelled`). The bridge's `CancelToken` is native, so it appears only in `GogdlBackend`, which
+makes one per job and forwards `JobCancel.cancel()` to it; the caller owns the `JobCancel`. A
+cancelled job ends its stream with its `Cancelled` event and no error.
 
 ## Commands
 
@@ -37,7 +43,7 @@ fvm flutter pub get                        # install dependencies
 fvm flutter analyze                        # static analysis / lints (flutter_lints)
 fvm flutter run -d linux                    # run the app (only Linux target exists)
 fvm flutter build linux                     # build the Linux release binary
-fvm flutter test                            # run the test suite (no native library needed)
+fvm flutter test                            # run the test suite (no native library loaded by tests)
 ```
 
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
@@ -58,6 +64,12 @@ font (it silently falls back to the default font instead). Widget tests (`test/s
 backed by a `createContainer()`-style `ProviderContainer` and sizes the test surface to a desktop
 window; it doesn't call `pumpAndSettle()` itself because several screens show an indefinitely
 spinning `CenteredLoader` while their first fetch is pending.
+
+Since `gogdl_flutter` v1.2.1 its native library is built by a Native Assets build hook that runs
+cargo, so `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the
+bridge's `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
+CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
+bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes.
 
 CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
 `flutter analyze --fatal-infos` and `flutter test` on every tag push (branch pushes don't
