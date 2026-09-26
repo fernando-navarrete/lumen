@@ -749,7 +749,10 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   /// would call done. The task still reads as a download ([ActivityTask.resumed]).
   /// Its params come from the game's existing download task, else from the
   /// persisted config (a pause that survived an app restart). A resume that
-  /// fails leaves the game paused again, since its files are still there.
+  /// fails leaves the game paused again, since its files are still there. If
+  /// the install folder is gone (deleted, or a drive not mounted) it fails
+  /// without starting a job and clears nothing, so the game can be resumed
+  /// once the folder comes back.
   Future<void> resumeDownload(int gameId) async {
     final games = ref.read(gamesStateProvider);
     if (games.getGameStatus(gameId) != GameStatus.paused) {
@@ -767,6 +770,31 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     final productIds =
         existing?.productIds ?? games.getProductIds(gameId).toList();
     if (path == null || buildName == null || buildName.isEmpty) {
+      return;
+    }
+
+    if (!await Directory(path).exists()) {
+      _buffer.remove(gameId);
+      state = DownloadsState({
+        ...state.tasks,
+        gameId: ActivityTask(
+          gameId: gameId,
+          kind: TaskKind.download,
+          status: TaskStatus.failed,
+          path: path,
+          buildName: buildName,
+          productIds: productIds,
+          resumed: true,
+          error: 'The install folder $path no longer exists',
+        ),
+      });
+      return;
+    }
+    // Re-check after the await, so two quick Resume taps can't start two jobs.
+    final current = state.tasks[gameId];
+    if (ref.read(gamesStateProvider).getGameStatus(gameId) !=
+            GameStatus.paused ||
+        (current != null && current.status == TaskStatus.running)) {
       return;
     }
 

@@ -529,20 +529,23 @@ class GamesNotifier extends Notifier<GamesState> {
       final envVars = entry['envVars'] as Map<String, dynamic>?;
       final launchWrapper = entry['launchWrapper'] as List<dynamic>?;
       // A game left mid-download when the app was killed has no live job, so
-      // it's coerced back to notInstalled rather than staying stuck showing
-      // "Installing…" forever. Its `pendingInstallPath` is kept so Phase 6 can
-      // turn it into a resumable `paused` game instead.
+      // it can't stay "Installing…" forever. With a `pendingInstallPath` its
+      // partial files are still there, so it becomes a resumable `paused`
+      // game; without one there is nothing to resume, so it's notInstalled.
       final status = GameStatus.values.byName(entry['status'] as String);
+      final pendingInstallPath = entry['pendingInstallPath'] as String?;
       return MapEntry(
         int.parse(gameId),
         GameConfig(
           status: status == GameStatus.downloading
-              ? GameStatus.notInstalled
+              ? (pendingInstallPath != null
+                    ? GameStatus.paused
+                    : GameStatus.notInstalled)
               : status,
           selectedBuild: entry['selectedBuild'] as String,
           productIds: productIds?.map((id) => id as int).toSet(),
           installPath: entry['installPath'] as String?,
-          pendingInstallPath: entry['pendingInstallPath'] as String?,
+          pendingInstallPath: pendingInstallPath,
           ownsPendingInstallDir:
               entry['ownsPendingInstallDir'] as bool? ?? false,
           protonVersion: entry['protonVersion'] as String?,

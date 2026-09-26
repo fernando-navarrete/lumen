@@ -195,9 +195,15 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
             label: "Resume",
             glowing: true,
             large: widget.large,
-            onTap: () => ref
-                .read(downloadsStateProvider.notifier)
-                .resumeDownload(gameId),
+            onTap: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final notifier = ref.read(downloadsStateProvider.notifier);
+              await notifier.resumeDownload(gameId);
+              final task = ref.read(downloadsStateProvider).tasks[gameId];
+              if (task?.status == TaskStatus.failed && task?.error != null) {
+                messenger.showSnackBar(SnackBar(content: Text(task!.error!)));
+              }
+            },
           ),
         PrimaryButton.icon(
           icon: Icons.close,

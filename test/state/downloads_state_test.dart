@@ -1259,7 +1259,8 @@ void main() {
     test('resume runs repairDownload (not downloadGame) with the saved params '
         'and installs the game', () async {
       final (backend, container, notifier) = await setUp({});
-      await startAndProgress(backend, notifier, '/games/foo');
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
       notifier.pause(1);
       await settle();
 
@@ -1268,7 +1269,7 @@ void main() {
       expect(backend.callsTo('downloadGame'), hasLength(1));
       final repair = backend.callsTo('repairDownload');
       expect(repair, hasLength(1));
-      expect(repair.single.args['path'], '/games/foo');
+      expect(repair.single.args['path'], dir.path);
       expect(repair.single.args['buildName'], 'build-1');
       var task = container.read(downloadsStateProvider).tasks[1]!;
       expect(task.kind, TaskKind.download);
@@ -1288,7 +1289,7 @@ void main() {
       expect(task.status, TaskStatus.completed);
       final games = container.read(gamesStateProvider);
       expect(games.getGameStatus(1), GameStatus.downloaded);
-      expect(games.getInstallPath(1), '/games/foo');
+      expect(games.getInstallPath(1), dir.path);
       expect(games.getPendingInstallPath(1), isNull);
       expect(games.games[1]!.ownsPendingInstallDir, isFalse);
     });
@@ -1296,10 +1297,11 @@ void main() {
     test(
       'resume with no task takes its params from the persisted config',
       () async {
-        const json =
+        final dir = await emptyDir();
+        final json =
             '{"version": 2, "games": {"1": {"status": "paused", '
             '"selectedBuild": "b-9", "productIds": [4, 5], '
-            '"pendingInstallPath": "/games/kept"}}}';
+            '"pendingInstallPath": "${dir.path}"}}}';
         final (backend, container, notifier) = await setUp({'games': json});
         // setUp's seeding must not have clobbered the persisted values.
         container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'b-9');
@@ -1308,7 +1310,7 @@ void main() {
         await notifier.resumeDownload(1);
 
         final call = backend.callsTo('repairDownload').single;
-        expect(call.args['path'], '/games/kept');
+        expect(call.args['path'], dir.path);
         expect(call.args['buildName'], 'b-9');
         expect(call.args['selectedProducts'], [4, 5]);
         expect(
@@ -1326,7 +1328,8 @@ void main() {
 
     test('a failed resume goes back to paused, not notInstalled', () async {
       final (backend, container, notifier) = await setUp({});
-      await startAndProgress(backend, notifier, '/games/foo');
+      final dir = await emptyDir();
+      await startAndProgress(backend, notifier, dir.path);
       notifier.pause(1);
       await settle();
       await notifier.resumeDownload(1);
@@ -1341,7 +1344,64 @@ void main() {
       expect(task.error, contains('network down'));
       final games = container.read(gamesStateProvider);
       expect(games.getGameStatus(1), GameStatus.paused);
-      expect(games.getPendingInstallPath(1), '/games/foo');
+      expect(games.getPendingInstallPath(1), dir.path);
+    });
+
+    test('a persisted "downloading" entry resumes after a restart through '
+        'repairDownload with its persisted params', () async {
+      final dir = await emptyDir();
+      final json =
+          '{"version": 2, "games": {"1": {"status": "downloading", '
+          '"selectedBuild": "b-9", "productIds": [4], '
+          '"pendingInstallPath": "${dir.path}"}}}';
+      final (backend, container, notifier) = await setUp({'games': json});
+      container.read(gamesStateProvider.notifier).setSelectedBuild(1, 'b-9');
+      container.read(gamesStateProvider.notifier).setProductIds(1, {4});
+      expect(
+        container.read(gamesStateProvider).getGameStatus(1),
+        GameStatus.paused,
+      );
+
+      await notifier.resumeDownload(1);
+
+      expect(backend.callsTo('downloadGame'), isEmpty);
+      expect(backend.callsTo('repairDownload').single.args['path'], dir.path);
+    });
+
+    test('resume with a missing folder fails with a specific message and '
+        'clears nothing', () async {
+      final dir = await emptyDir();
+      final missing = '${dir.path}/gone';
+      final json =
+          '{"version": 2, "games": {"1": {"status": "paused", '
+          '"selectedBuild": "b-9", "productIds": [4], '
+          '"pendingInstallPath": "$missing"}}}';
+      final (backend, container, notifier) = await setUp({'games': json});
+
+      await notifier.resumeDownload(1);
+
+      expect(backend.callsTo('repairDownload'), isEmpty);
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.status, TaskStatus.failed);
+      expect(task.error, 'The install folder $missing no longer exists');
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), missing);
+    });
+
+    test('two quick resumes start only one job', () async {
+      final dir = await emptyDir();
+      final (backend, _, notifier) = await setUp({});
+      await startAndProgress(backend, notifier, dir.path);
+      notifier.pause(1);
+      await settle();
+
+      await Future.wait([
+        notifier.resumeDownload(1),
+        notifier.resumeDownload(1),
+      ]);
+
+      expect(backend.callsTo('repairDownload'), hasLength(1));
     });
 
     test('startDownload on a paused game is a no-op', () async {

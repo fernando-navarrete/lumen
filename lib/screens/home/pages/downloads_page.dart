@@ -7,6 +7,7 @@ import 'package:lumen/components/cancel_download_dialog.dart';
 import 'package:lumen/components/gradient_progress_bar.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/downloads_state.dart';
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/saves_state.dart';
 import 'package:lumen/theme/app_colors.dart';
@@ -22,6 +23,7 @@ class DownloadsPage extends ConsumerWidget {
     final downloadsState = ref.watch(downloadsStateProvider);
     final savesState = ref.watch(savesStateProvider);
     final saveTasks = savesState.tasks.values.toList();
+    final games = ref.watch(gamesStateProvider);
 
     // Active section = running, paused, failed or cancelled (a cancelled
     // card stays until it's dismissed); completed installs move to the
@@ -37,6 +39,14 @@ class DownloadsPage extends ConsumerWidget {
     final activeTransfers = [
       ...downloadsState.downloadTasks.where(isActive),
       ...downloadsState.repairTasks.where(isActive),
+    ];
+    // Paused games with no task: a download interrupted by an app exit. The
+    // page has nothing else to derive them from after a restart.
+    final interrupted = [
+      for (final entry in games.games.entries)
+        if (entry.value.status == GameStatus.paused &&
+            !downloadsState.tasks.containsKey(entry.key))
+          entry.key,
     ];
     final activeVerifications = downloadsState.verificationTasks
         .where(isActive)
@@ -59,17 +69,17 @@ class DownloadsPage extends ConsumerWidget {
           ref.read(downloadsStateProvider.notifier).cancel(task.gameId),
     );
 
-    Widget downloadActions(ActivityTask task) => Row(
+    Widget downloadActions(int gameId, {required bool running}) => Row(
       mainAxisSize: MainAxisSize.min,
       spacing: AppSpacing.sm,
       children: [
-        if (task.status == TaskStatus.running)
+        if (running)
           PrimaryButton.icon(
             icon: Icons.pause,
             label: "Pause",
             glowing: false,
             onTap: () =>
-                ref.read(downloadsStateProvider.notifier).pause(task.gameId),
+                ref.read(downloadsStateProvider.notifier).pause(gameId),
           )
         else
           PrimaryButton.icon(
@@ -78,13 +88,13 @@ class DownloadsPage extends ConsumerWidget {
             glowing: false,
             onTap: () => ref
                 .read(downloadsStateProvider.notifier)
-                .resumeDownload(task.gameId),
+                .resumeDownload(gameId),
           ),
         PrimaryButton.icon(
           icon: Icons.close,
           label: "Cancel",
           glowing: false,
-          onTap: () => confirmCancelDownload(context, ref, task.gameId),
+          onTap: () => confirmCancelDownload(context, ref, gameId),
         ),
       ],
     );
@@ -110,7 +120,7 @@ class DownloadsPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.lg),
               Text("ACTIVE", style: AppText.microLabel),
               const SizedBox(height: AppSpacing.sm),
-              if (activeTransfers.isEmpty)
+              if (activeTransfers.isEmpty && interrupted.isEmpty)
                 const _EmptyState(message: "No active downloads")
               else
                 Column(
@@ -133,9 +143,27 @@ class DownloadsPage extends ConsumerWidget {
                             TaskKind.download,
                             TaskStatus.running || TaskStatus.paused,
                           ) =>
-                            downloadActions(task),
+                            downloadActions(
+                              task.gameId,
+                              running: isRunning(task),
+                            ),
+                          // A failed resume leaves the game paused: it can be
+                          // retried, or cancelled to reset it.
+                          (TaskKind.download, TaskStatus.failed)
+                              when games.getGameStatus(task.gameId) ==
+                                  GameStatus.paused =>
+                            downloadActions(task.gameId, running: false),
                           _ => null,
                         },
+                      ),
+                    for (final gameId in interrupted)
+                      _ActiveTaskCard(
+                        gameId: gameId,
+                        progress: null,
+                        statusText: "Paused — interrupted",
+                        failed: false,
+                        running: false,
+                        trailing: downloadActions(gameId, running: false),
                       ),
                   ],
                 ),

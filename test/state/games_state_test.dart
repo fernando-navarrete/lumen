@@ -162,6 +162,23 @@ void main() {
       );
     });
 
+    test('a v2 "downloading" entry with a pending path loads as paused, '
+        'and one without loads as notInstalled', () async {
+      const json =
+          '{"version": 2, "games": {'
+          '"1": {"status": "downloading", "selectedBuild": "b", '
+          '"productIds": [], "pendingInstallPath": "/games/foo"}, '
+          '"2": {"status": "downloading", "selectedBuild": "b", '
+          '"productIds": []}}}';
+
+      final container = await createContainer(prefs: {'games': json});
+      final games = container.read(gamesStateProvider);
+
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), '/games/foo');
+      expect(games.getGameStatus(2), GameStatus.notInstalled);
+    });
+
     test('corrupt JSON loads as empty state instead of throwing', () async {
       final container = await createContainer(prefs: {'games': 'not json'});
 

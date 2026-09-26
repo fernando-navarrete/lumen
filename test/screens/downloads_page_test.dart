@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/screens/home/pages/downloads_page.dart';
 import 'package:lumen/state/downloads_state.dart';
@@ -93,5 +95,38 @@ void main() {
     expect(find.text('Pause'), findsNothing);
     expect(find.textContaining('Paused'), findsOneWidget);
     expect(find.text('0 active · 0 completed'), findsOneWidget);
+  });
+
+  testWidgets('a paused game with no task is listed as interrupted and can '
+      'be resumed', (tester) async {
+    final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final backend = FakeGogBackend();
+    final container = await pumpApp(
+      tester,
+      const DownloadsPage(),
+      backend: backend,
+      prefs: {
+        'games':
+            '{"version": 2, "games": {"1": {"status": "downloading", '
+            '"selectedBuild": "build-1", "productIds": [7], '
+            '"pendingInstallPath": "${dir.path}"}}}',
+      },
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Paused — interrupted'), findsOneWidget);
+    expect(find.text('Resume'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.text('0 active · 0 completed'), findsOneWidget);
+
+    await tester.runAsync(
+      () => container.read(downloadsStateProvider.notifier).resumeDownload(1),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(backend.callsTo('repairDownload'), hasLength(1));
+    expect(find.text('Paused — interrupted'), findsNothing);
+    expect(find.text('Pause'), findsOneWidget);
   });
 }
