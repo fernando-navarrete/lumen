@@ -207,6 +207,10 @@ bool containsOtherInstall(GamesState games, int gameId, String path) {
   return false;
 }
 
+const _couldNotStart =
+    "Lumen couldn't start the job — try again, or restart Lumen if it keeps "
+    'happening';
+
 /// Why a running download job is being stopped: [pause] keeps the partial
 /// files for a later resume, [discard] is a cancel that throws them away.
 enum _StopIntent { pause, discard }
@@ -480,7 +484,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       _release(gameId, job);
       task = _commit(
         task,
-        task.copyWith(status: TaskStatus.failed, error: 'could not start'),
+        task.copyWith(status: TaskStatus.failed, error: _couldNotStart),
       );
       return;
     }
@@ -534,7 +538,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         logGogError(error);
         task = _commit(
           task,
-          task.copyWith(status: TaskStatus.failed, error: gogErrorText(error)),
+          task.copyWith(status: TaskStatus.failed, error: jobErrorText(error)),
         );
       },
     );
@@ -630,7 +634,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       _release(gameId, job);
       final next = task.copyWith(
         status: TaskStatus.failed,
-        error: 'could not start',
+        error: _couldNotStart,
       );
       _gamesNotifier.clearPendingInstall(gameId);
       task = _commit(task, next);
@@ -694,22 +698,96 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
           if (task.path != null) {
             _gamesNotifier.markInstalled(gameId, task.path!);
           }
-        } else {
-          _gamesNotifier.clearPendingInstall(gameId);
         }
         task = _commit(task, next);
+        if (!finished) {
+          unawaited(_settleFailedDownload(gameId, path));
+        }
       },
       onError: (Object error) {
         _release(gameId, job);
         logGogError(error);
         final next = task.copyWith(
           status: TaskStatus.failed,
-          error: gogErrorText(error),
+          error: jobErrorText(error),
         );
-        _gamesNotifier.clearPendingInstall(gameId);
         task = _commit(task, next);
+        unawaited(_settleFailedDownload(gameId, path));
       },
     );
+  }
+
+  /// What a failed download leaves the game as. A folder holding files is a
+  /// resumable partial install, the same state as a failed resume
+  /// ([GameStatus.paused], path kept); an empty or missing one has nothing to
+  /// resume, so the game goes back to not installed.
+  Future<void> _settleFailedDownload(int gameId, String path) async {
+    final hasFiles = !await _isEmptyOrMissing(path);
+    if (!ref.mounted) return;
+    final games = ref.read(gamesStateProvider);
+    if (games.getGameStatus(gameId) != GameStatus.downloading ||
+        _jobs.containsKey(gameId)) {
+      return; // something else took over while the folder was inspected
+    }
+    if (hasFiles) {
+      _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
+    } else {
+      _gamesNotifier.clearPendingInstall(gameId);
+    }
+  }
+
+  /// Retries a failed download: a paused game (partial files on disk) resumes
+  /// through [resumeDownload], which always runs `repairDownload`; otherwise
+  /// the failed task's params start a fresh download. A no-op for anything
+  /// else.
+  Future<void> retryDownload(int gameId) async {
+    if (ref.read(gamesStateProvider).getGameStatus(gameId) ==
+        GameStatus.paused) {
+      return resumeDownload(gameId);
+    }
+    final task = state.tasks[gameId];
+    if (task == null ||
+        task.kind != TaskKind.download ||
+        task.status != TaskStatus.failed ||
+        task.path == null ||
+        task.buildName == null) {
+      return;
+    }
+    await startDownload(
+      gameId,
+      path: task.path!,
+      buildName: task.buildName!,
+      productIds: task.productIds,
+    );
+  }
+
+  /// Whether [task] is finished and can be dismissed: completed, failed or
+  /// cancelled. A failed download of a paused game can't: its files are still
+  /// there, so it's resumed or cancelled instead.
+  bool isDismissible(ActivityTask task) {
+    switch (task.status) {
+      case TaskStatus.running || TaskStatus.paused:
+        return false;
+      case TaskStatus.completed || TaskStatus.cancelled:
+        return true;
+      case TaskStatus.failed:
+        return !(task.kind == TaskKind.download &&
+            ref.read(gamesStateProvider).getGameStatus(task.gameId) ==
+                GameStatus.paused);
+    }
+  }
+
+  /// Removes every dismissible finished task ([isDismissible]) at once.
+  void clearFinished() {
+    final remaining = <int, ActivityTask>{};
+    for (final entry in state.tasks.entries) {
+      if (isDismissible(entry.value)) {
+        _buffer.remove(entry.key);
+      } else {
+        remaining[entry.key] = entry.value;
+      }
+    }
+    state = DownloadsState(remaining);
   }
 
   /// Dequeues a failed verification (or previously-failed repair) task and
@@ -868,7 +946,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       }
       task = _commit(
         task,
-        task.copyWith(status: TaskStatus.failed, error: 'could not start'),
+        task.copyWith(status: TaskStatus.failed, error: _couldNotStart),
       );
       return;
     }
@@ -954,7 +1032,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
         }
         task = _commit(
           task,
-          task.copyWith(status: TaskStatus.failed, error: gogErrorText(error)),
+          task.copyWith(status: TaskStatus.failed, error: jobErrorText(error)),
         );
       },
     );

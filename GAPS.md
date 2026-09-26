@@ -78,7 +78,7 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P1 — Update detection.** Nothing flags that a newer build exists than the installed one.
 - [ ] **P1 — Downloads page actions.** Add dismiss/clear for failed and completed tasks, and a Retry
   button for failed downloads and repairs (only failed verifications get "Repair" today). Surface the
-  actual error text for downloads and repairs (`ActivityTask` has no `error` field; `SaveTask` does).
+  actual error text for downloads and repairs.
 - [ ] **P1 — Proton version removal UI.** `removeVersion` exists but nothing calls it. It should also
   optionally delete the files, since the default install dir is Lumen-owned (the doc comment claims
   "the user picked that location", which is no longer true).

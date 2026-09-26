@@ -792,7 +792,7 @@ void main() {
 
         final task = container.read(downloadsStateProvider).tasks[1]!;
         expect(task.status, TaskStatus.failed);
-        expect(task.error, 'could not start');
+        expect(task.error, contains("couldn't start"));
       },
     );
   });
@@ -1541,6 +1541,163 @@ void main() {
         container.read(gamesStateProvider).getGameStatus(1),
         GameStatus.paused,
       );
+    });
+  });
+
+  group('DownloadsNotifier — retry and clear finished (Phase 8)', () {
+    Future<(FakeGogBackend, ProviderContainer, DownloadsNotifier)>
+    setUp() async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(backend: backend);
+      final notifier = container.read(downloadsStateProvider.notifier);
+      container
+          .read(gamesStateProvider.notifier)
+          .setSelectedBuild(1, 'build-1');
+      return (backend, container, notifier);
+    }
+
+    Directory tempDir({bool withFile = false}) {
+      final dir = Directory.systemTemp.createTempSync('lumen_test_install');
+      addTearDown(() {
+        if (dir.existsSync()) dir.deleteSync(recursive: true);
+      });
+      if (withFile) File('${dir.path}/data.bin').writeAsBytesSync([1, 2, 3]);
+      return dir;
+    }
+
+    Future<void> failDownload(
+      FakeGogBackend backend,
+      DownloadsNotifier notifier,
+      String path,
+    ) async {
+      await notifier.startDownload(
+        1,
+        path: path,
+        buildName: 'build-1',
+        productIds: [7],
+      );
+      final controller = backend.downloadController(1);
+      controller.addError(Exception('network down'));
+      await controller.close();
+      await settle();
+    }
+
+    test('a failed download with files on disk becomes paused, and retry '
+        'resumes it through repairDownload', () async {
+      final (backend, container, notifier) = await setUp();
+      final dir = tempDir(withFile: true);
+
+      await failDownload(backend, notifier, dir.path);
+
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.paused);
+      expect(games.getPendingInstallPath(1), dir.path);
+      expect(
+        container.read(downloadsStateProvider).tasks[1]!.status,
+        TaskStatus.failed,
+      );
+
+      await notifier.retryDownload(1);
+
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+      expect(backend.callsTo('downloadGame'), hasLength(1));
+      expect(backend.callsTo('repairDownload').single.args['path'], dir.path);
+      final task = container.read(downloadsStateProvider).tasks[1]!;
+      expect(task.resumed, isTrue);
+      expect(task.status, TaskStatus.running);
+    });
+
+    test('a failed download into an empty folder resets the game, and retry '
+        'starts a fresh download', () async {
+      final (backend, container, notifier) = await setUp();
+      final dir = tempDir();
+
+      await failDownload(backend, notifier, dir.path);
+
+      final games = container.read(gamesStateProvider);
+      expect(games.getGameStatus(1), GameStatus.notInstalled);
+      expect(games.getPendingInstallPath(1), isNull);
+
+      await notifier.retryDownload(1);
+
+      expect(backend.callsTo('downloadGame'), hasLength(2));
+      expect(backend.callsTo('repairDownload'), isEmpty);
+    });
+
+    test('retryDownload is a no-op without a failed download', () async {
+      final (backend, container, notifier) = await setUp();
+
+      await notifier.retryDownload(1);
+      await notifier.startRepairForInstalled(
+        2,
+        path: '/games/bar',
+        buildName: 'build-1',
+        productIds: [2],
+      );
+      await notifier.retryDownload(2);
+
+      expect(backend.callsTo('downloadGame'), isEmpty);
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+      expect(container.read(downloadsStateProvider).tasks, hasLength(1));
+    });
+
+    test('clearFinished removes completed, failed and cancelled tasks but '
+        'keeps running, paused and resumable ones', () async {
+      final (backend, container, notifier) = await setUp();
+      addTearDown(backend.closeAll);
+      TaskStatus? statusOf(int id) =>
+          container.read(downloadsStateProvider).tasks[id]?.status;
+
+      // 2: completed verification. 3: failed repair. 4: cancelled repair.
+      await notifier.startVerification(
+        2,
+        path: '/games/b',
+        buildName: 'build-1',
+        productIds: [2],
+      );
+      backend
+          .verifyController(2)
+          .add(VerifyDownloadProgress.finished(BigInt.zero));
+      await backend.verifyController(2).close();
+      await notifier.startRepairForInstalled(
+        3,
+        path: '/games/c',
+        buildName: 'build-1',
+        productIds: [3],
+      );
+      backend.repairController(3).addError(Exception('boom'));
+      await backend.repairController(3).close();
+      await notifier.startRepairForInstalled(
+        4,
+        path: '/games/d',
+        buildName: 'build-1',
+        productIds: [4],
+      );
+      notifier.cancel(4);
+      // 5: running repair. 1: failed download of a paused (resumable) game.
+      await notifier.startRepairForInstalled(
+        5,
+        path: '/games/e',
+        buildName: 'build-1',
+        productIds: [5],
+      );
+      final dir = tempDir(withFile: true);
+      await failDownload(backend, notifier, dir.path);
+      await settle();
+
+      expect(statusOf(2), TaskStatus.completed);
+      expect(statusOf(3), TaskStatus.failed);
+      expect(statusOf(4), TaskStatus.cancelled);
+      expect(statusOf(5), TaskStatus.running);
+      expect(statusOf(1), TaskStatus.failed);
+
+      notifier.clearFinished();
+
+      expect(statusOf(2), isNull);
+      expect(statusOf(3), isNull);
+      expect(statusOf(4), isNull);
+      expect(statusOf(5), TaskStatus.running);
+      expect(statusOf(1), TaskStatus.failed);
     });
   });
 }
