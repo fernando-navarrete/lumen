@@ -1,0 +1,35 @@
+#!/bin/sh
+# Pre-commit: format check on the staged Dart files. No dependency; the hook is committed here and enabled once
+# per clone:
+#   git config core.hooksPath .githooks
+# It only checks, it never rewrites: a hook that formats and re-stages could commit half of a partly staged file.
+# It reads the working-tree copy of each staged file, so unstaged edits in a partly staged file are checked too.
+# No analyze and no tests here; CI runs those. Skip it for a work-in-progress commit with
+# `git commit --no-verify` (CI still checks).
+
+set -f # the pathspec below must reach git unexpanded
+
+staged() {
+	git diff --cached --name-only -z --diff-filter=ACMR -- '*.dart'
+}
+
+if [ -z "$(staged | tr -d '\0')" ]; then
+	exit 0
+fi
+
+if command -v fvm >/dev/null 2>&1; then
+	dart="fvm dart"
+elif command -v dart >/dev/null 2>&1; then
+	dart="dart"
+else
+	echo "pre-commit: neither fvm nor dart is on PATH." >&2
+	exit 1
+fi
+
+# shellcheck disable=SC2086 # $dart is meant to split
+if ! staged | xargs -0 -r $dart format --output=none --set-exit-if-changed; then
+	echo >&2
+	echo "pre-commit: formatting failed. Fix it with: fvm dart format lib test (then git add the files again)" >&2
+	echo "pre-commit: to commit anyway, use: git commit --no-verify (CI still checks)" >&2
+	exit 1
+fi

@@ -1,11 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/secure_storage_provider.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_gog_backend.dart';
 import 'fake_secure_storage.dart';

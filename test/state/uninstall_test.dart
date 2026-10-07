@@ -6,10 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/launch_state.dart';
-import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/state/uninstall.dart';
 
 import '../helpers/container.dart';

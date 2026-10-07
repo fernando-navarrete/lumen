@@ -28,9 +28,9 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      GogState gogState = ref.read(gogStateProvider);
-      GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
-      String? selectedVersionName = ref
+      final GogState gogState = ref.read(gogStateProvider);
+      final GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
+      final String? selectedVersionName = ref
           .read(gamesStateProvider)
           .getSelectedBuild(widget.gameId);
 
@@ -58,8 +58,8 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
-    GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
+    final size = MediaQuery.of(context).size;
+    final GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
     final dlcProducts = _products
         ?.where((product) => product.productType != "GAME")
         .toList();
@@ -121,7 +121,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
   // NOTE: diverges from OverviewTab._getTabWidth (threshold 600 vs 1080,
   // exponent 1.5 vs 1.3) — preserved as-is from before the refactor.
   double _getTabWidth(double width) {
-    double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
+    final double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
     return tabWidth;
   }
 }

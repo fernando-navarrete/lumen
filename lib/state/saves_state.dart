@@ -7,8 +7,8 @@ import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
-import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/gog_state.dart';
 
 enum SaveDirection { download, upload }

@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lumen/screens/home/pages/downloads_page.dart';
-import 'package:lumen/state/downloads_state.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+import 'package:lumen/screens/home/pages/downloads_page.dart';
+import 'package:lumen/state/downloads_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
 import '../helpers/pump_app.dart';

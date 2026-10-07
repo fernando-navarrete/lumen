@@ -11,7 +11,7 @@ class BrandingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     final width = (size.width - (size.width * 0.2) - 2) * 0.45;
     return Container(
       width: width,

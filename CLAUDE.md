@@ -71,9 +71,21 @@ bridge's `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never l
 CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
 bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes.
 
-CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs
-`flutter analyze --fatal-infos` and `flutter test` on every tag push (branch pushes don't
-trigger a pipeline).
+CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs for merge requests and
+`v*` tags — not for branch pushes or pushes to `main`. `lint` runs `dart format --output=none
+--set-exit-if-changed lib test tool` and `flutter analyze --fatal-infos` (the rules live in
+`analysis_options.yaml`); `test` runs `flutter test`. Both first run `tool/check_lockfile.sh` (every
+package in `pubspec.lock` comes from pub.dev or the `gogdl` group on `thinkcentre.home`) and
+`flutter pub get --enforce-lockfile`. `bridge-lock` exports the pinned `gogdl_flutter`'s
+`rust/Cargo.lock`, `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
+(accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
+on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
+schedule with `SCHEDULE=scan` runs just those three. `SECURITY.md` has the dependency rules.
+
+`main` is protected: nobody pushes to it, and every change goes through a merge request with a green
+pipeline and resolved threads (semi-linear merge history, source branch deleted on merge). Branches are
+short-lived. Enable the format pre-commit hook once per clone with
+`git config core.hooksPath .githooks`.
 
 ## Architecture
 

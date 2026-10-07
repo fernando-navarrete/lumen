@@ -32,7 +32,7 @@ class SignInPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     return Container(
       width: (size.width - (size.width * 0.2) - 2) * 0.55,
       height: (size.height - (size.height * 0.1)),

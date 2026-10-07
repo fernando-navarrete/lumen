@@ -1,5 +1,9 @@
+// ignore_for_file: close_sinks
+// Stream controllers here are closed by the fake backend or by the test's
+// teardown, which the lint can't see.
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderContainer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease;
@@ -29,7 +33,7 @@ void main() {
   /// (unless [withPfx] is false) creates the Wine prefix dir Proton would
   /// have created on first launch, so a sync can actually start.
   void seedInstalledGame(
-    dynamic container,
+    ProviderContainer container,
     int gameId, {
     String buildName = 'build-1',
     String installPath = '/games/foo',

@@ -29,7 +29,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
   @override
   void initState() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      GogState gogState = ref.read(gogStateProvider);
+      final GogState gogState = ref.read(gogStateProvider);
       final summary = await gogState.getGameSummary(widget.gameId);
       if (!mounted) return;
       setState(() => _gameSummary = summary);
@@ -42,7 +42,7 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -134,7 +134,9 @@ class _OverviewTabState extends ConsumerState<OverviewTab> {
   }
 
   double _getTabWidth(double width) {
-    double tabWidth = width > 1080 ? pow(width * 0.05, 1.3).toDouble() : 0;
+    final double tabWidth = width > 1080
+        ? pow(width * 0.05, 1.3).toDouble()
+        : 0;
     return tabWidth;
   }
 }

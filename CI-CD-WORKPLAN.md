@@ -126,10 +126,9 @@ settings check was done by hand (see the end of this section).
   (`unmaintained`, `unsound`), or `null` for real vulnerabilities. GHSA records have no such field.
 - The OSV image has busybox `sh`, `grep`, `sed`, `awk` and `tr`, but no `jq`. The JSON is pretty-printed, so a
   `grep` can count the flags (2 informational, 1 null here), but mapping a flag back to its advisory id means
-  tracking nesting in `awk`, which is fragile. **Decision: do the informational filtering with `jq` in a
-  CI-image job.** First check that the CI image ships `jq`. If it doesn't, use a small `awk` over the
-  pretty-printed JSON, or install `jq` in `bridge-lock`. `scan` then only runs the scanner (exit 0 or 1), and
-  a short follow-up step in the same stage decides pass or fail from the JSON.
+  tracking nesting in `awk`, which is fragile. **Decision (revised in Phase 2): the CI image has no `jq`
+  either, but it has `dart`, so `scan-gate` runs `tool/osv_gate.dart`, a dependency-free script with unit
+  tests.** `scan` only runs the scanner (exit 0 or 1), and `scan-gate` decides pass or fail from the JSON.
 - Since an ignore is per advisory id, an alternative needs no filtering: list the informational ids in
   `osv-scanner.toml` as well. That gets noisy, and a new informational id would turn the job red, so it isn't
   recommended.
@@ -179,76 +178,76 @@ Docs-only commits, done before protection so they cost no MR.
       7–9). Each MR leaves `main` releasable. Phase 9 tags `v1.4.0` on `main` after its MR merges.
       Patches P1–P3 are one MR each, or one MR for all three with a tag per merge commit, tagged on
       `main`'s merge commit. Only `v1.3.x` hotfixes use the cherry-pick path in Decisions.
-- [ ] Commit this plan and the rewrite on `main` (one commit), push `main`.
-- [ ] Delete the old branches:
+- [x] Commit this plan and the rewrite on `main` (one commit), push `main`.
+- [x] Delete the old branches:
       `git push origin --delete release/v1.3.0 release/v1.4.0 restart` and
       `git branch -d release/v1.3.0 release/v1.4.0`.
-- [ ] GitLab → Settings → Merge requests: semi-linear merge method; squash "Allow"; "Delete source branch"
+- [x] GitLab → Settings → Merge requests: semi-linear merge method; squash "Allow"; "Delete source branch"
       on by default; "Pipelines must succeed"; "All threads must be resolved"; "Skipped pipelines are
       considered successful" **off**.
-- [ ] Settings → CI/CD → General pipelines: "Auto-cancel redundant pipelines" on.
-- [ ] Settings → Repository → Protected branches: `main`, allowed to push **No one**, allowed to merge
+- [x] Settings → CI/CD → General pipelines: "Auto-cancel redundant pipelines" on.
+- [x] Settings → Repository → Protected branches: `main`, allowed to push **No one**, allowed to merge
       Maintainers, force push off.
-- [ ] Protected tags: `v*`, allowed to create Maintainers.
-- [ ] Settings → CI/CD → Variables: `GOGDL_DEPLOY_KEY_B64` masked and **not** protected.
-- [ ] Check that `git push origin main` with a dummy local commit is rejected, then drop the commit.
+- [x] Protected tags: `v*`, allowed to create Maintainers.
+- [x] Settings → CI/CD → Variables: `GOGDL_DEPLOY_KEY_B64` masked and **not** protected.
+- [x] Check that `git push origin main` with a dummy local commit is rejected, then drop the commit.
 
 ## Phase 2 — MR 1: merge-request pipeline, lint gates, dependency scanning
 
 Branch `ci/merge-requests`. One MR, squash-merged.
 
 **2a. Pipeline triggers** (`.gitlab-ci.yml`)
-- [ ] Replace the tags-only `workflow:` with: schedules; `merge_request_event`; branch push with an open
+- [x] Replace the tags-only `workflow:` with: schedules; `merge_request_event`; branch push with an open
       MR → never; `v*` tags. No `main` push pipeline (see Decisions).
-- [ ] `default: interruptible: true`. Stages `lint`, `test`, `scan`.
-- [ ] Every non-schedule job: `rules: schedule → never`. Then add `$SCHEDULE == "scan"` rules to the
+- [x] `default: interruptible: true`. Stages `lint`, `test`, `scan`.
+- [x] Every non-schedule job: `rules: schedule → never`. Then add `$SCHEDULE == "scan"` rules to the
       scan jobs only, as in metatrader.
-- [ ] Rewrite the header comment so it covers each job, the schedules and the variables, like
+- [x] Rewrite the header comment so it covers each job, the schedules and the variables, like
       metatrader's header.
 
 **2b. Lint** (replaces `analyze`)
-- [ ] Job `lint`: `dart format --output=none --set-exit-if-changed lib test` first (cheap), then
+- [x] Job `lint`: `dart format --output=none --set-exit-if-changed lib test` first (cheap), then
       `flutter analyze --fatal-infos`.
-- [ ] `analysis_options.yaml`: add the rules Phase 0 kept and fix their findings in the same MR.
-- [ ] `.githooks/pre-commit`: format check on staged `.dart` files only (no analyze, no tests; CI runs
+- [x] `analysis_options.yaml`: add the rules Phase 0 kept and fix their findings in the same MR.
+- [x] `.githooks/pre-commit`: format check on staged `.dart` files only (no analyze, no tests; CI runs
       those). Enable once per clone with `git config core.hooksPath .githooks`. Check only, never rewrite,
       for the same reason as metatrader's hook.
 
 **2c. Lockfile integrity**
-- [ ] The shared setup runs `flutter pub get --enforce-lockfile`.
-- [ ] A small check (shell in `lint`, or `tool/check_lockfile.sh`) that fails if any hosted package in
+- [x] The shared setup runs `flutter pub get --enforce-lockfile`.
+- [x] A small check (shell in `lint`, or `tool/check_lockfile.sh`) that fails if any hosted package in
       `pubspec.lock` comes from somewhere other than `https://pub.dev`, or any git package from somewhere
       other than `ssh://git@thinkcentre.home:2200/gogdl/`.
 
 **2d. Dependency scan**
-- [ ] Job `bridge-lock` (CI image plus the deploy-key setup, **no** `pub get`, no cargo). Read
+- [x] Job `bridge-lock` (CI image plus the deploy-key setup, **no** `pub get`, no cargo). Read
       `gogdl_flutter`'s `resolved-ref` from `pubspec.lock`, shallow-fetch that commit, and export
       `rust/Cargo.lock` as an artifact (`bridge-Cargo.lock`, 30 days).
-- [ ] Job `scan` (OSV-Scanner image, digest-pinned, `needs: [bridge-lock]`): scan `pubspec.lock` and
+- [x] Job `scan` (OSV-Scanner image, digest-pinned, `needs: [bridge-lock]`): scan `pubspec.lock` and
       `bridge-Cargo.lock` with `--config osv-scanner.toml`. Exit 0 passes and 1 fails; anything else is
       a scanner or network error and fails too. Exit 1 fails only if a non-informational advisory remains
       after the ignores; informational-only results pass with the IDs printed. Keep the JSON reports as artifacts (30 days) and print
       the advisory IDs in the log.
-- [ ] `osv-scanner.toml` with the Phase 0 baseline. Each accepted advisory gets `ignoreUntil` and a
+- [x] `osv-scanner.toml` with the Phase 0 baseline. Each accepted advisory gets `ignoreUntil` and a
       `reason`, and anything not accepted is fixed in this MR.
-- [ ] `test` keeps its current setup, plus `--enforce-lockfile`.
+- [x] `test` keeps its current setup, plus `--enforce-lockfile`.
 
 **2e. MR workflow files**
-- [ ] `.gitlab/merge_request_templates/Default.md`: summary; checklist with "analyze and test green
+- [x] `.gitlab/merge_request_templates/Default.md`: summary; checklist with "analyze and test green
       locally", "`pubspec.yaml`/`pubspec.lock` changed → new packages listed, meet `SECURITY.md`",
       "`gogdl_flutter` ref or `.fvmrc` changed → CI image tag bumped", "CLAUDE.md/README updated if
       behavior or architecture changed".
 
 **2f. Docs**
-- [ ] `SECURITY.md` (adapted from metatrader): the bar for a new pub package (needed, maintained,
+- [x] `SECURITY.md` (adapted from metatrader): the bar for a new pub package (needed, maintained,
       verified publisher where possible, at least 7 days old, few transitive deps); what `scan` gates (vulnerabilities fail,
       RUSTSEC informational only reported) and how to accept a finding; the hotfix cherry-pick rule; the unprotected deploy-key decision; what to do when a package is reported
       compromised (find it in both lockfiles, check CI logs, rotate the deploy key, pin, rerun the scan
       schedule, cut a patch tag).
-- [ ] `CLAUDE.md`: replace "CI … runs on every tag push (branch pushes don't trigger a pipeline)" with
+- [x] `CLAUDE.md`: replace "CI … runs on every tag push (branch pushes don't trigger a pipeline)" with
       the new jobs and triggers, and add the branch/MR rule (`main` is protected, every change goes
       through an MR, semi-linear merge, source branch deleted).
-- [ ] `README.md`: a short "Checks" section (jobs, schedule, hook setup).
+- [x] `README.md`: a short "Checks" section (jobs, schedule, hook setup).
 
 **2g. Prove the gates in this MR** (no throwaway MRs)
 - [ ] Push a misformatted file and check that `lint` goes red and Merge is blocked. Then revert it.
