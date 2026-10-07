@@ -89,6 +89,10 @@ threads must pass, skipped pipelines not counted as success, auto-cancel redunda
   in `~/.ssh/config` and cargo gets `git-fetch-with-cli = true`.
 - The first attempt at proving the gates (`ci/prove-gates`) merged on its baseline pipeline before any gate was
   exercised; the proof was redone in `ci/prove-gates-2`.
+- Renovate exits 0 when it aborts a repository (`Temporary error - aborting`), so the first scheduled run was green
+  while doing nothing: the token had Guest access, which hides `default_branch`. The token must be Developer, and the
+  `renovate` job now fails on that log text. A manual run outside "before 6am on monday" only refreshes the
+  Dependency Dashboard, and releases younger than 7 days wait under "Pending Status Checks".
 - `scan` itself fails only on scanner errors; vulnerability findings fail `scan-gate`.
 - Bump the CI image tag in `.gitlab-ci.yml` and `constraints.flutter` in `renovate.json` whenever `.fvmrc` changes.
 

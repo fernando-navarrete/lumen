@@ -21,7 +21,8 @@
 #                RENOVATE_TOKEN (a masked project access token with api + write_repository, role Developer) and
 #                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
 #                variables scoped to the `renovate` environment, so no other job sees them. It also writes the deploy
-#                key, because updating pubspec.lock re-resolves the SSH-only gogdl_flutter.
+#                key, because updating pubspec.lock re-resolves the SSH-only gogdl_flutter. Renovate exits 0 even when it
+#                gives up on the repository, so the job also fails on "Temporary error" or an error result in its log.
 #   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
 # `gogdl_flutter` is a private git dependency reachable only over the LAN
@@ -232,4 +233,9 @@ renovate:
       if [ -n "$CI_SERVER_TLS_CA_FILE" ]; then
         export NODE_EXTRA_CA_CERTS="$CI_SERVER_TLS_CA_FILE" GIT_SSL_CAINFO="$CI_SERVER_TLS_CA_FILE"
       fi
-      renovate
+      { renovate 2>&1; echo $? > renovate.rc; } | tee renovate.log
+      # Renovate exits 0 when it gives up on a repository (e.g. "Temporary error - aborting" for a token without
+      # Developer access), so judge the log too: a run that did not finish its repository must not look green.
+      [ "$(cat renovate.rc)" = 0 ] || { echo "renovate exited $(cat renovate.rc)"; exit 1; }
+      ! grep -Eq 'Temporary error|"result": "[a-z-]*error"|"exitCode": [1-9]' renovate.log \
+        || { echo "renovate did not complete its repository (see the log above)"; exit 1; }
