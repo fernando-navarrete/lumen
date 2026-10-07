@@ -264,7 +264,7 @@ Branch `ci/merge-requests`. One MR, squash-merged.
       `scan` goes red. Then revert it.
       Result (`e542f4f`, dropped the RUSTSEC-2026-0285 ignore): `scan-gate` red (the vulnerability gate; `scan`
       itself only fails on scanner errors), Merge blocked. Reverted in `a431eb2`.
-- [ ] Last pipeline green, then squash-merge, which drops the red/revert commits.
+- [x] Last pipeline green, then squash-merge, which drops the red/revert commits.
 
 **After merge** (settings, no MR)
 - [ ] CI/CD → Schedules: "Weekly scan", on `main`, weekly, variable `SCHEDULE=scan` only. Play it by hand
