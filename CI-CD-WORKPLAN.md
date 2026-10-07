@@ -255,10 +255,15 @@ Branch `ci/merge-requests`. One MR, squash-merged.
 > its red/revert commits don't reach `main`). The first attempt, `ci/prove-gates`, merged on its baseline
 > pipeline before any gate was exercised.
 
-- [ ] Push a misformatted file and check that `lint` goes red and Merge is blocked. Then revert it.
-- [ ] Push an analyzer info (for example an unused import) and check that it goes red. Then revert it.
-- [ ] Temporarily drop one `osv-scanner.toml` ignore (or pin a known-vulnerable version) and check that
+- [x] Push a misformatted file and check that `lint` goes red and Merge is blocked. Then revert it.
+      Result (2026-10-07, `1c64adf`): `lint` red at the `dart format` step, Merge blocked. Reverted in `e619a8f`.
+- [x] Push an analyzer info (for example an unused import) and check that it goes red. Then revert it.
+      Result (`d7b97f4`, `import 'dart:math';` in `lib/main.dart`): `lint` red at `flutter analyze`, Merge
+      blocked. Reverted in `9cfd377`.
+- [x] Temporarily drop one `osv-scanner.toml` ignore (or pin a known-vulnerable version) and check that
       `scan` goes red. Then revert it.
+      Result (`e542f4f`, dropped the RUSTSEC-2026-0285 ignore): `scan-gate` red (the vulnerability gate; `scan`
+      itself only fails on scanner errors), Merge blocked. Reverted in `a431eb2`.
 - [ ] Last pipeline green, then squash-merge, which drops the red/revert commits.
 
 **After merge** (settings, no MR)
