@@ -251,8 +251,9 @@ Branch `ci/merge-requests`. One MR, squash-merged.
 
 **2g. Prove the gates in this MR** (no throwaway MRs)
 
-> 2g was skipped in MR 1 and run afterwards in a follow-up MR, branch `ci/prove-gates` (squash-merged, so its
-> red/revert commits don't reach `main`).
+> 2g was skipped in MR 1 and is run afterwards in a follow-up MR, branch `ci/prove-gates-2` (squash-merged, so
+> its red/revert commits don't reach `main`). The first attempt, `ci/prove-gates`, merged on its baseline
+> pipeline before any gate was exercised.
 
 - [ ] Push a misformatted file and check that `lint` goes red and Merge is blocked. Then revert it.
 - [ ] Push an analyzer info (for example an unused import) and check that it goes red. Then revert it.
