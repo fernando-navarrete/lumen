@@ -250,6 +250,10 @@ Branch `ci/merge-requests`. One MR, squash-merged.
 - [x] `README.md`: a short "Checks" section (jobs, schedule, hook setup).
 
 **2g. Prove the gates in this MR** (no throwaway MRs)
+
+> 2g was skipped in MR 1 and run afterwards in a follow-up MR, branch `ci/prove-gates` (squash-merged, so its
+> red/revert commits don't reach `main`).
+
 - [ ] Push a misformatted file and check that `lint` goes red and Merge is blocked. Then revert it.
 - [ ] Push an analyzer info (for example an unused import) and check that it goes red. Then revert it.
 - [ ] Temporarily drop one `osv-scanner.toml` ignore (or pin a known-vulnerable version) and check that
