@@ -45,12 +45,12 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
   Future<void> _loadBuilds() async {
     setState(() => _loading = true);
-    GogState gogState = ref.read(gogStateProvider);
+    final GogState gogState = ref.read(gogStateProvider);
     final builds = await gogState.getBuilds(widget.gameId);
     if (!mounted) return;
 
-    GamesState gamesState = ref.read(gamesStateProvider);
-    String? selectedName = gamesState.getSelectedBuild(widget.gameId);
+    final GamesState gamesState = ref.read(gamesStateProvider);
+    final String? selectedName = gamesState.getSelectedBuild(widget.gameId);
     final installed =
         gamesState.getGameStatus(widget.gameId) == GameStatus.downloaded;
     final index = selectedName == null
@@ -137,7 +137,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -203,7 +203,7 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   // NOTE: diverges from OverviewTab._getTabWidth (threshold 600 vs 1080,
   // exponent 1.5 vs 1.3) — preserved as-is from before the refactor.
   double _getTabWidth(double width) {
-    double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
+    final double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
     return tabWidth;
   }
 }

@@ -1,3 +1,6 @@
+// ignore_for_file: close_sinks
+// Stream controllers here are closed by the fake backend or by the test's
+// teardown, which the lint can't see.
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

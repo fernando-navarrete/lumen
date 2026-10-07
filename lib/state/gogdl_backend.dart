@@ -60,7 +60,7 @@ class GogdlBackend implements GogBackend {
 
   @override
   Future<List<GameBuild>> getGameBuilds(int gameId) async {
-    var result = await _api.getGameBuilds(gameId: gameId);
+    final result = await _api.getGameBuilds(gameId: gameId);
     return result.map(_adaptBuild).toList();
   }
 
@@ -69,7 +69,7 @@ class GogdlBackend implements GogBackend {
     required int gameId,
     required String buildName,
   }) async {
-    var result = await _api.getDownloadableProducts(
+    final result = await _api.getDownloadableProducts(
       gameId: gameId,
       buildName: buildName,
     );
@@ -150,7 +150,7 @@ class GogdlBackend implements GogBackend {
 
   @override
   Future<List<ProtonRelease>> getProtonReleases(int page) async {
-    var result = await _api.getProtonReleases(page: page);
+    final result = await _api.getProtonReleases(page: page);
     return result.map(_adaptRelease).toList();
   }
 

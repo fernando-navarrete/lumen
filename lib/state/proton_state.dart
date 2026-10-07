@@ -5,16 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProtonRelease;
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/executable_lookup.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/common/safe_delete.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/emit_throttle.dart';
-import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/games_state.dart';
+import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lumen/common/gog_error.dart';
 
 /// Sentinel default for nullable [ProtonTask.copyWith] parameters, so
 /// "argument omitted" (keep the existing value) can be distinguished from

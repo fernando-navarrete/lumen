@@ -363,52 +363,54 @@ class LaunchNotifier extends Notifier<LaunchState> {
         live.game.copyWith(status: LaunchStatus.running),
       );
 
-      process.exitCode.then((code) async {
-        // Measured here, before the pipe-drain wait below, so a slow drain
-        // never counts toward the window.
-        final immediate = spawnedAt.elapsed < immediateExitWindow;
-        // The footer and close come before the status commit, so whoever
-        // reacts to `exited`/`failed` finds the whole log on disk.
-        try {
-          await drained.timeout(pipeDrainGrace);
-        } on TimeoutException {
-          for (final sub in pipes) {
-            await sub.cancel();
+      unawaited(
+        process.exitCode.then((code) async {
+          // Measured here, before the pipe-drain wait below, so a slow drain
+          // never counts toward the window.
+          final immediate = spawnedAt.elapsed < immediateExitWindow;
+          // The footer and close come before the status commit, so whoever
+          // reacts to `exited`/`failed` finds the whole log on disk.
+          try {
+            await drained.timeout(pipeDrainGrace);
+          } on TimeoutException {
+            for (final sub in pipes) {
+              await sub.cancel();
+            }
+            log.writeln(
+              '(output still open ${pipeDrainGrace.inMilliseconds} ms after '
+              'exit; stopped logging it)',
+            );
+          } catch (e) {
+            logGogError(e);
           }
+          final stopped = live.stopRequested;
           log.writeln(
-            '(output still open ${pipeDrainGrace.inMilliseconds} ms after '
-            'exit; stopped logging it)',
+            '--- ${stopped ? 'stopped by user; ' : ''}exited with code $code '
+            'after ${_formatElapsed(stopwatch)} ---',
           );
-        } catch (e) {
-          logGogError(e);
-        }
-        final stopped = live.stopRequested;
-        log.writeln(
-          '--- ${stopped ? 'stopped by user; ' : ''}exited with code $code '
-          'after ${_formatElapsed(stopwatch)} ---',
-        );
-        await log.close();
-        if (identical(_live[gameId], live)) {
-          _live.remove(gameId);
-        }
-        // A game the user stopped is never a failure, whatever its exit
-        // code (killed processes rarely exit 0). Otherwise, only a non-zero
-        // exit soon after spawning counts as a crash on start — a later
-        // non-zero exit is a normal quit for many games, and a
-        // launcher-style play task can make `proton run` return within
-        // seconds of a successful start.
-        final current = live.game;
-        live.game = _commit(
-          current,
-          code == 0 || stopped || !immediate
-              ? current.copyWith(status: LaunchStatus.exited, exitCode: code)
-              : current.copyWith(
-                  status: LaunchStatus.failed,
-                  exitCode: code,
-                  error: 'The game exited immediately (code $code)',
-                ),
-        );
-      });
+          await log.close();
+          if (identical(_live[gameId], live)) {
+            _live.remove(gameId);
+          }
+          // A game the user stopped is never a failure, whatever its exit
+          // code (killed processes rarely exit 0). Otherwise, only a non-zero
+          // exit soon after spawning counts as a crash on start — a later
+          // non-zero exit is a normal quit for many games, and a
+          // launcher-style play task can make `proton run` return within
+          // seconds of a successful start.
+          final current = live.game;
+          live.game = _commit(
+            current,
+            code == 0 || stopped || !immediate
+                ? current.copyWith(status: LaunchStatus.exited, exitCode: code)
+                : current.copyWith(
+                    status: LaunchStatus.failed,
+                    exitCode: code,
+                    error: 'The game exited immediately (code $code)',
+                  ),
+          );
+        }),
+      );
     } catch (e) {
       logGogError(e);
       log.writeln('Launch failed: $e');
@@ -528,6 +530,8 @@ class _GameLog {
       // Created synchronously so a permission error surfaces here, not
       // later on the sink.
       file.createSync();
+      // Closed by [close], which the launch calls once the process exits.
+      // ignore: close_sinks
       final sink = file.openWrite();
       sink.done.catchError((Object e) => logGogError(e));
       return _GameLog._(sink);

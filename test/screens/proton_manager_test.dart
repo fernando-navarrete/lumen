@@ -12,8 +12,8 @@ import 'package:lumen/state/proton_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
 import '../helpers/fake_proton.dart';
-import '../helpers/temp_data_home.dart';
 import '../helpers/pump_app.dart';
+import '../helpers/temp_data_home.dart';
 
 /// Regression `v1.1.2`: the Proton releases dialog distinguishes a failed
 /// fetch (shows an error + Retry) from a merely-empty page (shows "No

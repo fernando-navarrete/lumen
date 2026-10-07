@@ -90,7 +90,7 @@ class _GameGridState extends ConsumerState<_GameGrid> {
   Future<void> _load({bool retry = false}) async {
     if (!mounted) return;
     setState(() => _loading = true);
-    var gogState = ref.read(gogStateProvider);
+    final gogState = ref.read(gogStateProvider);
     if (retry) {
       gogState.invalidateOwnedGames();
     }

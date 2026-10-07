@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/keyring_error.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/install_size.dart';
@@ -13,8 +15,6 @@ import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
 import 'package:lumen/state/secure_storage_provider.dart';
-import 'package:lumen/common/gog_error.dart';
-import 'package:lumen/common/keyring_error.dart';
 
 /// The secure-storage key that stores the serialized GOG auth JSON.
 const _authStorageKey = 'auth';
@@ -63,7 +63,7 @@ class GogState {
 
   Future<String> _fetchGameBackgroundLink(int gameId) async {
     try {
-      String link = await _backend.getBackgroundImageLink(gameId);
+      final String link = await _backend.getBackgroundImageLink(gameId);
       return link;
     } catch (e) {
       logGogError(e);
@@ -76,7 +76,7 @@ class GogState {
 
   Future<String> _fetchGameBoxartLink(int gameId) async {
     try {
-      String link = await _backend.getGameBoxartLink(gameId);
+      final String link = await _backend.getGameBoxartLink(gameId);
       return link;
     } catch (e) {
       logGogError(e);
@@ -86,7 +86,7 @@ class GogState {
 
   Future<String> getGameSummary(int gameId) async {
     try {
-      String summary = await _backend.getGameSummary(gameId);
+      final String summary = await _backend.getGameSummary(gameId);
       return summary;
     } catch (e) {
       logGogError(e);
@@ -96,7 +96,9 @@ class GogState {
 
   Future<List<String>> getGameScreenshots(int gameId) async {
     try {
-      List<String> screenshots = await _backend.getGameScreenshots(gameId);
+      final List<String> screenshots = await _backend.getGameScreenshots(
+        gameId,
+      );
       return screenshots;
     } catch (e) {
       logGogError(e);
@@ -107,7 +109,7 @@ class GogState {
   Future<void> loginWithCode(String code) async {
     try {
       await _ensureTokenRefreshCallback();
-      String auth = await _backend.loginWithCode(code);
+      final String auth = await _backend.loginWithCode(code);
       await _writeAuth(auth);
     } catch (e) {
       logGogError(e);
@@ -120,7 +122,7 @@ class GogState {
   Future<bool> restoreAuthFromStorage() async {
     try {
       await _ensureTokenRefreshCallback();
-      String? auth = await _readAuth();
+      final String? auth = await _readAuth();
       if (auth == null) {
         return false;
       }

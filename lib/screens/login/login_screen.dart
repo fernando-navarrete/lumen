@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/components/gradient_background.dart';
 import 'package:lumen/screens/home/home_screen.dart';
 import 'package:lumen/screens/login/widgets/branding_panel.dart';
@@ -11,7 +12,6 @@ import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:lumen/common/gog_error.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -65,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final gogState = ref.watch(gogStateProvider);
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     return GradientBackground(
       child: Center(
         child: Container(

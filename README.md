@@ -14,6 +14,19 @@ fetched over SSH from `ssh://git@thinkcentre.home:2200/gogdl/gogdl_flutter.git` 
 `thinkcentre.home` plus an SSH key authorized on it. A full README rewrite (system requirements,
 CI details, etc.) is tracked for `v1.5.0`.
 
+## Checks
+
+GitLab CI runs on merge requests and `v*` tags: `lint` (`dart format` and `flutter analyze --fatal-infos`),
+`test`, and a dependency scan (`bridge-lock`, `scan`, `scan-gate`: OSV-Scanner on `pubspec.lock` and the
+bridge's `Cargo.lock`). The scan also runs weekly on a pipeline schedule (`SCHEDULE=scan`). `main` is
+protected, so every change goes through a merge request. See `SECURITY.md` for the dependency rules.
+
+Enable the format pre-commit hook once per clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

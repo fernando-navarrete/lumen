@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lumen/common/gog_error.dart';
 
 /// [paused] is a download stopped by the user (or interrupted) whose partial
 /// files are still on disk at [GameConfig.pendingInstallPath], resumable

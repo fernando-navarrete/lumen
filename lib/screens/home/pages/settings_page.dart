@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/section_card.dart';
 import 'package:lumen/screens/home/pages/settings/proton_manager.dart';
-import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/proton_state.dart';

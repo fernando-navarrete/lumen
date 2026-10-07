@@ -1,13 +1,30 @@
-# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker
-# executor) — see devlog/v1.1.0-foundation.md Phase 0/8.
+# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor) — see
+# devlog/v1.1.0-foundation.md Phase 0/8. Pipelines run for merge requests and `v*` tags, never for a plain branch
+# push or a push to main (main only receives a tree an MR pipeline already tested; see CI-CD-WORKPLAN.md).
+#   lint:        `dart format` check on lib, test and tool, then `flutter analyze --fatal-infos` (the rules are in
+#                analysis_options.yaml). Before `pub get`, tool/check_lockfile.sh fails on a package in pubspec.lock
+#                from outside pub.dev (or the gogdl group on thinkcentre.home), and `pub get --enforce-lockfile`
+#                fails if pubspec.lock is stale or a package's hash changed.
+#   test:        `flutter test`, same setup.
+#   bridge-lock: reads the gogdl_flutter commit pinned in pubspec.lock, fetches it and keeps its rust/Cargo.lock as an
+#                artifact. Most of the code that ships is that Rust, built by the Native Assets hook, so it is scanned too.
+#   scan:        OSV-Scanner on pubspec.lock and the bridge's Cargo.lock, minus the accepted findings in
+#                osv-scanner.toml (each needs a reason and an ignoreUntil date). Only a scanner or network error fails it
+#                here (exit codes above 1); the report is kept as an artifact.
+#   scan-gate:   tool/osv_gate.dart reads that report: any vulnerability left fails the job, RUSTSEC informational
+#                advisories (unmaintained, unsound, notice) are only printed. It is a separate job because this CI
+#                image has dart but no jq, and the OSV image has neither.
+#   Schedules:   one pipeline schedule (CI/CD -> Schedules, on main) with the variable SCHEDULE=scan runs only
+#                bridge-lock, scan and scan-gate, weekly, so an advisory published after a dependency landed is
+#                noticed. Any other schedule runs nothing.
+#   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
 # `gogdl_flutter` is a private git dependency reachable only over the LAN
-# (ssh://git@thinkcentre.home:2200). `pub get` authenticates with a read-only
-# SSH deploy key stored base64-encoded (single line, no whitespace — GitLab's
-# "File" variable type mangled the raw multi-line PEM on paste) as the
-# `GOGDL_DEPLOY_KEY_B64` variable (Settings -> CI/CD -> Variables in this
-# project, Type: Variable, masked); its public half must be added as a deploy
-# key on the gogdl_flutter project.
+# (ssh://git@thinkcentre.home:2200). `pub get` and bridge-lock authenticate with a read-only SSH deploy key stored
+# base64-encoded (single line, no whitespace — GitLab's "File" variable type mangled the raw multi-line PEM on paste)
+# as the `GOGDL_DEPLOY_KEY_B64` variable (Settings -> CI/CD -> Variables in this project, Type: Variable, masked,
+# NOT protected: MR pipelines run on unprotected branches and would fail at `pub get` otherwise; see SECURITY.md).
+# Its public half must be added as a deploy key on the gogdl_flutter project.
 #
 # If a job fails to resolve thinkcentre.home, the runner's containers aren't
 # seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
@@ -15,30 +32,39 @@
 #   extra_hosts = ["thinkcentre.home:192.168.8.234"]
 # then restart the runner (`sudo gitlab-runner restart`).
 
-# Pipelines run only for tag pushes (e.g. v1.2.0), not on every branch push,
-# to keep load off the self-hosted runner. Tag a commit to run analyze + test.
 workflow:
   rules:
-    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never # the MR pipeline covers it: no duplicate branch pipeline
+    - if: $CI_COMMIT_TAG =~ /^v/
 
 stages:
-  - check
+  - lint
+  - test
+  - scan
+
+default:
+  interruptible: true # with "Auto-cancel redundant pipelines" on, a new push cancels the older run
+
+variables:
+  PUB_CACHE: "$CI_PROJECT_DIR/.ci/pub-cache"
 
 # Jobs run in gogdl_flutter's prebuilt CI image: since gogdl_flutter v1.2.1 its
 # native library is built by a Native Assets hook (hook/build.dart runs cargo)
 # on every `flutter pub get`/`analyze`/`test`, so the job needs Flutter *and* the
 # pinned Rust toolchain. Flutter (/opt/flutter) and Rust (/opt/cargo) are baked
 # in; the image is built on the runner host from the gogdl_flutter repo
-# (ci/build-image.sh). Bump the tag below whenever .fvmrc or the bridge's
-# rust/rust-toolchain.toml changes, keeping it in step with the gogdl_flutter
-# tag pinned in pubspec.yaml.
-variables:
-  PUB_CACHE: "$CI_PROJECT_DIR/.ci/pub-cache"
-
-.setup: &setup
+# (ci/build-image.sh), so it is in no registry and can't be digest-pinned. Bump
+# the tag below whenever .fvmrc or the bridge's rust/rust-toolchain.toml
+# changes, keeping it in step with the gogdl_flutter tag pinned in pubspec.yaml.
+.ci-image:
   image:
     name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0
     pull_policy: if-not-present
+
+.deploy-key:
   before_script:
     # SSH access to gogdl_flutter via the base64-encoded deploy key variable.
     - mkdir -p ~/.ssh
@@ -62,8 +88,14 @@ variables:
     - chmod 600 ~/.ssh/config
     - mkdir -p ~/.cargo
     - printf '[net]\ngit-fetch-with-cli = true\n' >> ~/.cargo/config.toml
+
+.flutter:
+  extends: .ci-image
+  before_script:
+    - !reference [.deploy-key, before_script]
+    - sh tool/check_lockfile.sh # before pub get, so nothing outside pub.dev is ever fetched
     - flutter --version
-    - flutter pub get
+    - flutter pub get --enforce-lockfile
   cache:
     key:
       files:
@@ -73,14 +105,84 @@ variables:
       - .ci/pub-cache/
       - .dart_tool/hooks_runner/
 
-analyze:
-  stage: check
-  <<: *setup
+.not-on-schedule:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: on_success
+
+# The scan jobs also run on the weekly SCHEDULE=scan pipeline, and nothing else does.
+.scan-rules:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE == "scan"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - when: on_success
+
+lint:
+  stage: lint
+  extends: .flutter
+  rules: !reference [.not-on-schedule, rules]
   script:
+    # Cheap first; `dart format lib test tool` fixes it, the analyzer needs a code change.
+    - dart format --output=none --set-exit-if-changed lib test tool
     - flutter analyze --fatal-infos
 
 test:
-  stage: check
-  <<: *setup
+  stage: test
+  extends: .flutter
+  rules: !reference [.not-on-schedule, rules]
   script:
     - flutter test
+
+bridge-lock:
+  stage: scan
+  extends: .ci-image
+  rules: !reference [.scan-rules, rules]
+  cache: []
+  before_script:
+    - !reference [.deploy-key, before_script]
+  script:
+    # The bridge's own lockfile at the exact commit pubspec.lock pins (no pub get, no cargo).
+    - |
+      ref=$(awk '/^  gogdl_flutter:/{f=1} f&&/resolved-ref:/{print $2; exit}' pubspec.lock)
+      url=$(awk '/^  gogdl_flutter:/{f=1} f&&/^      url:/{gsub(/"/, "", $2); print $2; exit}' pubspec.lock)
+      [ -n "$ref" ] && [ -n "$url" ] || { echo "gogdl_flutter's resolved-ref/url not found in pubspec.lock"; exit 1; }
+      echo "gogdl_flutter $ref"
+    - git init -q bridge-src
+    - git -C bridge-src fetch --depth 1 "$url" "$ref"
+    - mkdir bridge
+    - git -C bridge-src show FETCH_HEAD:rust/Cargo.lock > bridge/Cargo.lock # the name OSV-Scanner recognizes
+  artifacts:
+    expire_in: 30 days
+    paths: [bridge/Cargo.lock]
+
+scan:
+  stage: scan
+  rules: !reference [.scan-rules, rules]
+  needs: [bridge-lock]
+  image:
+    name: ghcr.io/google/osv-scanner:v2.6.0@sha256:afd838850ac1a0fcc15ff4a041dc9ba11123c3f0d2666217a5f0fcf9222b55fa
+    entrypoint: [''] # the binary is /osv-scanner, not on PATH; the image has /bin/sh
+  cache: []
+  script:
+    - |
+      rc=0
+      /osv-scanner scan --config osv-scanner.toml --lockfile pubspec.lock --lockfile bridge/Cargo.lock \
+        --format json --output-file osv-scanner.json || rc=$?
+      # 0 = clean, 1 = findings (judged by scan-gate). Anything else is a scanner or network error, which must not pass.
+      [ "$rc" -le 1 ] || exit "$rc"
+      grep -o '"\(RUSTSEC\|GHSA\|CVE\|MAL\|PYSEC\)-[^"]*"' osv-scanner.json | sort -u || true # what OSV found, for the log
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [osv-scanner.json]
+
+scan-gate:
+  stage: scan
+  extends: .ci-image
+  rules: !reference [.scan-rules, rules]
+  needs: [scan]
+  cache: []
+  script:
+    - dart tool/osv_gate.dart osv-scanner.json # reads only the artifact: no pub get, no deploy key

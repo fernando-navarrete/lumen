@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/directory_size.dart';
 import 'package:lumen/common/format.dart';
-import 'package:path/path.dart' as p;
 import 'package:lumen/components/app_dropdown.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
@@ -17,6 +16,7 @@ import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
+import 'package:path/path.dart' as p;
 
 /// Settings section for managing Proton-GE: choose the app-wide default
 /// version from a dropdown of installed versions, and open a dialog to

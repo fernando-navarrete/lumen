@@ -51,7 +51,7 @@ class _GameDetailsViewState extends State<GameDetailsView> {
 
   @override
   Widget build(BuildContext context) {
-    var size = MediaQuery.of(context).size;
+    final size = MediaQuery.of(context).size;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: size.width * 0.05,
