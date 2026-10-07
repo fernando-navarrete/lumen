@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Weekly, minor and patch grouped, each release at least 7 days old (security fixes excepted). Majors are off. gogdl_flutter, the local CI image and .fvmrc move by hand, together.",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["pub", "gitlabci"],
+  "ignoreDeps": ["gogdl_flutter", "gogdl-flutter-ci"],
+  "constraints": { "flutter": "3.47.2" },
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/Mexico_City",
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": { "minimumReleaseAge": null, "enabled": true },
+  "packageRules": [
+    {
+      "description": "Pin public CI images (OSV-Scanner, Renovate) by digest; digest updates then come in the grouped MR.",
+      "matchManagers": ["gitlabci"],
+      "pinDigests": true
+    },
+    {
+      "description": "Semver-major updates are handled by hand.",
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "One MR for all minor, patch and digest updates.",
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "minor and patch"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor) — see
 # devlog/v1.1.0-foundation.md Phase 0/8. Pipelines run for merge requests and `v*` tags, never for a plain branch
-# push or a push to main (main only receives a tree an MR pipeline already tested; see CI-CD-WORKPLAN.md).
+# push or a push to main (main only receives a tree an MR pipeline already tested; see devlog/ci-cd-merge-requests.md).
 #   lint:        `dart format` check on lib, test and tool, then `flutter analyze --fatal-infos` (the rules are in
 #                analysis_options.yaml). Before `pub get`, tool/check_lockfile.sh fails on a package in pubspec.lock
 #                from outside pub.dev (or the gogdl group on thinkcentre.home), and `pub get --enforce-lockfile`
@@ -16,7 +16,12 @@
 #                image has dart but no jq, and the OSV image has neither.
 #   Schedules:   one pipeline schedule (CI/CD -> Schedules, on main) with the variable SCHEDULE=scan runs only
 #                bridge-lock, scan and scan-gate, weekly, so an advisory published after a dependency landed is
-#                noticed. Any other schedule runs nothing.
+#                noticed. A second schedule with SCHEDULE=renovate runs only renovate. Any other schedule runs nothing.
+#   renovate:    only on the SCHEDULE=renovate schedule. Opens one grouped minor/patch dependency MR per renovate.json.
+#                RENOVATE_TOKEN (a masked project access token with api + write_repository, role Developer) and
+#                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
+#                variables scoped to the `renovate` environment, so no other job sees them. It also writes the deploy
+#                key, because updating pubspec.lock re-resolves the SSH-only gogdl_flutter.
 #   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
 # `gogdl_flutter` is a private git dependency reachable only over the LAN
@@ -186,3 +191,45 @@ scan-gate:
   cache: []
   script:
     - dart tool/osv_gate.dart osv-scanner.json # reads only the artifact: no pub get, no deploy key
+
+renovate:
+  stage: scan
+  image: renovate/renovate:44@sha256:05c512c35c764ef6a179e69c3b30567eca254d67f13a0143479fe3c84852c67a
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE == "renovate"
+  # Variables scoped to the `renovate` environment reach only this job. `access` records no deployment.
+  environment:
+    name: renovate
+    action: access
+  cache: []
+  variables:
+    RENOVATE_PLATFORM: gitlab
+    RENOVATE_ENDPOINT: $CI_API_V4_URL
+    RENOVATE_REPOSITORIES: $CI_PROJECT_PATH
+    RENOVATE_ONBOARDING: 'false'
+    RENOVATE_REQUIRE_CONFIG: required
+    LOG_LEVEL: info
+  before_script:
+    # File-based SSH config (no ssh-agent): Renovate's child processes keep HOME, and `pub upgrade` needs to reach
+    # gogdl_flutter over ssh://thinkcentre.home:2200 to re-resolve pubspec.lock.
+    - mkdir -p ~/.ssh
+    - echo "$GOGDL_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/gogdl_deploy_key
+    - chmod 600 ~/.ssh/gogdl_deploy_key
+    - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
+    - |
+      cat > ~/.ssh/config <<EOF
+      Host thinkcentre.home
+        Port 2200
+        User git
+        IdentityFile ~/.ssh/gogdl_deploy_key
+        IdentitiesOnly yes
+      EOF
+    - chmod 600 ~/.ssh/config
+  script:
+    # thinkcentre.home uses a private CA: the runner's tls-ca-file covers Node (Renovate) and git.
+    - '[ -n "$RENOVATE_TOKEN" ] || { echo "RENOVATE_TOKEN is not set (protected, environment scope renovate)"; exit 1; }'
+    - |
+      if [ -n "$CI_SERVER_TLS_CA_FILE" ]; then
+        export NODE_EXTRA_CA_CERTS="$CI_SERVER_TLS_CA_FILE" GIT_SSL_CAINFO="$CI_SERVER_TLS_CA_FILE"
+      fi
+      renovate

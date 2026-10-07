@@ -13,7 +13,7 @@ A new pub package has to meet all of these:
 - **Needed.** It isn't replaceable by a few lines of our own code.
 - **Maintained.** Recent releases, issues answered, and more than one maintainer or a known publisher.
 - **A verified publisher** on pub.dev where possible.
-- **At least 7 days old** (the same wait Renovate would apply), so a compromised release has time to be caught.
+- **At least 7 days old** (the same wait Renovate applies, `minimumReleaseAge`), so a compromised release has time to be caught.
 - **Few transitive dependencies.** Check `fvm flutter pub deps` and the `pubspec.lock` diff, and prefer the smaller
   option.
 - **A dev dependency** unless the app needs it at runtime.
@@ -65,7 +65,9 @@ tagged branch onto `main`: semi-linear merges would land different SHAs than the
 variable `GOGDL_DEPLOY_KEY_B64`. The variable is **masked but deliberately not protected**: MR pipelines run on
 unprotected branches, and a protected variable would make every MR fail at `pub get`. The risk is accepted because
 the key is read-only, it only reaches the `gogdl` repositories, and the project has a single operator. Anyone who can
-push a branch and open an MR can read it, so keep it that way.
+push a branch and open an MR can read it, so keep it that way. The `renovate` job also receives it, to re-resolve
+`pubspec.lock`; `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` are the opposite: protected and scoped to the `renovate`
+environment.
 
 ## If a package we use is reported compromised
 
@@ -75,7 +77,8 @@ push a branch and open an MR can read it, so keep it that way.
    the local `~/.pub-cache` and `.dart_tool` dates. A package's build hooks and the Rust build script run at
    `pub get`, `analyze` and `test` time.
 3. **Rotate secrets** if it could have run: `GOGDL_DEPLOY_KEY_B64` (generate a new key, replace the deploy key on
-   `gogdl_flutter`, update the variable) and any local tokens or SSH keys the machine could reach.
+   `gogdl_flutter`, update the variable), `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` (the `renovate` job runs a package
+   manager against `pubspec.yaml` too), and any local tokens or SSH keys the machine could reach.
 4. **Pin a known-good version.** A direct dependency gets an exact version in `pubspec.yaml`; a transitive one gets a
    `dependency_overrides` entry. Merge through an MR as usual.
 5. **Scan.** Run the weekly scan by hand (CI/CD → Schedules → "Weekly scan" → Play) and check `scan` and `scan-gate`.

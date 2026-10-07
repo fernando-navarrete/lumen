@@ -21,6 +21,12 @@ GitLab CI runs on merge requests and `v*` tags: `lint` (`dart format` and `flutt
 bridge's `Cargo.lock`). The scan also runs weekly on a pipeline schedule (`SCHEDULE=scan`). `main` is
 protected, so every change goes through a merge request. See `SECURITY.md` for the dependency rules.
 
+Renovate (`renovate.json`) runs from a second weekly schedule (`SCHEDULE=renovate`) and opens one MR for all minor
+and patch updates of pub packages and the public CI images. Majors are off except security fixes, every release waits
+7 days, and `gogdl_flutter`, the CI image and `.fvmrc` stay manual. The job needs `RENOVATE_TOKEN` (project access
+token, `api` + `write_repository`, role Developer) and `GITHUB_COM_TOKEN` (no permissions), both masked and
+**protected** with environment scope `renovate`.
+
 Enable the format pre-commit hook once per clone:
 
 ```sh
