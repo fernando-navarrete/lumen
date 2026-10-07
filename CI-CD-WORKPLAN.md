@@ -267,9 +267,9 @@ Branch `ci/merge-requests`. One MR, squash-merged.
 - [x] Last pipeline green, then squash-merge, which drops the red/revert commits.
 
 **After merge** (settings, no MR)
-- [ ] CI/CD → Schedules: "Weekly scan", on `main`, weekly, variable `SCHEDULE=scan` only. Play it by hand
+- [x] CI/CD → Schedules: "Weekly scan", on `main`, weekly, variable `SCHEDULE=scan` only. Play it by hand
       once and check that only `bridge-lock` and `scan` ran, green.
-- [ ] Make sure the schedule owner gets failed-pipeline email.
+- [x] Make sure the schedule owner gets failed-pipeline email.
 
 ## Phase 3 — MR 2 (optional): Renovate and closing docs
 
