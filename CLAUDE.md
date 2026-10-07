@@ -69,7 +69,8 @@ Since `gogdl_flutter` v1.2.1 its native library is built by a Native Assets buil
 cargo, so `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the
 bridge's `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
 CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
-bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes.
+bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes (and `constraints.flutter` in
+`renovate.json` when `.fvmrc` changes).
 
 CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs for merge requests and
 `v*` tags — not for branch pushes or pushes to `main`. `lint` runs `dart format --output=none
@@ -80,7 +81,10 @@ package in `pubspec.lock` comes from pub.dev or the `gogdl` group on `thinkcentr
 `rust/Cargo.lock`, `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
 (accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
 on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
-schedule with `SCHEDULE=scan` runs just those three. `SECURITY.md` has the dependency rules.
+schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCHEDULE=renovate` runs only the
+`renovate` job, which opens one grouped minor/patch dependency MR per `renovate.json` (managers `pub` and `gitlabci`;
+`gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand together, majors are off, 7-day release wait).
+`SECURITY.md` has the dependency rules.
 
 `main` is protected: nobody pushes to it, and every change goes through a merge request with a green
 pipeline and resolved threads (semi-linear merge history, source branch deleted on merge). Branches are
