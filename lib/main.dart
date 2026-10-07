@@ -12,7 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await RustLib.init();
+      await   RustLib.init();
   // Bridge errors that escape every listener (e.g. a stream API's discarded
   // Rust `Result`) would otherwise print as "Instance of 'GogErrorImpl'".
   PlatformDispatcher.instance.onError = (error, stack) {
