@@ -80,7 +80,9 @@ then `dart format --output=none --set-exit-if-changed lib test tool` and `flutte
 run `tool/check_lockfile.sh` (every package in `pubspec.lock` comes from pub.dev, or is a git package
 from `https://github.com/fernando-navarrete/` — the only git source allowed) and
 `flutter pub get --enforce-lockfile`. CI fetches `gogdl_flutter` and its `gogdl-lib` from GitHub over
-HTTPS with no key, so it proves a clone builds without LAN access. `bridge-lock` exports the pinned `gogdl_flutter`'s
+HTTPS with no key, so it proves a clone builds without LAN access. `secrets` runs gitleaks
+(`.gitleaks.toml`, default rules, no allowlist) over the MR's commits, or over every branch and tag on a
+`v*` tag pipeline. `bridge-lock` exports the pinned `gogdl_flutter`'s
 `rust/Cargo.lock`, `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
 (accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
 on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline

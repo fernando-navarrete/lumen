@@ -61,16 +61,6 @@ the hotfix's CI, since a branch with no MR gets no pipeline), then cherry-pick t
 fresh branch from `main` and merge that through a normal MR. Delete the hotfix branch once tagged. Never rebase the
 tagged branch onto `main`: semi-linear merges would land different SHAs than the ones tagged.
 
-## The deploy key
-
-`gogdl_flutter` is a private git dependency, fetched in CI over SSH with a read-only deploy key held in the CI/CD
-variable `GOGDL_DEPLOY_KEY_B64`. The variable is **masked but deliberately not protected**: MR pipelines run on
-unprotected branches, and a protected variable would make every MR fail at `pub get`. The risk is accepted because
-the key is read-only, it only reaches the `gogdl` repositories, and the project has a single operator. Anyone who can
-push a branch and open an MR can read it, so keep it that way. The `renovate` job also receives it, to re-resolve
-`pubspec.lock`; `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` are the opposite: protected and scoped to the `renovate`
-environment.
-
 ## If a package we use is reported compromised
 
 1. **Find it.** Check `pubspec.lock` and the bridge's `Cargo.lock` (the `bridge-lock` artifact) for the bad name and
@@ -78,9 +68,9 @@ environment.
 2. **Did it run?** Look at the CI logs of `lint`, `test` and `bridge-lock` since the bad version was published, and at
    the local `~/.pub-cache` and `.dart_tool` dates. A package's build hooks and the Rust build script run at
    `pub get`, `analyze` and `test` time.
-3. **Rotate secrets** if it could have run: `GOGDL_DEPLOY_KEY_B64` (generate a new key, replace the deploy key on
-   `gogdl_flutter`, update the variable), `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` (the `renovate` job runs a package
-   manager against `pubspec.yaml` too), and any local tokens or SSH keys the machine could reach.
+3. **Rotate secrets** if it could have run: `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` (protected and scoped to the
+   `renovate` environment; the `renovate` job runs a package manager against `pubspec.yaml` too), and any local
+   tokens or SSH keys the machine could reach.
 4. **Pin a known-good version.** A direct dependency gets an exact version in `pubspec.yaml`; a transitive one gets a
    `dependency_overrides` entry. Merge through an MR as usual.
 5. **Scan.** Run the weekly scan by hand (CI/CD → Schedules → "Weekly scan" → Play) and check `scan` and `scan-gate`.
