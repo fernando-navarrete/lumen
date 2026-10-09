@@ -4,7 +4,9 @@ This file covers the supply chain: what a new dependency has to meet, what the `
 a finding, and what to do when a package we use is reported compromised. The jobs that enforce it are described in
 the header of `.gitlab-ci.yml` and in `README.md` ("Checks").
 
-This is a private, single-operator project. Report a problem to the maintainer directly, not in a public tracker.
+This is a single-maintainer project developed on a self-hosted GitLab. `github.com/fernando-navarrete/lumen` is a
+read-only push mirror of `main` and the `v*` tags, with issues and pull requests off. Report a problem to the
+maintainer directly, not in a public issue.
 
 ## Adding a dependency
 
@@ -53,6 +55,17 @@ reason = "why it is acceptable, and what is needed to fix it"
 
 Ignoring an id also ignores its aliases. For a bridge finding, add a follow-up to `gogdl_flutter`'s GAPS.
 
+## Secrets
+
+`secrets` runs gitleaks with `.gitleaks.toml` (default rules, no allowlist) on every MR over the MR's own commits,
+and on a `v*` tag pipeline over every branch and tag. A red `secrets` blocks the merge.
+
+- A false positive gets a narrow allowlist entry (`targetRules` plus `paths` or `regexes`, with a comment saying why),
+  reviewed in the MR. Never a blanket path.
+- Whatever reaches `main` or a `v*` tag is public on GitHub within minutes. A leak found after that is rotated
+  first and dealt with in history second. A history rewrite changes every SHA and tag, so it is a decision of its
+  own, not a cleanup step.
+
 ## Branches and hotfixes
 
 `main` is protected: nobody pushes to it, and it takes only MRs with a green pipeline and resolved threads. A
@@ -69,8 +82,9 @@ tagged branch onto `main`: semi-linear merges would land different SHAs than the
    the local `~/.pub-cache` and `.dart_tool` dates. A package's build hooks and the Rust build script run at
    `pub get`, `analyze` and `test` time.
 3. **Rotate secrets** if it could have run: `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` (protected and scoped to the
-   `renovate` environment; the `renovate` job runs a package manager against `pubspec.yaml` too), and any local
-   tokens or SSH keys the machine could reach.
+   `renovate` environment; the `renovate` job runs a package manager against `pubspec.yaml` too), the GitHub mirror token (a new fine-grained token, `Contents: read and write` on `lumen` only, with an expiry,
+   pasted into Settings → Repository → Mirroring repositories), and any local tokens or SSH keys the machine
+   could reach.
 4. **Pin a known-good version.** A direct dependency gets an exact version in `pubspec.yaml`; a transitive one gets a
    `dependency_overrides` entry. Merge through an MR as usual.
 5. **Scan.** Run the weekly scan by hand (CI/CD → Schedules → "Weekly scan" → Play) and check `scan` and `scan-gate`.
