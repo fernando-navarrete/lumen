@@ -242,17 +242,21 @@ public repo has to be treated as leaked even if removed later.
       check that Renovate picks it up (no config change expected).
       (No change made; the `gitlabci` rule is the same one that covers the OSV image. To confirm on the
       next `SCHEDULE=renovate` run.)
-- [ ] Bite test: a fake `ghp_` token in a throwaway MR turns `secrets` red. Close it, delete the branch.
+- [x] Bite test: a fake `ghp_` token in a throwaway MR turns `secrets` red. Close it, delete the branch.
+      (2026-10-08: !9, `secrets` red; closed unmerged, branch deleted. Step 6's first three boxes merged in MR 2.)
 
-**Done when:** `secrets` is green here and was red on the bite test.
+**Done when:** `secrets` is green here and was red on the bite test. ✔
 
 ### Step 7: `SECURITY.md` for a public repo
 
-- [ ] Intro: no longer "private"; the GitHub copy is a read-only mirror, and problems go to the maintainer
+- [x] Intro: no longer "private"; the GitHub copy is a read-only mirror, and problems go to the maintainer
       directly (an email or the GitLab instance, whichever the README names in step 9).
-- [ ] "The deploy key" goes (step 4). The rotation list gains the GitHub mirror token (a new fine-grained
+      (2026-10-08: "maintainer directly, not in a public issue", no address, as gogdl_flutter; step 9's
+      README uses the same wording.)
+- [x] "The deploy key" goes (step 4). The rotation list gains the GitHub mirror token (a new fine-grained
       token, `Contents: read and write` on `lumen` only, pasted into Settings → Repository → Mirroring).
-- [ ] A short "Secrets" paragraph: `secrets` gates every MR; a leak found after the mirror pushed it is
+      (The section went in `4716d63`; the token is now in the rotation list.)
+- [x] A short "Secrets" paragraph: `secrets` gates every MR; a leak found after the mirror pushed it is
       rotated first, history second.
 
 **Done when:** merged.
