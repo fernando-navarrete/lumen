@@ -2,8 +2,3 @@
 # so an accepted finding comes back on its own. Ignoring an id also ignores its aliases (GHSA, CVE).
 # RUSTSEC informational advisories (unmaintained, unsound, notice) don't need an entry: tool/osv_gate.dart only
 # reports them.
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0285"
-ignoreUntil = 2026-11-06
-reason = "rustls 0.23.43 in gogdl_flutter's Cargo.lock (TLS 1.3 handshake, CVSS 5.3), fixed in 0.23.45. Needs a gogdl_flutter release that bumps rustls; GAPS item filed there. Published 2026-10-05."
