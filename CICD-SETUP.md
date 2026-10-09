@@ -21,8 +21,8 @@ checkbox as it's done.
 | — | (none) | **0** | Decisions, blockers | ✅ |
 | **1** | `ci/github-mirror` | 1–3 | `CI/CD: gogdl_flutter v1.3.3 from GitHub, no deploy key` | ✅ |
 | — | (settings) | 4 | Retire the deploy key | ✅ |
-| **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | 🟦 |
-| **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | ⬜ |
+| **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | ✅ |
+| **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | 🟦 |
 | — | (settings) | 10–11 | GitHub repo, GitLab push mirror | ⬜ |
 | — | (none) | 12 | Clean-room clone from GitHub | ⬜ |
 | **4** | `docs/ci-github-mirror` | 13 | `Docs: GitHub mirror devlog, close out the plan` | ⬜ |
@@ -267,34 +267,42 @@ public repo has to be treated as leaked even if removed later.
 
 ### Step 8: License and package metadata
 
-- [ ] `LICENSE-MIT` and `LICENSE-APACHE` (copy gogdl_flutter's, owner line updated) per D4.
-- [ ] `pubspec.yaml`: a real `description` (one line: GOG library manager, downloader and Proton launcher
+- [x] `LICENSE-MIT` and `LICENSE-APACHE` (copy gogdl_flutter's, owner line updated) per D4.
+      (2026-10-08: copied verbatim; the MIT owner line is already `2026 Fernando Navarrete`, the Apache text has none.)
+- [x] `pubspec.yaml`: a real `description` (one line: GOG library manager, downloader and Proton launcher
       for Linux), `repository: https://github.com/fernando-navarrete/lumen`. Drop the template comments and
       `cupertino_icons` if unused (GAPS §7 P2) — only if `analyze`/`test` stay green; otherwise leave it
       for its own MR.
-- [ ] `linux/` metadata: check the application id and window title don't still say a template name.
+      (2026-10-08: description, `repository:`, template comments and `cupertino_icons` gone; the lock diff is
+      only that entry.)
+- [x] `linux/` metadata: check the application id and window title don't still say a template name.
+      (Window and header-bar title now `Lumen`. `APPLICATION_ID` stays `io.github.fernandonr189.lumen`: it names
+      the SharedPreferences directory and the keyring label/account, so changing it would orphan every
+      install's games, Proton registry and login token.)
 
-**Done when:** `fvm flutter pub get` leaves `pubspec.lock` untouched (or only drops `cupertino_icons`).
+**Done when:** `fvm flutter pub get` leaves `pubspec.lock` untouched (or only drops `cupertino_icons`). ✔
 
 ### Step 9: README for someone who just cloned it
 
 Replaces the Flutter template (GAPS §7 P1). Short, as gogdl_flutter's:
 
-- [ ] What Lumen is (one paragraph), Linux only, what it delegates to `gogdl_flutter`.
-- [ ] **Building from a clone**, with no LAN mention: `git clone https://github.com/fernando-navarrete/lumen`,
+- [x] What Lumen is (one paragraph), Linux only, what it delegates to `gogdl_flutter`.
+- [x] **Building from a clone**, with no LAN mention: `git clone https://github.com/fernando-navarrete/lumen`,
       fvm (the pinned Flutter in `.fvmrc`), rustup (the bridge's Native Assets hook installs Rust 1.98.1
       from its `rust-toolchain.toml` on the first build), the Linux build deps (`clang`, `cmake`, `ninja`,
       `pkg-config`, GTK 3 and `libsecret-1` dev packages), a running Secret Service (GNOME Keyring or
       KWallet) for login, network access to pub.dev, crates.io and github.com on the first build. Then
       `fvm flutter pub get`, `fvm flutter run -d linux`, `fvm flutter build linux`. Every command here is
       the one step 12 runs.
-- [ ] "Development": the gates and the pre-commit hook (move from "Checks"), CI kept brief and pointing to
+- [x] "Development": the gates and the pre-commit hook (move from "Checks"), CI kept brief and pointing to
       the `.gitlab-ci.yml` header.
-- [ ] "This repository is a mirror" (gogdl_flutter's wording): developed on a self-hosted GitLab, GitHub
+- [x] "This repository is a mirror" (gogdl_flutter's wording): developed on a self-hosted GitLab, GitHub
       is a read-only push mirror of `main` and `v*`, issues and PRs off, how to report.
-- [ ] "License" section. Layout: `LICENSE-*`, `SECURITY.md`, `.gitleaks.toml`, `osv-scanner.toml`,
+- [x] "License" section. Layout: `LICENSE-*`, `SECURITY.md`, `.gitleaks.toml`, `osv-scanner.toml`,
       `renovate.json`, `.githooks/`, `tool/`.
-- [ ] `CLAUDE.md`: one line that GitHub is a push mirror, and the GitHub-only dependency rule.
+- [x] `CLAUDE.md`: one line that GitHub is a push mirror, and the GitHub-only dependency rule.
+      (2026-10-08: no JDK needed, `jni` only looks for one optionally; README "Checks" is folded into
+      "Development", and `SECURITY.md` points there. Real proof is step 12.)
 
 **Done when:** merged, and nothing in README tells a reader to reach `thinkcentre.home`.
 

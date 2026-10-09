@@ -2,7 +2,7 @@
 
 This file covers the supply chain: what a new dependency has to meet, what the `scan` job gates and how to accept
 a finding, and what to do when a package we use is reported compromised. The jobs that enforce it are described in
-the header of `.gitlab-ci.yml` and in `README.md` ("Checks").
+the header of `.gitlab-ci.yml` and in `README.md` ("Development").
 
 This is a single-maintainer project developed on a self-hosted GitLab. `github.com/fernando-navarrete/lumen` is a
 read-only push mirror of `main` and the `v*` tags, with issues and pull requests off. Report a problem to the
