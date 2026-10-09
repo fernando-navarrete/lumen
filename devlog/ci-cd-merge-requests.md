@@ -73,8 +73,8 @@ threads must pass, skipped pipelines not counted as success, auto-cancel redunda
   `vulnerabilityAlerts` with no age wait, `pinDigests` for `gitlabci`.
 - `renovate` job: same pinned image as `metatrader-dashboard`, only on `SCHEDULE=renovate`, declares the
   `renovate` environment so the protected `RENOVATE_TOKEN` / `GITHUB_COM_TOKEN` reach no other job. Unlike
-  metatrader it writes the deploy key and `~/.ssh/config` first (no ssh-agent), because updating `pubspec.lock`
-  re-resolves the SSH-only `gogdl_flutter`.
+  metatrader it wrote the deploy key and `~/.ssh/config` first because `gogdl_flutter` was SSH-only (no longer:
+  see `ci-cd-github-mirror.md`).
 - Validated locally with `renovate-config-validator --strict`; the image has `git`, `ssh`, `ssh-keyscan`,
   `base64` and `install-tool`.
 - **Still to verify after merge** (settings, no MR): create the token and variables, create the "Renovate"
@@ -83,10 +83,10 @@ threads must pass, skipped pipelines not counted as success, auto-cancel redunda
 
 ## Gotchas
 
-- `GOGDL_DEPLOY_KEY_B64` must stay masked but **unprotected**, or every MR pipeline fails at `pub get`.
-- A GitLab "File" variable mangled the multi-line PEM on paste, hence the base64 single-line variable.
-- The Native Assets hook runs cargo with a scrubbed environment, so `SSH_AUTH_SOCK` never reaches it: the key goes
-  in `~/.ssh/config` and cargo gets `git-fetch-with-cli = true`.
+- Deploy-key notes (gone since `ci-cd-github-mirror.md`, which moved `gogdl_flutter` to GitHub over HTTPS):
+  `GOGDL_DEPLOY_KEY_B64` had to be masked but **unprotected**; a GitLab "File" variable mangled the multi-line PEM,
+  hence base64; the Native Assets hook's scrubbed environment hid `SSH_AUTH_SOCK`, so the key went in
+  `~/.ssh/config` with `git-fetch-with-cli = true`.
 - The first attempt at proving the gates (`ci/prove-gates`) merged on its baseline pipeline before any gate was
   exercised; the proof was redone in `ci/prove-gates-2`.
 - Renovate exits 0 when it aborts a repository (`Temporary error - aborting`), so the first scheduled run was green

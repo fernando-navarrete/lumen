@@ -297,21 +297,24 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `.gitlab-ci.yml` running `flutter analyze --fatal-infos` and `flutter test` on every branch.
   Confirmed to go red on a failing test.
 - [x] **P1 — The build isn't reproducible outside your LAN.** Addressed in `v1.1.0` by documenting
-  the setup (README "Building" note) rather than mirroring: `gogdl_flutter` stays LAN-only
-  (`ssh://git@thinkcentre.home:2200`), and CI runs on the same LAN via the self-hosted runner.
-  Reachability from outside the LAN is deliberately deferred, not fixed.
-- [ ] **P1 — README is the Flutter template.** Document what Lumen is, the system requirements
+  the setup rather than mirroring: `gogdl_flutter` stayed LAN-only and CI ran on the same LAN.
+  Fixed in the CI/CD GitHub mirror work (`devlog/ci-cd-github-mirror.md`): the bridge `v1.3.3` comes from
+  its public GitHub mirror over HTTPS, no deploy key, and a clean-room clone of `fernando-navarrete/lumen`
+  builds with no LAN access.
+- [x] **P1 — README is the Flutter template.** Document what Lumen is, the system requirements
   (libsecret/keyring, the Rust toolchain for the bridge?), fvm setup, and build/run steps.
-- [ ] **P2 — Clean up `pubspec.yaml`.** It still has the template description ("A new Flutter
+  Fixed in the CI/CD GitHub mirror work (`devlog/ci-cd-github-mirror.md`).
+- [x] **P2 — Clean up `pubspec.yaml`.** It still has the template description ("A new Flutter
   project.") and boilerplate comments, and lists `cupertino_icons`, which is unused.
+  Fixed in the CI/CD GitHub mirror work (`devlog/ci-cd-github-mirror.md`).
 - [x] **P2 — Tighten lints.** Done in CI/CD Phase 2: `unawaited_futures`, `cancel_subscriptions`, `close_sinks`,
   `avoid_dynamic_calls`, `prefer_final_locals`, `directives_ordering` and `always_declare_return_types` are on and gate `lint`.
   Still open: the `print` in `lib/screens/login/login_screen.dart:36` should be `debugPrint`/`logGogError`.
 - [ ] **P2 — Merge `formatBytes`/`formatBytesBigint`** (`format.dart`), which are duplicates.
 - [ ] **P2 — Stale comment** at `gog_state.dart:204` about a `buildId` param that no longer exists.
 - [ ] **P2 — Packaging.** No AppImage, Flatpak or `.deb`, and no release pipeline.
-- [ ] **P1 — RUSTSEC-2026-0285 accepted.** `rustls` 0.23.43 in `gogdl_flutter`'s `Cargo.lock` (fixed in 0.23.45) is
-  ignored in `osv-scanner.toml` until its `ignoreUntil` date. Needs a bridge release that bumps `rustls`, then drop the ignore.
+- [x] **P1 — RUSTSEC-2026-0285 accepted.** `rustls` 0.23.43 in `gogdl_flutter`'s `Cargo.lock` was ignored in
+  `osv-scanner.toml`. Fixed by pinning bridge `v1.3.3` (`rustls` 0.23.45); the entry is gone.
 - [ ] **P2 — Scan in the dependency repos.** Run the same `scan` in `gogdl_flutter` and `gogdl-lib`, so a vulnerable
   crate is caught before Lumen pins the release.
 - [ ] **P2 — Release job.** A GitLab release from tag notes and a built Linux artifact on `v*` tags (no `CHANGELOG.md` yet).
@@ -319,3 +322,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — CI image isn't digest-pinned.** `gogdl-flutter-ci` is built on the runner host and is in no registry.
 - [ ] **P2 — No `lockFileMaintenance`.** Renovate moves transitive packages only through a direct bump, since
   maintenance would skip the 7-day wait. Revisit if the lockfile goes stale.
+- [ ] **P2 — Mirror token expiry is a calendar reminder.** The GitHub mirror token expires about 2027-01-06
+  (check the exact date on GitHub's token page). An expired token fails silently; look at Settings →
+  Repository → Mirroring.
+- [ ] **P2 — The GitHub rulesets don't stop the owner moving a tag.** Their bypass is the Repository admin role,
+  so the mirror can push a restore. GitLab's `v*` protection is the guard; compare `git ls-remote` on both sides
+  after any tag incident.
+- [ ] **P2 — `tool/check_bridge_pin.sh` hasn't run in a `v*` tag pipeline yet.** Tested locally and on every MR
+  via `lint`; the next tag is its first tag run.
