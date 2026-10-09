@@ -23,8 +23,8 @@ checkbox as it's done.
 | — | (settings) | 4 | Retire the deploy key | ✅ |
 | **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | ✅ |
 | **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | ✅ |
-| — | (settings) | 10–11 | GitHub repo, GitLab push mirror | 🟦 |
-| — | (none) | 12 | Clean-room clone from GitHub | ⬜ |
+| — | (settings) | 10–11 | GitHub repo, GitLab push mirror | ✅ |
+| — | (none) | 12 | Clean-room clone from GitHub | 🟦 |
 | **4** | `docs/ci-github-mirror` | 13 | `Docs: GitHub mirror devlog, close out the plan` | ⬜ |
 
 Status: ⬜ not started · 🟦 in progress · ✅ done · ⏸ blocked
@@ -334,15 +334,19 @@ rulesets are active. ✔
 
 ### Step 11: GitLab push mirror
 
-- [ ] Settings → Repository → Mirroring repositories: `https://github.com/fernando-navarrete/lumen.git`,
+- [x] Settings → Repository → Mirroring repositories: `https://github.com/fernando-navarrete/lumen.git`,
       push, password auth (any username, the token as password), "Mirror only protected branches" on,
       "Keep divergent refs" off. "Update now".
-- [ ] Compare SHAs, not names: `git ls-remote origin 'refs/heads/main' 'refs/tags/*'` against the same on
+- [x] Compare SHAs, not names: `git ls-remote origin 'refs/heads/main' 'refs/tags/*'` against the same on
       GitHub (peeled `^{}` lines included). `main` and all 30 tags match, no GitLab tag is missing, and
       GitHub has no other branch (`ci/*` must not be there).
-- [ ] The next merge into `main` shows up on GitHub within minutes; a pushed feature branch never does.
+      (2026-10-08: `main` at `d2d599c` and every tag matched; 34 ref lines each, peeled lines included;
+      `main` was the only branch on GitHub.)
+- [x] The next merge into `main` shows up on GitHub within minutes; a pushed feature branch never does.
+      (2026-10-08: `docs/ci-github-mirror` stayed off GitHub after the push; its merge moved `main` to
+      `a454b04` on both sides.)
 
-**Done when:** all three checks hold.
+**Done when:** all three checks hold. ✔
 
 ---
 
@@ -350,16 +354,29 @@ rulesets are active. ✔
 
 The acceptance test for the whole plan: a machine that has never seen `thinkcentre.home`.
 
-- [ ] In a fresh container of the `-r2` CI image (Flutter and rustup baked in, so this tests Lumen, not the
+- [x] In a fresh container of the `-r2` CI image (Flutter and rustup baked in, so this tests Lumen, not the
       toolchain install), on the default Docker network with **no** `extra_hosts`, no `~/.ssh`, empty
       `PUB_CACHE`/`CARGO_HOME`, and `GIT_SSH_COMMAND=false`:
       `getent hosts thinkcentre.home` fails; then
       `git clone https://github.com/fernando-navarrete/lumen.git && cd lumen &&
       flutter pub get --enforce-lockfile && flutter analyze --fatal-infos && flutter test &&
       flutter build linux`.
-- [ ] Also once on a host with fvm, following only the README's "Building from a clone" (a scratch user or a
+      (2026-10-08: the `-r2` image isn't on the laptop, so it was built here from a GitHub clone of
+      gogdl_flutter `v1.3.3` with `ci/build-image.sh`. `--dns 1.1.1.1 --dns 9.9.9.9`, because the laptop's
+      LAN DNS resolves `thinkcentre.home` and Docker copies it: `getent` fails in the container, `~/.ssh` is
+      empty, `GIT_SSH_COMMAND=false`. Cloned `a454b04`; `check_lockfile.sh`, `check_bridge_pin.sh`,
+      `pub get --enforce-lockfile`, `analyze --fatal-infos`, 362 tests and `build linux` all green. The
+      image has no `libsecret-1-dev`, so the script apt-installs it before the build: the bridge's image,
+      not Lumen's, so no fix.)
+- [x] Also once on a host with fvm, following only the README's "Building from a clone" (a scratch user or a
       distrobox), to catch a missing system package the image happens to have.
+      (A `debian:trixie-slim` container, non-root user, same DNS override: the README's packages, fvm and
+      rustup from their installers, then `fvm install`, `pub get`, `test` (362) and `build linux`: green.
+      The README didn't name `git`, `curl`, `unzip`, `xz-utils` and `ca-certificates`, which fvm, Flutter
+      and rustup need on a minimal system; added to "You need". I installed them up front, so I didn't
+      test them one by one.)
 - [ ] Any fix lands through an MR on GitLab, then this step is rerun.
+      (The README line above is the only fix. Rerun run 2 from GitHub once this merge reaches it, then tick this box and the table row.)
 
 **Done when:** both runs are green with no step outside the README.
 

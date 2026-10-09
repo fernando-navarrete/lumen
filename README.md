@@ -27,6 +27,8 @@ You need:
   first build. `pub get`, `analyze` and `test` need it too, even though tests never load the library.
 - The Linux desktop build tools: `clang`, `cmake`, `ninja`, `pkg-config`, and the GTK 3 and
   `libsecret-1` development packages (`libsecret` 0.18.4 or newer).
+- `git`, `curl`, `unzip`, `xz-utils` and `ca-certificates`, which fvm, Flutter and rustup use to
+  install themselves (a minimal Debian image has none of them).
 - To log in, a running Secret Service provider (GNOME Keyring or KWallet): the GOG token is stored
   in the keyring.
 - Network access to pub.dev, crates.io and github.com on the first build.
