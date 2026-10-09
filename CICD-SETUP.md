@@ -22,8 +22,8 @@ checkbox as it's done.
 | **1** | `ci/github-mirror` | 1–3 | `CI/CD: gogdl_flutter v1.3.3 from GitHub, no deploy key` | ✅ |
 | — | (settings) | 4 | Retire the deploy key | ✅ |
 | **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | ✅ |
-| **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | 🟦 |
-| — | (settings) | 10–11 | GitHub repo, GitLab push mirror | ⬜ |
+| **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | ✅ |
+| — | (settings) | 10–11 | GitHub repo, GitLab push mirror | 🟦 |
 | — | (none) | 12 | Clean-room clone from GitHub | ⬜ |
 | **4** | `docs/ci-github-mirror` | 13 | `Docs: GitHub mirror devlog, close out the plan` | ⬜ |
 
@@ -315,15 +315,22 @@ mirror runs.
 
 ### Step 10: GitHub side
 
-- [ ] Create `fernando-navarrete/lumen`: empty (no README, license or `.gitignore`), public. Issues,
+- [x] Create `fernando-navarrete/lumen`: empty (no README, license or `.gitignore`), public. Issues,
       Projects, Wiki, Discussions and Actions off.
-- [ ] Rulesets per D7: "Protect Main" (`refs/heads/main`) and "Tag Rules" (`refs/tags/v*`), restrict
+      (2026-10-08: public, size 0, default branch `main`; issues, projects, wiki and discussions off as
+      read from the API; Actions off confirmed in the UI.)
+- [x] Rulesets per D7: "Protect Main" (`refs/heads/main`) and "Tag Rules" (`refs/tags/v*`), restrict
       deletions, block force pushes, bypass: Repository admin.
-- [ ] Fine-grained token: `Contents: read and write` on `lumen` only, with an expiry. Record the expiry
+      (Created as "Protect main" (24766406) and "Protect tags" (24766408), both active, rules `deletion` +
+      `non_fast_forward`. The Repository admin bypass is confirmed in the UI; the unauthenticated API
+      doesn't show it.)
+- [x] Fine-grained token: `Contents: read and write` on `lumen` only, with an expiry. Record the expiry
       date here (gogdl_flutter didn't, and it's a GAPS line there).
+      (2026-10-08: generated with a 90-day expiry, so it expires on or about **2027-01-06**; check the exact
+      date on GitHub's token page. Not pasted anywhere yet; step 11 puts it in GitLab's mirror settings.)
 
 **Done when:** `git ls-remote https://github.com/fernando-navarrete/lumen.git` lists nothing and both
-rulesets are active.
+rulesets are active. ✔
 
 ### Step 11: GitLab push mirror
 
