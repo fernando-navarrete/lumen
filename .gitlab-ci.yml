@@ -7,6 +7,8 @@
 #                from outside pub.dev (or github.com/fernando-navarrete, the bridge), and `pub get --enforce-lockfile`
 #                fails if pubspec.lock is stale or a package's hash changed.
 #   test:        `flutter test`, same setup.
+#   secrets:     gitleaks over git history with .gitleaks.toml (default rules, no allowlist): an MR's own commits, or on a
+#                tag pipeline everything HEAD, the remote branches and the tags reach. Findings are redacted.
 #   bridge-lock: reads the gogdl_flutter commit pinned in pubspec.lock, fetches it and keeps its rust/Cargo.lock as an
 #                artifact. Most of the code that ships is that Rust, built by the Native Assets hook, so it is scanned too.
 #   scan:        OSV-Scanner on pubspec.lock and the bridge's Cargo.lock, minus the accepted findings in
@@ -114,6 +116,32 @@ test:
   rules: !reference [.not-on-schedule, rules]
   script:
     - flutter test
+
+# On an MR it scans only the MR's commits; on tags, what HEAD, the remote branches and the tags reach
+# (GIT_DEPTH 0: the diff base and the full scan both need every commit). Not `--all`: that also walks
+# GitLab's hidden refs/merge-requests/* and refs/pipelines/*, which outlive a closed MR. Findings are
+# redacted, so the report is safe to keep. Not scheduled: the image is pinned, so a weekly rerun would
+# find nothing new.
+secrets:
+  stage: lint
+  rules: !reference [.not-on-schedule, rules]
+  image:
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    entrypoint: [''] # the binary is gitleaks, on PATH
+    pull_policy: if-not-present
+  variables:
+    GIT_DEPTH: 0
+  cache: []
+  script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - |
+      range=""
+      if [ -n "${CI_MERGE_REQUEST_DIFF_BASE_SHA:-}" ]; then range="$CI_MERGE_REQUEST_DIFF_BASE_SHA..HEAD"; else range="HEAD --remotes --tags"; fi
+      gitleaks git . --config .gitleaks.toml --log-opts="$range" --redact --no-banner --exit-code 1 --report-format json --report-path gitleaks.json
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths: [gitleaks.json]
 
 bridge-lock:
   stage: scan

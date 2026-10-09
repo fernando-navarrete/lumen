@@ -19,9 +19,9 @@ checkbox as it's done.
 | MR | Branch | Steps | Title | Status |
 |---|---|---|---|---|
 | — | (none) | **0** | Decisions, blockers | ✅ |
-| **1** | `ci/github-mirror` | 1–3 | `CI/CD: gogdl_flutter v1.3.3 from GitHub, no deploy key` | 🟦 |
-| — | (settings) | 4 | Retire the deploy key | ⬜ |
-| **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | ⬜ |
+| **1** | `ci/github-mirror` | 1–3 | `CI/CD: gogdl_flutter v1.3.3 from GitHub, no deploy key` | ✅ |
+| — | (settings) | 4 | Retire the deploy key | ✅ |
+| **2** | `ci/secrets` | 5–7 | `CI/CD: secret scan, full-history audit` | 🟦 |
 | **3** | `ci/mirror-content` | 8–9 | `CI/CD: license, README, what the mirror shows` | ⬜ |
 | — | (settings) | 10–11 | GitHub repo, GitLab push mirror | ⬜ |
 | — | (none) | 12 | Clean-room clone from GitHub | ⬜ |
@@ -161,7 +161,7 @@ This plan is the branch's first commit. Title the MR by hand.
       itself.
 - [x] Locally, before pushing: `GIT_SSH_COMMAND=false fvm flutter pub get --enforce-lockfile` with an empty
       `PUB_CACHE` and `CARGO_HOME`, then `fvm flutter test`. Green means nothing reaches for ssh.
-- [ ] The MR pipeline is green with the variable still set (it's just unused now).
+- [x] The MR pipeline is green with the variable still set (it's just unused now).
 
 **Done when:** no job in `.gitlab-ci.yml` mentions `GOGDL_DEPLOY_KEY_B64`, ssh or `~/.ssh`, and the
 pipeline is green.
@@ -187,13 +187,15 @@ pipeline is green.
 
 Only after merge: an open MR branched before it still loads the key.
 
-- [ ] Rebase or merge `main` into any open branch (the `v1.4.0` MRs), so none still needs the key.
-- [ ] Delete the `GOGDL_DEPLOY_KEY_B64` variable in Lumen. Remove Lumen's deploy key from the
+- [x] Rebase or merge `main` into any open branch (the `v1.4.0` MRs), so none still needs the key.
+      (2026-10-08: `origin` has only `main`, nothing to rebase.)
+- [x] Delete the `GOGDL_DEPLOY_KEY_B64` variable in Lumen. Remove Lumen's deploy key from the
       `gogdl_flutter` project. Delete the private key wherever it was generated.
-- [ ] Play "Weekly scan" and "Renovate" (`SCHEDULE=renovate`) by hand: both green, and Renovate's log shows
+- [x] Play "Weekly scan" and "Renovate" (`SCHEDULE=renovate`) by hand: both green, and Renovate's log shows
       the pub manager resolving `pubspec.lock` with no ssh error.
-- [ ] `SECURITY.md`: delete "The deploy key" section; the rotation list loses `GOGDL_DEPLOY_KEY_B64`.
-      (Committed on MR 2's branch, ticked there.)
+      (2026-10-08: variable and deploy key removed; both scheduled pipelines green.)
+- [x] `SECURITY.md`: delete "The deploy key" section; the rotation list loses `GOGDL_DEPLOY_KEY_B64`.
+      (Committed as MR 2's first commit.)
 
 **Done when:** the variable and the deploy key are gone and the next MR pipeline is still green.
 
@@ -206,25 +208,40 @@ public repo has to be treated as leaked even if removed later.
 
 ### Step 5: Full-history secret audit
 
-- [ ] Run gogdl_flutter's pinned gitleaks image locally over everything:
+- [x] Run gogdl_flutter's pinned gitleaks image locally over everything:
       `gitleaks git . --log-opts="--all" --redact` (190+ commits, every branch, `origin/*`, all 30 tags).
-- [ ] Review every finding. Likely candidates: test fixtures for the auth token (`test/`), the keyring
+      (2026-10-08: `gitleaks:v8.30.1@sha256:c00b6bd0…`, repo mounted read-only, `--network none`:
+      **no leaks**. 194 commits on all refs, 186 non-merge; gitleaks reports 184 scanned because it only
+      counts commits with additions, and it walks `git log -p -U0 --all`, so every ref and tag is covered.
+      Only low-entropy `generic-api-key` candidates were skipped, none in a secret-shaped value.)
+- [x] Review every finding. Likely candidates: test fixtures for the auth token (`test/`), the keyring
       error strings (`lib/common/keyring_error.dart`), GOG client ids in code. A **real** secret means stop:
       rotate it, then decide history rewrite vs. not mirroring before anything else.
-- [ ] Also grep the history for things gitleaks doesn't flag: real GOG tokens or refresh tokens pasted in
+      (No findings to review. `clientId`/`clientSecret` appear only as parameter names in removed code.)
+- [x] Also grep the history for things gitleaks doesn't flag: real GOG tokens or refresh tokens pasted in
       test data, `.env` files, personal paths beyond `/home/fernando` (D9 covers the LAN details).
+      (2026-10-08, over `git log --all -p`: no `.env*`/key/cert/`*secret*`/`*token*` file ever added; no
+      `refresh_token`/`access_token`/`Bearer`/`client_secret` values; no token-like fixtures in `test/`; long
+      strings are only sha256 digests. The only personal path is `/home/fernando`, from the old
+      `path: /home/fernando/repo/gogdl_flutter` override, accepted like D9. Emails: the author's, already
+      public via gogdl_flutter, `noreply@anthropic.com` and `git@thinkcentre.home`.)
 
 **Done when:** no finding, or each one reviewed and recorded here as a false positive.
+**Result:** no findings, so step 6's `.gitleaks.toml` has no allowlist.
 
 ### Step 6: `.gitleaks.toml` and the `secrets` job
 
-- [ ] `.gitleaks.toml` from gogdl_flutter's: default rules; allowlist entries only for step 5's reviewed
+- [x] `.gitleaks.toml` from gogdl_flutter's: default rules; allowlist entries only for step 5's reviewed
       false positives, each narrow (`targetRules` + `paths`/`regexes`) with a comment.
-- [ ] `secrets` job from gogdl_flutter's (same image and digest, `GIT_DEPTH: 0`, MR range
+- [x] `secrets` job from gogdl_flutter's (same image and digest, `GIT_DEPTH: 0`, MR range
       `$CI_MERGE_REQUEST_DIFF_BASE_SHA..HEAD`, otherwise `HEAD --remotes --tags`, redacted JSON artifact).
       `.not-on-schedule` rules; stage `lint`. Header line for it.
-- [ ] `renovate.json`: the gitleaks image digest is covered by the `gitlabci` `pinDigests` rule already;
+      (2026-10-08: pinned gitleaks `v8.30.1`; locally `no leaks found` on `HEAD --remotes --tags`, 184 commits,
+      and on `main..HEAD`.)
+- [x] `renovate.json`: the gitleaks image digest is covered by the `gitlabci` `pinDigests` rule already;
       check that Renovate picks it up (no config change expected).
+      (No change made; the `gitlabci` rule is the same one that covers the OSV image. To confirm on the
+      next `SCHEDULE=renovate` run.)
 - [ ] Bite test: a fake `ghp_` token in a throwaway MR turns `secrets` red. Close it, delete the branch.
 
 **Done when:** `secrets` is green here and was red on the bite test.

@@ -17,7 +17,7 @@ requirements, CI details, etc.) is tracked for `v1.5.0`.
 
 GitLab CI runs on merge requests and `v*` tags: `lint` (`tool/check_bridge_pin.sh`, `dart format` and
 `flutter analyze --fatal-infos`),
-`test`, and a dependency scan (`bridge-lock`, `scan`, `scan-gate`: OSV-Scanner on `pubspec.lock` and the
+`test`, `secrets` (gitleaks over the merge request's commits, `.gitleaks.toml`), and a dependency scan (`bridge-lock`, `scan`, `scan-gate`: OSV-Scanner on `pubspec.lock` and the
 bridge's `Cargo.lock`). The scan also runs weekly on a pipeline schedule (`SCHEDULE=scan`). `main` is
 protected, so every change goes through a merge request. See `SECURITY.md` for the dependency rules.
 

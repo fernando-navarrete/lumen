@@ -1,0 +1,9 @@
+# gitleaks config for the `secrets` CI job (see .gitlab-ci.yml).
+# The default rules only. The full-history audit of 2026-10-08 (194 commits, all refs: every branch and
+# all 30 tags) found nothing, so there is no allowlist.
+# If a false positive turns up, add a narrow [[allowlists]] entry (targetRules + paths or regexes)
+# with a comment saying why it is safe; never a blanket path.
+title = "lumen"
+
+[extend]
+useDefault = true
