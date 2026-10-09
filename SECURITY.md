@@ -19,8 +19,10 @@ A new pub package has to meet all of these:
 - **A dev dependency** unless the app needs it at runtime.
 
 In the MR, list the new packages (direct and transitive) and skim the `pubspec.lock` diff; the MR template has a
-checkbox for it. CI then checks that every package in `pubspec.lock` comes from pub.dev with a sha256 (or from the
-`gogdl` group on `thinkcentre.home`), resolves with `--enforce-lockfile`, and scans the lockfile.
+checkbox for it. CI then checks that every package in `pubspec.lock` comes from pub.dev with a sha256 (or, for a git
+package, from `https://github.com/fernando-navarrete/`), resolves with `--enforce-lockfile`, and scans the lockfile.
+`lint` also runs `tool/check_bridge_pin.sh`: `gogdl_flutter` must be pinned by a `vX.Y.Z` tag that GitHub has at the
+locked commit. A git dependency reachable only over the LAN is not allowed.
 
 ## What `scan` gates
 

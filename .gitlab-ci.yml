@@ -1,9 +1,10 @@
 # CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor) — see
 # devlog/v1.1.0-foundation.md Phase 0/8. Pipelines run for merge requests and `v*` tags, never for a plain branch
 # push or a push to main (main only receives a tree an MR pipeline already tested; see devlog/ci-cd-merge-requests.md).
-#   lint:        `dart format` check on lib, test and tool, then `flutter analyze --fatal-infos` (the rules are in
+#   lint:        tool/check_bridge_pin.sh first (the gogdl_flutter tag pinned in pubspec.lock is on its GitHub mirror at the
+#                locked SHA), then the `dart format` check on lib, test and tool, then `flutter analyze --fatal-infos` (the rules are in
 #                analysis_options.yaml). Before `pub get`, tool/check_lockfile.sh fails on a package in pubspec.lock
-#                from outside pub.dev (or the gogdl group on thinkcentre.home), and `pub get --enforce-lockfile`
+#                from outside pub.dev (or github.com/fernando-navarrete, the bridge), and `pub get --enforce-lockfile`
 #                fails if pubspec.lock is stale or a package's hash changed.
 #   test:        `flutter test`, same setup.
 #   bridge-lock: reads the gogdl_flutter commit pinned in pubspec.lock, fetches it and keeps its rust/Cargo.lock as an
@@ -20,20 +21,16 @@
 #   renovate:    only on the SCHEDULE=renovate schedule. Opens one grouped minor/patch dependency MR per renovate.json.
 #                RENOVATE_TOKEN (a masked project access token with api + write_repository, role Developer) and
 #                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
-#                variables scoped to the `renovate` environment, so no other job sees them. It also writes the deploy
-#                key, because updating pubspec.lock re-resolves the SSH-only gogdl_flutter. Renovate exits 0 even when it
+#                variables scoped to the `renovate` environment, so no other job sees them. Renovate exits 0 even when it
 #                gives up on the repository, so the job also fails on "Temporary error" or an error result in its log.
 #   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
-# `gogdl_flutter` is a private git dependency reachable only over the LAN
-# (ssh://git@thinkcentre.home:2200). `pub get` and bridge-lock authenticate with a read-only SSH deploy key stored
-# base64-encoded (single line, no whitespace — GitLab's "File" variable type mangled the raw multi-line PEM on paste)
-# as the `GOGDL_DEPLOY_KEY_B64` variable (Settings -> CI/CD -> Variables in this project, Type: Variable, masked,
-# NOT protected: MR pipelines run on unprotected branches and would fail at `pub get` otherwise; see SECURITY.md).
-# Its public half must be added as a deploy key on the gogdl_flutter project.
+# `gogdl_flutter` is a git dependency fetched from its public GitHub mirror over HTTPS
+# (https://github.com/fernando-navarrete/gogdl_flutter), and so is its `gogdl-lib`: no key, no ssh and no git CLI
+# setting, so CI proves that a clone builds anywhere.
 #
-# If a job fails to resolve thinkcentre.home, the runner's containers aren't
-# seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
+# The runner still needs thinkcentre.home to reach GitLab itself. If a job fails to resolve it, the runner's
+# containers aren't seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
 # Fix it in /etc/gitlab-runner/config.toml under [runners.docker]:
 #   extra_hosts = ["thinkcentre.home:192.168.8.234"]
 # then restart the runner (`sudo gitlab-runner restart`).
@@ -67,39 +64,13 @@ variables:
 # changes, keeping it in step with the gogdl_flutter tag pinned in pubspec.yaml.
 .ci-image:
   image:
-    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0
+    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r2
     pull_policy: if-not-present
-
-.deploy-key:
-  before_script:
-    # SSH access to gogdl_flutter via the base64-encoded deploy key variable.
-    - mkdir -p ~/.ssh
-    - echo "$GOGDL_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/gogdl_deploy_key
-    - chmod 600 ~/.ssh/gogdl_deploy_key
-    - eval "$(ssh-agent -s)"
-    - ssh-add ~/.ssh/gogdl_deploy_key
-    - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
-    # The Native Assets hook runs cargo with a scrubbed environment (only HOME
-    # and PATH), so SSH_AUTH_SOCK never reaches it and cargo's built-in git
-    # client can't use the agent to clone gogdl-lib. Give it file-based config
-    # instead: the system git CLI reads ~/.ssh/config, and cargo is told to use it.
-    - |
-      cat > ~/.ssh/config <<EOF
-      Host thinkcentre.home
-        Port 2200
-        User git
-        IdentityFile ~/.ssh/gogdl_deploy_key
-        IdentitiesOnly yes
-      EOF
-    - chmod 600 ~/.ssh/config
-    - mkdir -p ~/.cargo
-    - printf '[net]\ngit-fetch-with-cli = true\n' >> ~/.cargo/config.toml
 
 .flutter:
   extends: .ci-image
   before_script:
-    - !reference [.deploy-key, before_script]
-    - sh tool/check_lockfile.sh # before pub get, so nothing outside pub.dev is ever fetched
+    - sh tool/check_lockfile.sh # before pub get, so nothing outside pub.dev and the bridge's mirror is ever fetched
     - flutter --version
     - flutter pub get --enforce-lockfile
   cache:
@@ -128,6 +99,9 @@ variables:
 lint:
   stage: lint
   extends: .flutter
+  before_script:
+    - sh tool/check_bridge_pin.sh # cheap, reads github.com only: the pinned bridge tag is on the mirror at the locked SHA
+    - !reference [.flutter, before_script]
   rules: !reference [.not-on-schedule, rules]
   script:
     # Cheap first; `dart format lib test tool` fixes it, the analyzer needs a code change.
@@ -146,12 +120,11 @@ bridge-lock:
   extends: .ci-image
   rules: !reference [.scan-rules, rules]
   cache: []
-  before_script:
-    - !reference [.deploy-key, before_script]
   script:
-    # The bridge's own lockfile at the exact commit pubspec.lock pins (no pub get, no cargo).
+    # The bridge's own lockfile at the exact commit pubspec.lock pins, fetched from its GitHub mirror over HTTPS
+    # (no pub get, no cargo).
     - |
-      ref=$(awk '/^  gogdl_flutter:/{f=1} f&&/resolved-ref:/{print $2; exit}' pubspec.lock)
+      ref=$(awk '/^  gogdl_flutter:/{f=1} f&&/resolved-ref:/{gsub(/"/, "", $2); print $2; exit}' pubspec.lock)
       url=$(awk '/^  gogdl_flutter:/{f=1} f&&/^      url:/{gsub(/"/, "", $2); print $2; exit}' pubspec.lock)
       [ -n "$ref" ] && [ -n "$url" ] || { echo "gogdl_flutter's resolved-ref/url not found in pubspec.lock"; exit 1; }
       echo "gogdl_flutter $ref"
@@ -191,7 +164,7 @@ scan-gate:
   needs: [scan]
   cache: []
   script:
-    - dart tool/osv_gate.dart osv-scanner.json # reads only the artifact: no pub get, no deploy key
+    - dart tool/osv_gate.dart osv-scanner.json # reads only the artifact: no pub get
 
 renovate:
   stage: scan
@@ -210,28 +183,15 @@ renovate:
     RENOVATE_ONBOARDING: 'false'
     RENOVATE_REQUIRE_CONFIG: required
     LOG_LEVEL: info
-  before_script:
-    # File-based SSH config (no ssh-agent): Renovate's child processes keep HOME, and `pub upgrade` needs to reach
-    # gogdl_flutter over ssh://thinkcentre.home:2200 to re-resolve pubspec.lock.
-    - mkdir -p ~/.ssh
-    - echo "$GOGDL_DEPLOY_KEY_B64" | base64 -d > ~/.ssh/gogdl_deploy_key
-    - chmod 600 ~/.ssh/gogdl_deploy_key
-    - ssh-keyscan -p 2200 thinkcentre.home >> ~/.ssh/known_hosts 2>/dev/null
-    - |
-      cat > ~/.ssh/config <<EOF
-      Host thinkcentre.home
-        Port 2200
-        User git
-        IdentityFile ~/.ssh/gogdl_deploy_key
-        IdentitiesOnly yes
-      EOF
-    - chmod 600 ~/.ssh/config
   script:
-    # thinkcentre.home uses a private CA: the runner's tls-ca-file covers Node (Renovate) and git.
+    # thinkcentre.home uses a private CA: the runner's tls-ca-file covers Node (Renovate) and git (for that host only).
     - '[ -n "$RENOVATE_TOKEN" ] || { echo "RENOVATE_TOKEN is not set (protected, environment scope renovate)"; exit 1; }'
     - |
       if [ -n "$CI_SERVER_TLS_CA_FILE" ]; then
-        export NODE_EXTRA_CA_CERTS="$CI_SERVER_TLS_CA_FILE" GIT_SSL_CAINFO="$CI_SERVER_TLS_CA_FILE"
+        export NODE_EXTRA_CA_CERTS="$CI_SERVER_TLS_CA_FILE"
+        # Scoped to the GitLab host: GIT_SSL_CAINFO would replace git's CA bundle for every host, and `pub upgrade`
+        # now fetches gogdl_flutter from github.com over HTTPS.
+        git config --global "http.$CI_SERVER_URL/.sslCAInfo" "$CI_SERVER_TLS_CA_FILE"
       fi
       { renovate 2>&1; echo $? > renovate.rc; } | tee renovate.log
       # Renovate exits 0 when it gives up on a repository (e.g. "Temporary error - aborting" for a token without

@@ -2,7 +2,7 @@
 # Lockfile integrity check, run in CI before `flutter pub get` so a package from anywhere unexpected is never
 # fetched. Reads pubspec.lock (or the file given as $1) and fails when:
 #   - a hosted package isn't from https://pub.dev, or has no sha256;
-#   - a git package isn't from ssh://git@thinkcentre.home:2200/gogdl/ (the bridge);
+#   - a git package isn't from https://github.com/fernando-navarrete/ (the bridge's public mirror);
 #   - any source other than hosted, git or sdk (the Flutter SDK's own packages) appears.
 # `flutter pub get --enforce-lockfile` then guarantees pub resolves to exactly these entries.
 set -eu
@@ -17,7 +17,7 @@ function check() {
     if (url != "\"https://pub.dev\"") print name ": hosted outside pub.dev: " url
     else if (sha == "") print name ": hosted package has no sha256"
   } else if (source == "git") {
-    if (index(url, "\"ssh://git@thinkcentre.home:2200/gogdl/") != 1) print name ": git source outside the gogdl group: " url
+    if (index(url, "\"https://github.com/fernando-navarrete/") != 1) print name ": git source outside github.com/fernando-navarrete: " url
   } else if (source != "sdk") {
     print name ": unexpected source \"" source "\""
   }

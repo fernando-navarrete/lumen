@@ -73,11 +73,14 @@ bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes (and `co
 `renovate.json` when `.fvmrc` changes).
 
 CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs for merge requests and
-`v*` tags — not for branch pushes or pushes to `main`. `lint` runs `dart format --output=none
---set-exit-if-changed lib test tool` and `flutter analyze --fatal-infos` (the rules live in
-`analysis_options.yaml`); `test` runs `flutter test`. Both first run `tool/check_lockfile.sh` (every
-package in `pubspec.lock` comes from pub.dev or the `gogdl` group on `thinkcentre.home`) and
-`flutter pub get --enforce-lockfile`. `bridge-lock` exports the pinned `gogdl_flutter`'s
+`v*` tags — not for branch pushes or pushes to `main`. `lint` first runs `tool/check_bridge_pin.sh`
+(`gogdl_flutter` is pinned by a `vX.Y.Z` tag that its GitHub mirror has at the locked `resolved-ref`),
+then `dart format --output=none --set-exit-if-changed lib test tool` and `flutter analyze
+--fatal-infos` (the rules live in `analysis_options.yaml`); `test` runs `flutter test`. Both first
+run `tool/check_lockfile.sh` (every package in `pubspec.lock` comes from pub.dev, or is a git package
+from `https://github.com/fernando-navarrete/` — the only git source allowed) and
+`flutter pub get --enforce-lockfile`. CI fetches `gogdl_flutter` and its `gogdl-lib` from GitHub over
+HTTPS with no key, so it proves a clone builds without LAN access. `bridge-lock` exports the pinned `gogdl_flutter`'s
 `rust/Cargo.lock`, `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
 (accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
 on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline

@@ -9,14 +9,14 @@ commands with `fvm` (e.g. `fvm flutter pub get`, `fvm flutter run -d linux`), no
 `flutter`/`dart` binaries.
 
 Game library, download and Proton-GE logic come from the `gogdl_flutter` Rust bridge package,
-fetched over SSH from `ssh://git@thinkcentre.home:2200/gogdl/gogdl_flutter.git` (see
-`pubspec.yaml`). Building this project therefore currently requires LAN access to
-`thinkcentre.home` plus an SSH key authorized on it. A full README rewrite (system requirements,
-CI details, etc.) is tracked for `v1.5.0`.
+fetched over HTTPS from its public GitHub mirror, `https://github.com/fernando-navarrete/gogdl_flutter.git`
+(see `pubspec.yaml`), so no SSH key or LAN access is needed. A full README rewrite (system
+requirements, CI details, etc.) is tracked for `v1.5.0`.
 
 ## Checks
 
-GitLab CI runs on merge requests and `v*` tags: `lint` (`dart format` and `flutter analyze --fatal-infos`),
+GitLab CI runs on merge requests and `v*` tags: `lint` (`tool/check_bridge_pin.sh`, `dart format` and
+`flutter analyze --fatal-infos`),
 `test`, and a dependency scan (`bridge-lock`, `scan`, `scan-gate`: OSV-Scanner on `pubspec.lock` and the
 bridge's `Cargo.lock`). The scan also runs weekly on a pipeline schedule (`SCHEDULE=scan`). `main` is
 protected, so every change goes through a merge request. See `SECURITY.md` for the dependency rules.
