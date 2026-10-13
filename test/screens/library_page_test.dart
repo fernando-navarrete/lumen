@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/game_card.dart';
 import 'package:lumen/components/hero_banner.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/screens/home/pages/library/library_page.dart';
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/home_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
@@ -240,6 +242,102 @@ void main() {
 
     expect(find.text("Couldn't refresh your library."), findsOneWidget);
     expect(find.byType(GameCard), findsOneWidget);
+  });
+
+  group('status filters', () {
+    const games =
+        '{"version": 3, "games": {'
+        '"1": {"status": "downloaded", "selectedBuild": "1", "installPath": "/g1"}, '
+        '"2": {"status": "downloading", "selectedBuild": "1", "pendingInstallPath": "/g2"}, '
+        '"3": {"status": "paused", "selectedBuild": "1", "pendingInstallPath": "/g3"}}}';
+
+    Future<ProviderContainer> pumpLibrary(
+      WidgetTester tester, {
+      Map<String, Object> prefs = const {'games': games},
+    }) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1, 2, 3, 4]
+        ..titles.addAll({1: 'One', 2: 'Two', 3: 'Three', 4: 'Four'});
+      final container = await pumpApp(
+        tester,
+        const LibraryPage(),
+        backend: backend,
+        prefs: prefs,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+      return container;
+    }
+
+    Future<void> choose(WidgetTester tester, String chip) async {
+      await tester.tap(find.text(chip));
+      await tester.pump();
+    }
+
+    testWidgets('each chip matches its own statuses', (tester) async {
+      await pumpLibrary(tester);
+      expect(find.text('4 games'), findsOneWidget);
+
+      await choose(tester, 'Installed');
+      expect(find.text('1 games'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'One'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'Two'), findsNothing);
+
+      await choose(tester, 'Installing');
+      expect(find.text('2 games'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'Two'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'Three'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'One'), findsNothing);
+
+      await choose(tester, 'Not installed');
+      expect(find.text('1 games'), findsOneWidget);
+      expect(find.widgetWithText(GameCard, 'Four'), findsOneWidget);
+    });
+
+    testWidgets('the Installing chip appears with an installing game', (
+      tester,
+    ) async {
+      final container = await pumpLibrary(
+        tester,
+        prefs: const {
+          'games':
+              '{"version": 3, "games": {"1": {"status": "downloaded", '
+              '"selectedBuild": "1", "installPath": "/g1"}, "2": {"status": "notInstalled", "selectedBuild": "1"}}}',
+        },
+      );
+      expect(find.text('Installing'), findsNothing);
+
+      container
+          .read(gamesStateProvider.notifier)
+          .setGameStatus(2, GameStatus.downloading);
+      await tester.pump();
+      expect(find.text('Installing'), findsWidgets);
+    });
+
+    testWidgets('a selected Installing chip that disappears resets to All', (
+      tester,
+    ) async {
+      final container = await pumpLibrary(
+        tester,
+        prefs: const {
+          'games':
+              '{"version": 3, "games": {"2": {"status": "paused", '
+              '"selectedBuild": "1", "pendingInstallPath": "/g2"}}}',
+        },
+      );
+      await choose(tester, 'Installing');
+      expect(find.text('1 games'), findsOneWidget);
+
+      container
+          .read(gamesStateProvider.notifier)
+          .setGameStatus(2, GameStatus.downloaded);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Installing'), findsNothing);
+      expect(find.text('4 games'), findsOneWidget);
+    });
   });
 
   group('update badge', () {

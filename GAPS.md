@@ -310,8 +310,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   Fixed in `v1.4.0`: empty state, clearer labels, Select all / Select none.
 - [ ] **P2 — Keyboard and accessibility.** `ClickableContainer` is a bare `GestureDetector`, so it has
   no focus, keyboard activation or semantics. Use `InkWell`/`FocusableActionDetector`.
-- [ ] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
+- [x] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
   (`library_page.dart:61`). Consider a separate "Installing" state or chip.
+  Fixed in `v1.4.3`: "Installed" matches only `downloaded`; a new "Installing" chip matches
+  `downloading` and `paused` and shows only while a game is in one of those states (a selected chip
+  that disappears falls back to "All").
 
 - [ ] **P2 — Move off the bridge's deprecated getters before `gogdl_flutter` v1.5.0.** Lumen still
   calls `getGameBoxartLink`/`getBackgroundImageLink` (replace with `getGameLinks`, one request per

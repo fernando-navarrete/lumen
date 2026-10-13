@@ -118,7 +118,7 @@ Follow-up patches (`v1.2.1+`), one per tag:
 Follow-up patches (`v1.4.1+`), one per tag:
 1. ✅ `v1.4.1`: stop untitled games taking grid slots and counting toward "N games" (§5).
 2. ✅ `v1.4.2`: use `BoxFit.cover` and `cacheWidth` for screenshots (§5).
-3. `v1.4.3`: add a separate "Installing" state in library filters (§6).
+3. ✅ `v1.4.3`: add a separate "Installing" state in library filters (§6).
 
 ## v1.5.0 — UI polish and packaging
 
