@@ -32,21 +32,21 @@ class LibraryPage extends ConsumerWidget {
   }
 }
 
-enum _LibraryFilter { all, installed, notInstalled }
+enum _LibraryFilter { all, installed, installing, notInstalled }
 
 extension _LibraryFilterLabel on _LibraryFilter {
   String get label => switch (this) {
     _LibraryFilter.all => 'All',
     _LibraryFilter.installed => 'Installed',
+    _LibraryFilter.installing => 'Installing',
     _LibraryFilter.notInstalled => 'Not installed',
   };
 
   bool matches(GameStatus status) => switch (this) {
     _LibraryFilter.all => true,
-    _LibraryFilter.installed =>
-      status == GameStatus.downloaded ||
-          status == GameStatus.downloading ||
-          status == GameStatus.paused,
+    _LibraryFilter.installed => status == GameStatus.downloaded,
+    _LibraryFilter.installing =>
+      status == GameStatus.downloading || status == GameStatus.paused,
     _LibraryFilter.notInstalled => status == GameStatus.notInstalled,
   };
 }
@@ -111,6 +111,15 @@ class _GameGridState extends ConsumerState<_GameGrid> {
     final gogState = ref.watch(gogStateProvider);
     final gamesState = ref.watch(gamesStateProvider);
     final String query = ref.watch(librarySearchProvider).trim().toLowerCase();
+
+    // The Installing chip only exists while something is installing; a
+    // selected chip that disappears falls back to All.
+    final bool anyInstalling = ownedGames.any(
+      (id) => _LibraryFilter.installing.matches(gamesState.getGameStatus(id)),
+    );
+    if (_filter == _LibraryFilter.installing && !anyInstalling) {
+      _filter = _LibraryFilter.all;
+    }
 
     // Indices surviving the search field and the status filter chips.
     final List<int> visible = [
@@ -192,15 +201,16 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                     Text('Your library', style: AppText.sectionTitle),
                     const SizedBox(width: 2),
                     for (final filter in _LibraryFilter.values)
-                      ChipButton(
-                        label: filter.label,
-                        selected: _filter == filter,
-                        onTap: () {
-                          setState(() {
-                            _filter = filter;
-                          });
-                        },
-                      ),
+                      if (filter != _LibraryFilter.installing || anyInstalling)
+                        ChipButton(
+                          label: filter.label,
+                          selected: _filter == filter,
+                          onTap: () {
+                            setState(() {
+                              _filter = filter;
+                            });
+                          },
+                        ),
                     const Spacer(),
                     Text(
                       '${visible.length} games',
