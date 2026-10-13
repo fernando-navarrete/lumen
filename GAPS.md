@@ -286,6 +286,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
   (`library_page.dart:61`). Consider a separate "Installing" state or chip.
 
+- [ ] **P2 — Move off the bridge's deprecated getters before `gogdl_flutter` v1.5.0.** Lumen still
+  calls `getGameBoxartLink`/`getBackgroundImageLink` (replace with `getGameLinks`, one request per
+  game) and `getProtonReleases` (replace with `getProtonReleasePage`, whose `hasMore` stops a fully
+  filtered page looking like the end of the list). The bridge's `@Deprecated` isn't generated, so the
+  analyzer won't warn: v1.5.0 removes them and the build breaks.
+
 ## 7. Testing, tooling and docs
 
 - [x] **P0 — No tests at all.** Fixed in `v1.1.0`: 102 tests under `test/`, built against a fake

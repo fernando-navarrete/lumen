@@ -5,6 +5,7 @@ import 'package:lumen/components/hero_banner.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/text_styles.dart';
@@ -45,53 +46,49 @@ class GameHeader extends ConsumerWidget {
         gamesState.getProtonVersion(gameId) ??
         ref.watch(protonStateProvider).defaultVersion;
 
-    return FutureBuilder<String?>(
-      future: gogState.getGameName(gameId),
-      builder: (context, snapshot) {
-        return HeroBanner(
-          imageUrl: gogState.getGameBackgroundLink(gameId),
-          title: snapshot.data ?? 'Loading...',
-          metaChildren: [
-            Text(
-              statusLabel,
-              style: AppText.meta(color: statusColor, weight: FontWeight.w600),
-            ),
-            if (buildVersion != null && buildVersion.isNotEmpty)
-              Text(buildVersion, style: AppText.meta()),
-            if (proton != null)
-              Row(
-                spacing: 6,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Text(proton, style: AppText.meta()),
-                ],
-              ),
-          ],
-          actions: [
-            GameActionButtons(
-              gameId: gameId,
-              large: true,
-              onSelectBuild: onSelectBuild,
-            ),
-            if (onConfigure != null)
-              PrimaryButton(
-                onTap: onConfigure!,
-                large: true,
-                child: Text(
-                  "Configure",
-                  style: AppText.button(color: Colors.white),
+    final String? title = ref.watch(gameTitleProvider(gameId)).value;
+    return HeroBanner(
+      imageUrl: gogState.getGameBackgroundLink(gameId),
+      title: title ?? 'Loading...',
+      metaChildren: [
+        Text(
+          statusLabel,
+          style: AppText.meta(color: statusColor, weight: FontWeight.w600),
+        ),
+        if (buildVersion != null && buildVersion.isNotEmpty)
+          Text(buildVersion, style: AppText.meta()),
+        if (proton != null)
+          Row(
+            spacing: 6,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
                 ),
               ),
-          ],
-        );
-      },
+              Text(proton, style: AppText.meta()),
+            ],
+          ),
+      ],
+      actions: [
+        GameActionButtons(
+          gameId: gameId,
+          large: true,
+          onSelectBuild: onSelectBuild,
+        ),
+        if (onConfigure != null)
+          PrimaryButton(
+            onTap: onConfigure!,
+            large: true,
+            child: Text(
+              "Configure",
+              style: AppText.button(color: Colors.white),
+            ),
+          ),
+      ],
     );
   }
 }

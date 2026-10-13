@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lumen/components/centered_loader.dart';
+import 'package:lumen/components/game_card.dart';
 import 'package:lumen/screens/home/pages/library/library_page.dart';
 
 import '../helpers/fake_gog_backend.dart';
@@ -57,5 +61,70 @@ void main() {
 
     expect(find.text('A Great Game'), findsWidgets);
     expect(backend.callsTo('getOwnedGames'), hasLength(2));
+  });
+
+  testWidgets('a failed title leaves the other cards shown', (tester) async {
+    final backend = FakeGogBackend()
+      ..ownedGames = [1, 2]
+      ..titles[2] = 'Two';
+    backend.delayOn['getGameTitle'] = (args) async {
+      if (args['gameId'] == 1) throw Exception('boom');
+    };
+
+    await pumpApp(tester, const LibraryPage(), backend: backend);
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(GameCard), findsOneWidget);
+    expect(find.text('Two'), findsWidgets);
+  });
+
+  testWidgets('Refresh keeps the grid visible, then shows the new game', (
+    tester,
+  ) async {
+    final backend = FakeGogBackend()
+      ..ownedGames = [1]
+      ..titles[1] = 'One'
+      ..titles[2] = 'Two';
+    await pumpApp(tester, const LibraryPage(), backend: backend);
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(GameCard), findsOneWidget);
+
+    final gate = Completer<void>();
+    backend.delayOn['getOwnedGames'] = (_) => gate.future;
+    backend.ownedGames = [1, 2];
+    await tester.tap(find.text('Refresh'));
+    await tester.pump();
+
+    expect(find.byType(GameCard), findsOneWidget);
+    expect(find.byType(CenteredLoader), findsNothing);
+
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(GameCard), findsNWidgets(2));
+  });
+
+  testWidgets('a failed Refresh keeps the grid and shows a snackbar', (
+    tester,
+  ) async {
+    final backend = FakeGogBackend()
+      ..ownedGames = [1]
+      ..titles[1] = 'One';
+    await pumpApp(tester, const LibraryPage(), backend: backend);
+    await tester.pump();
+    await tester.pump();
+
+    backend.throwOn['getOwnedGames'] = Exception('boom');
+    await tester.tap(find.text('Refresh'));
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text("Couldn't refresh your library."), findsOneWidget);
+    expect(find.byType(GameCard), findsOneWidget);
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/components/tab_button.dart';
 import 'package:lumen/screens/home/pages/library/builds_tab.dart';
@@ -7,24 +8,14 @@ import 'package:lumen/screens/home/pages/library/game_settings_tab.dart';
 import 'package:lumen/screens/home/pages/library/overview_tab.dart';
 import 'package:lumen/screens/home/pages/library/products_tab.dart';
 import 'package:lumen/screens/home/pages/library/saves_tab.dart';
+import 'package:lumen/state/home_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
-enum SelectedTab { overview, builds, settings, dlc, saves }
-
-extension SelectedTabLabel on SelectedTab {
-  String get label => switch (this) {
-    SelectedTab.overview => 'Overview',
-    SelectedTab.builds => 'Builds',
-    SelectedTab.dlc => 'DLC',
-    SelectedTab.saves => 'Saves',
-    SelectedTab.settings => 'Settings',
-  };
-}
-
 /// Detail view for one game: back button, header banner and the info tabs.
-class GameDetailsView extends StatefulWidget {
+/// The showing tab lives in [librarySelectionProvider].
+class GameDetailsView extends ConsumerWidget {
   const GameDetailsView({
     super.key,
     required this.gameId,
@@ -35,22 +26,10 @@ class GameDetailsView extends StatefulWidget {
   final VoidCallback goBack;
 
   @override
-  State<GameDetailsView> createState() => _GameDetailsViewState();
-}
-
-class _GameDetailsViewState extends State<GameDetailsView> {
-  SelectedTab _selectedTab = SelectedTab.overview;
-
-  @override
-  void didUpdateWidget(covariant GameDetailsView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.gameId != widget.gameId) {
-      _selectedTab = SelectedTab.overview;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedTab =
+        ref.watch(librarySelectionProvider)?.tab ?? SelectedTab.overview;
+    final selectTab = ref.read(librarySelectionProvider.notifier).selectTab;
     final size = MediaQuery.of(context).size;
     return Container(
       padding: EdgeInsets.symmetric(
@@ -62,38 +41,24 @@ class _GameDetailsViewState extends State<GameDetailsView> {
         children: [
           Row(
             children: [
-              _BackPill(onTap: widget.goBack),
+              _BackPill(onTap: goBack),
               const Expanded(child: SizedBox()),
             ],
           ),
           const SizedBox(height: AppSpacing.md),
           GameHeader(
-            gameId: widget.gameId,
-            onConfigure: () {
-              setState(() {
-                _selectedTab = SelectedTab.settings;
-              });
-            },
-            onSelectBuild: () {
-              setState(() {
-                _selectedTab = SelectedTab.builds;
-              });
-            },
+            gameId: gameId,
+            onConfigure: () => selectTab(SelectedTab.settings),
+            onSelectBuild: () => selectTab(SelectedTab.builds),
           ),
           const SizedBox(height: AppSpacing.lg),
           Expanded(
             child: _GameTabs(
-              gameId: widget.gameId,
-              selectedTab: _selectedTab,
-              onOpenSaves: () =>
-                  setState(() => _selectedTab = SelectedTab.saves),
-              onUninstalled: () =>
-                  setState(() => _selectedTab = SelectedTab.overview),
-              onTabSelected: (tab) {
-                setState(() {
-                  _selectedTab = tab;
-                });
-              },
+              gameId: gameId,
+              selectedTab: selectedTab,
+              onOpenSaves: () => selectTab(SelectedTab.saves),
+              onUninstalled: () => selectTab(SelectedTab.overview),
+              onTabSelected: selectTab,
             ),
           ),
         ],

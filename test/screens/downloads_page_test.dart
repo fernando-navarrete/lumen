@@ -2,7 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    hide
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:lumen/screens/home/pages/downloads_page.dart';
 import 'package:lumen/state/downloads_state.dart';
 

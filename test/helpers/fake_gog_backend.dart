@@ -1,10 +1,16 @@
 import 'dart:async';
 
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    hide
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/install_size.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 
@@ -54,6 +60,10 @@ class FakeGogBackend implements GogBackend {
   final Map<int, List<DownloadableProduct>> products = {};
   List<ProtonRelease> protonReleases = [];
   InstallSize installSize = const InstallSize(downloadBytes: 0, diskBytes: 0);
+  ProductRemoval productRemoval = const ProductRemoval(
+    filesRemoved: 0,
+    bytesFreed: 0,
+  );
   int freeSpace = 0;
 
   /// Set by [setTokenRefreshCallback]; call it in a test to simulate the
@@ -64,6 +74,12 @@ class FakeGogBackend implements GogBackend {
   /// Keyed by method name (e.g. `'getOwnedGames'`); the error to throw
   /// instead of returning/emitting normally.
   final Map<String, Object> throwOn = {};
+
+  /// Keyed by method name (`'getOwnedGames'`, `'getGameTitle'`); awaited
+  /// after the call is recorded and before it returns or throws, so a test
+  /// can hold calls open and count how many are in flight.
+  final Map<String, Future<void> Function(Map<String, Object?> args)> delayOn =
+      {};
 
   // ---- Call log ----
   final List<FakeCall> calls = [];
@@ -192,6 +208,7 @@ class FakeGogBackend implements GogBackend {
   @override
   Future<List<int>> getOwnedGames() async {
     _record('getOwnedGames');
+    await delayOn['getOwnedGames']?.call(const {});
     _maybeThrow('getOwnedGames');
     return ownedGames;
   }
@@ -199,6 +216,7 @@ class FakeGogBackend implements GogBackend {
   @override
   Future<String> getGameTitle(int gameId) async {
     _record('getGameTitle', {'gameId': gameId});
+    await delayOn['getGameTitle']?.call({'gameId': gameId});
     _maybeThrow('getGameTitle');
     return titles[gameId] ?? '';
   }
@@ -264,6 +282,32 @@ class FakeGogBackend implements GogBackend {
     });
     _maybeThrow('getInstallSize');
     return installSize;
+  }
+
+  @override
+  Future<ProductRemoval> removeProducts({
+    required int gameId,
+    required String path,
+    required String buildName,
+    required List<int> keep,
+    required List<int> remove,
+  }) async {
+    _record('removeProducts', {
+      'gameId': gameId,
+      'path': path,
+      'buildName': buildName,
+      'keep': keep,
+      'remove': remove,
+    });
+    await delayOn['removeProducts']?.call({'gameId': gameId});
+    _maybeThrow('removeProducts');
+    return productRemoval;
+  }
+
+  @override
+  Future<void> clearCache() async {
+    _record('clearCache');
+    _maybeThrow('clearCache');
   }
 
   @override

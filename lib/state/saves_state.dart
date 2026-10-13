@@ -128,8 +128,10 @@ class SavesState {
 /// bridge streams are single-subscription, so nothing else may listen to
 /// them.
 class SavesNotifier extends Notifier<SavesState> {
-  late final GogState _gogState;
-  late final GamesNotifier _gamesNotifier;
+  // Not `final`: `Account.signOut` invalidates this provider, and Riverpod
+  // reuses the notifier instance when it rebuilds `build()`.
+  late GogState _gogState;
+  late GamesNotifier _gamesNotifier;
 
   @override
   SavesState build() {
@@ -144,7 +146,7 @@ class SavesNotifier extends Notifier<SavesState> {
 
   // Throttles progress-event emits to ~10Hz with a trailing flush, the same
   // way `DownloadsNotifier` does — see lib/state/emit_throttle.dart.
-  late final ThrottledTaskBuffer<int, SaveTask> _buffer;
+  late ThrottledTaskBuffer<int, SaveTask> _buffer;
 
   /// Commits [next] as the replacement for [current] if [current] is still
   /// the task registered for its game — either the latest buffered value in

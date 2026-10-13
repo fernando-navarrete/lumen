@@ -254,8 +254,10 @@ class DownloadsState {
 /// stream it requests from [GogState] — any UI that needs progress reads it
 /// from [DownloadsState] instead of the raw stream.
 class DownloadsNotifier extends Notifier<DownloadsState> {
-  late final GogState _gogState;
-  late final GamesNotifier _gamesNotifier;
+  // Not `final`: `Account.signOut` invalidates this provider, and Riverpod
+  // reuses the notifier instance when it rebuilds `build()`.
+  late GogState _gogState;
+  late GamesNotifier _gamesNotifier;
 
   @override
   DownloadsState build() {
@@ -275,7 +277,7 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   // ever dropping the final value. Terminal/status-transition commits pass
   // `throttle: false` so they land immediately instead of waiting behind a
   // trailing flush. See lib/state/emit_throttle.dart.
-  late final ThrottledTaskBuffer<int, ActivityTask> _buffer;
+  late ThrottledTaskBuffer<int, ActivityTask> _buffer;
 
   final Map<int, _LiveJob> _jobs = {};
 

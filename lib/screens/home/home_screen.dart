@@ -35,9 +35,9 @@ class _Content extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (item) {
       case NavBarItem.library:
-        return LibraryPage();
+        return const LibraryPage();
       case NavBarItem.downloads:
-        return DownloadsPage();
+        return const DownloadsPage();
       case NavBarItem.settings:
         return const SettingsPage();
     }

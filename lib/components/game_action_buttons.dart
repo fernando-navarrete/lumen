@@ -13,6 +13,7 @@ import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/launch_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 
@@ -74,6 +75,16 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     }
   }
 
+  /// [future]'s value, or `null` if it failed (a provider error means
+  /// "couldn't load", as `GogState` reports it).
+  Future<T?> _readOrNull<T>(Future<T> future) async {
+    try {
+      return await future;
+    } catch (_) {
+      return null;
+    }
+  }
+
   GameBuild _latestBuild(List<GameBuild> builds) => builds.reduce(
     (a, b) => b.releaseDateTimestamp > a.releaseDateTimestamp ? b : a,
   );
@@ -86,7 +97,6 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
   /// could silently record a build that doesn't match them — see
   /// [_checkBuild] for how a missing/stale build is surfaced instead.
   Future<void> _preload() async {
-    final gogState = ref.read(gogStateProvider);
     final gamesNotifier = ref.read(gamesStateProvider.notifier);
     final gameId = widget.gameId;
     final installed =
@@ -98,7 +108,9 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     // just made (e.g. addProductId below).
     String? buildName = ref.read(gamesStateProvider).getSelectedBuild(gameId);
     if (!installed && (buildName == null || buildName.isEmpty)) {
-      final builds = await gogState.getBuilds(gameId);
+      final builds = await _readOrNull(
+        ref.read(gameBuildsProvider(gameId).future),
+      );
       if (!mounted) return;
       if (builds != null && builds.isNotEmpty) {
         buildName = _latestBuild(builds).versionName;
@@ -109,7 +121,11 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     if (buildName != null &&
         buildName.isNotEmpty &&
         ref.read(gamesStateProvider).getProductIds(gameId).isEmpty) {
-      final products = await gogState.getProducts(gameId, buildName);
+      final products = await _readOrNull(
+        ref.read(
+          gameProductsProvider((gameId: gameId, buildName: buildName)).future,
+        ),
+      );
       if (!mounted) return;
       for (final product in products ?? const <DownloadableProduct>[]) {
         gamesNotifier.addProductId(gameId, product.id);
@@ -340,7 +356,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
         final (size, free, name) = await (
           gogState.getInstallSize(gameId, buildName, productIds),
           gogState.getFreeSpace(path),
-          gogState.getGameName(gameId),
+          readGameTitle(ref.read, gameId),
         ).wait;
         if (!context.mounted) return;
         setState(() => _checkingSpace = false);
@@ -380,7 +396,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
   /// build list means the build was delisted or renamed after install —
   /// either way the bridge would otherwise fail immediately (it looks the
   /// build up by name) with no useful error surfaced to the user. A failed
-  /// [GogState.getBuilds] call (e.g. offline) returns null here too, so the
+  /// [gameBuildsProvider] call (e.g. offline) returns null here too, so the
   /// action proceeds and any real failure comes back through the task's
   /// [ActivityTask.error] instead.
   Future<String?> _checkBuild(int gameId, String buildName) async {
@@ -388,8 +404,9 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       return "No build selected for this game — pick the installed build "
           "in the Builds tab";
     }
-    final gogState = ref.read(gogStateProvider);
-    final builds = await gogState.getBuilds(gameId);
+    final builds = await _readOrNull(
+      ref.read(gameBuildsProvider(gameId).future),
+    );
     if (builds == null) {
       return null;
     }

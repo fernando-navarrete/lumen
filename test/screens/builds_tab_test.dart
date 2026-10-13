@@ -52,6 +52,26 @@ void main() {
     expect(find.text('No builds available.'), findsOneWidget);
   });
 
+  testWidgets('the Refresh chip clears the backend cache, then refetches', (
+    tester,
+  ) async {
+    final backend = FakeGogBackend()..builds[gameId] = const [];
+
+    await pumpApp(tester, const BuildsTab(gameId: gameId), backend: backend);
+    await tester.pump();
+    await tester.pump();
+    backend.calls.clear();
+
+    await tester.tap(find.text('Refresh'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(backend.calls.map((c) => c.method).toList(), [
+      'clearCache',
+      'getGameBuilds',
+    ]);
+  });
+
   testWidgets('tapping Retry after clearing the failure lists the builds', (
     tester,
   ) async {

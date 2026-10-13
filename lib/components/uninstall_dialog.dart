@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/directory_size.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/state/games_state.dart';
-import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/uninstall.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
@@ -25,7 +25,7 @@ Future<void> confirmUninstall(
 }) async {
   final config = ref.read(gamesStateProvider).games[gameId];
   final path = config?.installPath;
-  final name = await ref.read(gogStateProvider).getGameName(gameId);
+  final name = await readGameTitle(ref.read, gameId);
   if (!context.mounted) return;
 
   final result = await showDialog<Object?>(

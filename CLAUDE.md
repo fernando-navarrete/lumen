@@ -15,7 +15,7 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `InstallSize`) are app-owned plain-Dart
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
 these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
 `DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
@@ -48,7 +48,8 @@ fvm flutter test                            # run the test suite (no native libr
 
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
 `FakeGogBackend`, `test/helpers/fake_secure_storage.dart`'s `FakeSecureStorage` and
-`test/helpers/container.dart`'s `createContainer()` override `gogBackendProvider`,
+`test/helpers/container.dart`'s `createContainer()` (its `backendFactory:` builds a new fake each time
+`gogBackendProvider` rebuilds, as after a sign-out) override `gogBackendProvider`,
 `secureStorageProvider` and `sharedPreferencesProvider` with a fake (plus any extra `overrides`,
 e.g. a `launchResolverProvider` with injected scan/`.info` seams), so a test never needs the Rust
 bridge's native library loaded. Tests must never construct `GogdlBackend`/`GogdlApi()` directly or
@@ -85,7 +86,8 @@ HTTPS with no key, so it proves a clone builds without LAN access. GitHub
 GitLab. `secrets` runs gitleaks
 (`.gitleaks.toml`, default rules, no allowlist) over the MR's commits, or over every branch and tag on a
 `v*` tag pipeline. `bridge-lock` exports the pinned `gogdl_flutter`'s
-`rust/Cargo.lock`, `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
+`rust/Cargo.lock` pruned to the crates `cargo tree` resolves (`tool/prune_cargo_lock.dart`, since the lockfile
+also lists optional crates nothing builds, like `quinn-proto`), `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
 (accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
 on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
 schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCHEDULE=renovate` runs only the
@@ -103,8 +105,8 @@ short-lived. Enable the format pre-commit hook once per clone with
 ### State management (Riverpod)
 
 All app state lives in `lib/state/`, one file per domain (`games_state.dart`, `downloads_state.dart`,
-`gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `launch_state.dart`, `proton_state.dart`,
-`saves_state.dart`, `home_state.dart`), plus four supporting files that aren't domains themselves:
+`gog_state.dart`, `gog_backend.dart`, `gogdl_backend.dart`, `library_state.dart`, `launch_state.dart`, `proton_state.dart`,
+`saves_state.dart`, `home_state.dart`, `account.dart`), plus four supporting files that aren't domains themselves:
 `bridge_stream.dart` (`guardBridgeStream`, which every `GogdlBackend` stream is wrapped in so that an
 error thrown after `onDone`, within a short grace period, still arrives as a stream error instead of
 being silently dropped), `emit_throttle.dart` (`ThrottledTaskBuffer`, which `DownloadsNotifier`,
@@ -153,9 +155,24 @@ and release — callers are expected to handle `null` as "the operation failed."
 
 `GogState.getOwnedGames` is filtered to real games by the bridge (`gogdl_flutter` v1.1.3+): DLC and
 other non-game products the account owns no longer come back in the list. That filtering is
-per-product, unordered and uncached upstream, so `GogState` caches the resolved list for the session
-and sorts it before returning, invalidating the cache on failure or an empty result so a Retry
-re-fetches instead of replaying a stale outcome.
+per-product, unordered and uncached upstream, so `GogState` sorts the list before returning it.
+Caching is not `GogState`'s job: `lib/state/library_state.dart` holds the GOG metadata as
+`FutureProvider`s that are not `autoDispose`, so they live for the session and `ref.invalidate` is
+the refresh/Retry — `ownedGamesProvider`, and the families `gameTitleProvider`,
+`gameSummaryProvider`, `gameScreenshotsProvider`, `gameBuildsProvider`, `gameProductsProvider`
+(keyed by `(gameId:, buildName:)`) and `protonReleasesProvider(page)`. A `GogState` `null` becomes a
+thrown `MetadataUnavailableError` (an `AsyncError`); summary and screenshots keep `''`/`[]` on
+failure. `gameTitleProvider` fetches through `titleFetchLimiterProvider`, an 8-wide `AsyncLimiter`
+(`lib/common/async_limiter.dart`), so a large library loads titles in parallel and the grid fills in
+as each arrives. The library's Refresh is `libraryRefresherProvider`'s `LibraryRefresher.refresh()`: it
+calls `GogState.clearCache()` (the bridge's `clearCache()`, which drops its memoized owned products, builds and downloadable products; a failure is logged and the refresh goes on, and the Builds tab's Refresh chip does the same before invalidating `gameBuildsProvider`), invalidates the
+titles that failed (loaded ones are kept) and `ownedGamesProvider`, whose previous value stays on
+screen meanwhile; it returns false if the owned list can't be fetched. Every provider passes `retry: noRetry`, since Riverpod 3's automatic retry would hammer GOG
+and hang widget tests; Retry is always an explicit invalidate. An empty owned list is real data
+(upstream drops a game whose lookup failed, so it may be transient) — the empty state's Retry
+invalidates. `readGameTitle(ref.read, id)` is the one-shot read for dialogs. Only the boxart and
+background-link Futures are still cached inside `GogState`, because the hero banners and cards feed
+them straight to `FutureBuilder`s.
 
 **Backend streams are single-subscription.** Each `GogState` job-starting method (verification,
 download, repair, Proton download, save download, save upload) starts a new backend job and returns
@@ -179,6 +196,15 @@ tests. `GogState` routes every read/write/delete through `_withKeyringErrors`, w
 `KeyringUnavailableError` (`lib/common/keyring_error.dart`) with actionable text — no Secret Service
 provider running, or a locked keyring — instead of letting the raw platform message reach the login
 screen's `gogErrorText` snackbars.
+
+**Sign out** is `Account.signOut` (`lib/state/account.dart`, Settings' "GOG account" card, which then
+replaces the route with `App`). It refuses, naming what runs, while a download, verification, repair,
+Proton download, save sync or game is running (paused tasks don't count); then `GogState.clearAuth()` (a
+keyring failure stops there, still signed in); then invalidates `gogBackendProvider` (a fresh, unauthenticated
+backend, so every library provider resets) and, because they `ref.read` `GogState` once in `build()`,
+`downloadsStateProvider`, `savesStateProvider` and `protonStateProvider`, plus the nav, library selection and
+search providers. Installed games, configs, prefixes and Proton versions are kept. Riverpod reuses a
+`Notifier` instance across rebuilds, so fields assigned in `build()` must be `late`, not `late final`.
 
 ### Proton / launching games
 
@@ -275,8 +301,9 @@ zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
 `settings` pages via `navBarItemProvider`, a `NavBarNotifier extends Notifier<NavBarItem>` in
 `lib/state/home_state.dart` — the single source of truth for the selected tab; `NavBar` and
 `HomeScreen` both watch it rather than keeping their own copy) → `library_page.dart` →
-`game_details_view.dart`, which
-tabs between Overview / Builds / Settings / DLC / Saves for a single game. `game_action_buttons.dart`
+`game_details_view.dart`. Which game is open, and which of its tabs, is `librarySelectionProvider`
+(`lib/state/home_state.dart`, null = grid), so it survives nav switches; a refresh whose owned list
+no longer has the game clears it. The details view tabs between Overview / Builds / Settings / DLC / Saves for a single game. `game_action_buttons.dart`
 is the shared status-driven action row (Install/Import while not installed, Play/Running once
 installed) reused in both the library hero and the game header.
 

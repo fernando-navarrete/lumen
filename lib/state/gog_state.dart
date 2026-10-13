@@ -5,12 +5,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    hide
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/common/keyring_error.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/install_size.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
@@ -23,24 +29,16 @@ class GogState {
   final GogBackend _backend;
   final FlutterSecureStorage _storage;
 
-  /// Names, boxart and background links are static for a session, but
-  /// callers (e.g. the Downloads page task cards, the library and game hero
-  /// banners) call these getters on every rebuild — several times a second
-  /// while a download is in flight. Caching the
-  /// Future itself (not just its resolved value) means a FutureBuilder fed
-  /// the same Future instance across rebuilds stays in its "has data" state
-  /// instead of resetting to pending and re-issuing the bridge call.
-  final HashMap<int, Future<String?>> _gameNameCache = HashMap();
+  /// Boxart and background links are static for a session, but callers (the
+  /// Downloads page task cards, the library and game hero banners) call these
+  /// getters on every rebuild — several times a second while a download is
+  /// in flight. Caching the Future itself (not just its resolved value) means
+  /// a FutureBuilder fed the same Future instance across rebuilds stays in
+  /// its "has data" state instead of resetting to pending and re-issuing the
+  /// bridge call. Titles, the owned-games list and the rest of the metadata
+  /// are cached by the providers in `library_state.dart` instead.
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
   final HashMap<int, Future<String>> _backgroundLinkCache = HashMap();
-
-  /// The bridge's owned-games list is filtered to real games server-side
-  /// (since `gogdl_flutter` v1.1.3) by looking up every owned product on
-  /// `gamesdb.gog.com`, unordered and uncached — so it's both slow (one
-  /// request per owned product) and shuffles order between calls. Cache the
-  /// resolved, sorted list for a stable grid order and a cheap tab switch;
-  /// [invalidateOwnedGames] clears it for a manual Retry.
-  Future<List<int>?>? _ownedGamesCache;
 
   /// Caches the in-flight/completed registration of the token-refresh
   /// callback (see [_ensureTokenRefreshCallback]) so it's only registered
@@ -163,7 +161,9 @@ class GogState {
   }
 
   /// Deletes the stored auth token so the next launch requires login again.
-  /// Debug-only usage: see the Settings page's "Clear auth token" button.
+  /// This alone leaves the live backend authenticated; sign-out
+  /// ([Account.signOut]) resets it too. Also used by the debug-only
+  /// "Clear auth token" button on the Settings page.
   Future<void> clearAuth() async {
     try {
       await _backend.removeTokenRefreshCallback();
@@ -212,31 +212,53 @@ class GogState {
     }
   }
 
-  Future<List<int>?> getOwnedGames() => _ownedGamesCache ??= _fetchOwnedGames();
-
-  /// Drops the cached owned-games list so the next [getOwnedGames] call
-  /// re-fetches, for a manual Retry.
-  void invalidateOwnedGames() {
-    _ownedGamesCache = null;
-  }
-
-  Future<List<int>?> _fetchOwnedGames() async {
+  /// The bridge's owned-games list is filtered to real games server-side
+  /// (since `gogdl_flutter` v1.1.3) by looking up every owned product on
+  /// `gamesdb.gog.com`, unordered — so it's slow and shuffles order between
+  /// calls. Sorted here for a stable grid; caching is `ownedGamesProvider`'s
+  /// job. `null` means the fetch failed.
+  Future<List<int>?> getOwnedGames() async {
     try {
       final owned = await _backend.getOwnedGames();
-      if (owned.isEmpty) {
-        // A per-product gamesdb lookup failure silently drops that game
-        // upstream, so an empty result may just be transient — don't pin it
-        // behind the cache, so a Retry actually hits the network again.
-        _ownedGamesCache = null;
-        return owned;
-      }
       return owned.toList()..sort();
     } catch (e) {
       logGogError(e);
-      // Don't pin a transient failure behind the cache — let the next call
-      // (e.g. a Retry) try the network again.
-      _ownedGamesCache = null;
       return null;
+    }
+  }
+
+  /// Drops the backend's memoized owned products, builds and downloadable
+  /// products so the next fetch sees new data. A failure is logged and
+  /// swallowed: the refresh that called it still refetches, possibly stale.
+  Future<void> clearCache() async {
+    try {
+      await _backend.clearCache();
+    } catch (e) {
+      logGogError(e);
+    }
+  }
+
+  /// Removes the files only [remove]'s products own from the install at
+  /// [path] (see `GogBackend.removeProducts`). Logs and rethrows: the caller
+  /// has to tell the user it failed, and why.
+  Future<ProductRemoval> removeProducts({
+    required int gameId,
+    required String path,
+    required String buildName,
+    required List<int> keep,
+    required List<int> remove,
+  }) async {
+    try {
+      return await _backend.removeProducts(
+        gameId: gameId,
+        path: path,
+        buildName: buildName,
+        keep: keep,
+        remove: remove,
+      );
+    } catch (e) {
+      logGogError(e);
+      rethrow;
     }
   }
 
@@ -276,10 +298,7 @@ class GogState {
     }
   }
 
-  Future<String?> getGameName(int gameId) =>
-      _gameNameCache.putIfAbsent(gameId, () => _fetchGameName(gameId));
-
-  Future<String?> _fetchGameName(int gameId) async {
+  Future<String?> getGameName(int gameId) async {
     try {
       return await _backend.getGameTitle(gameId);
     } catch (e) {

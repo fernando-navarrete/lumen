@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
+import 'package:lumen/components/retry_message.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/state/games_state.dart';
-import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
@@ -22,47 +23,48 @@ class ProductsTab extends ConsumerStatefulWidget {
 }
 
 class _ProductsTabState extends ConsumerState<ProductsTab> {
-  List<DownloadableProduct>? _products;
-  Set<int> _selectedProductIds = {};
-
   @override
   void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final GogState gogState = ref.read(gogStateProvider);
-      final GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
-      final String? selectedVersionName = ref
+    super.initState();
+    // Registered after the first frame so the GamesNotifier mutation never
+    // runs during build. Fires once with the cached products and again only
+    // when they're refetched.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final String? buildName = ref
           .read(gamesStateProvider)
           .getSelectedBuild(widget.gameId);
-
-      if (selectedVersionName != null) {
-        final products = await gogState.getProducts(
-          widget.gameId,
-          selectedVersionName,
-        );
-        if (!mounted) return;
-        _products = products;
-        for (final product in _products ?? const <DownloadableProduct>[]) {
-          if (product.productType == "GAME") {
-            gamesNotifier.addProductId(widget.gameId, product.id);
+      if (buildName == null) return;
+      ref.listenManual(
+        gameProductsProvider((gameId: widget.gameId, buildName: buildName)),
+        (_, next) {
+          final gamesNotifier = ref.read(gamesStateProvider.notifier);
+          for (final product in next.value ?? const <DownloadableProduct>[]) {
+            if (product.productType == "GAME") {
+              gamesNotifier.addProductId(widget.gameId, product.id);
+            }
           }
-        }
-      }
-
-      _selectedProductIds = ref
-          .read(gamesStateProvider)
-          .getProductIds(widget.gameId);
-      setState(() {});
+        },
+        fireImmediately: true,
+      );
     });
-    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final GamesNotifier gamesNotifier = ref.read(gamesStateProvider.notifier);
-    final dlcProducts = _products
+    final GamesState gamesState = ref.watch(gamesStateProvider);
+    final String? buildName = gamesState.getSelectedBuild(widget.gameId);
+    final key = buildName == null
+        ? null
+        : (gameId: widget.gameId, buildName: buildName);
+    final productsAsync = key == null
+        ? null
+        : ref.watch(gameProductsProvider(key));
+    final dlcProducts = productsAsync?.value
         ?.where((product) => product.productType != "GAME")
         .toList();
+    final Set<int> selectedProductIds = gamesState.getProductIds(widget.gameId);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -76,39 +78,31 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
                   style: AppText.caption(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                (_products != null)
-                    ? ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: dlcProducts!.length,
-                        itemBuilder: (context, index) {
-                          final product = dlcProducts[index];
-                          return Column(
-                            children: [
-                              _BuildListItem(
-                                product: product,
-                                isSelected: _selectedProductIds.contains(
-                                  product.id,
-                                ),
-                                onTap: (product) {
-                                  setState(() {
-                                    if (!_selectedProductIds.remove(
-                                      product.id,
-                                    )) {
-                                      _selectedProductIds.add(product.id);
-                                    }
-                                  });
-                                  gamesNotifier.toggleProductId(
-                                    widget.gameId,
-                                    product.id,
-                                  );
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      )
-                    : const CenteredLoader(),
+                if (productsAsync != null &&
+                    !productsAsync.isLoading &&
+                    dlcProducts == null)
+                  RetryMessage(
+                    message: "Couldn't load products.",
+                    onRetry: () => ref.invalidate(gameProductsProvider(key!)),
+                  )
+                else if (dlcProducts != null)
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: dlcProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = dlcProducts[index];
+                      return _BuildListItem(
+                        product: product,
+                        isSelected: selectedProductIds.contains(product.id),
+                        onTap: (product) => ref
+                            .read(gamesStateProvider.notifier)
+                            .toggleProductId(widget.gameId, product.id),
+                      );
+                    },
+                  )
+                else
+                  const CenteredLoader(),
               ],
             ),
           ),
