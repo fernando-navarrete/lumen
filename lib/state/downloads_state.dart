@@ -2,13 +2,15 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart' hide ProductRemoval;
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/common/safe_delete.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/state/emit_throttle.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/launch_state.dart';
 import 'package:path/path.dart' as p;
 
 enum TaskKind { download, verification, repair }
@@ -247,6 +249,17 @@ class DownloadsState {
 
   List<ActivityTask> get repairTasks =>
       tasks.values.where((task) => task.kind == TaskKind.repair).toList();
+}
+
+/// Thrown by [DownloadsNotifier.applyProductChanges] when it refuses to
+/// start; [toString] is the user-facing message.
+class ProductChangeError implements Exception {
+  final String message;
+
+  const ProductChangeError(this.message);
+
+  @override
+  String toString() => message;
 }
 
 /// The bridge's verification, download and repair streams are
@@ -846,6 +859,72 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
     );
   }
 
+  /// Applies a DLC selection to the installed game [gameId]: [productIds] is
+  /// the full wanted set and [baseProductIds] the `GAME` products, which can
+  /// never be dropped. Removals go first (`removeProducts`, keeping every
+  /// product still wanted); a failure rethrows and leaves the config alone.
+  /// The config then drops the removed ids at once (that's true on disk),
+  /// while added ids are recorded only when their repair succeeds
+  /// ([_runRepair]). Returns what the removal deleted, or null if nothing
+  /// was removed. Throws [ProductChangeError] when it refuses to start.
+  Future<ProductRemoval?> applyProductChanges(
+    int gameId, {
+    required Set<int> productIds,
+    required Set<int> baseProductIds,
+  }) async {
+    if (!productIds.containsAll(baseProductIds)) {
+      throw ArgumentError('The base game cannot be removed');
+    }
+    if (ref.read(launchStateProvider).isActive(gameId)) {
+      throw const ProductChangeError('Stop the game first');
+    }
+    if (state.tasks[gameId]?.status == TaskStatus.running ||
+        _applying.contains(gameId)) {
+      throw const ProductChangeError('Wait for the current task to finish');
+    }
+    final games = ref.read(gamesStateProvider);
+    final path = games.getInstallPath(gameId);
+    final buildName = games.getSelectedBuild(gameId);
+    if (games.getGameStatus(gameId) != GameStatus.downloaded ||
+        path == null ||
+        buildName == null ||
+        buildName.isEmpty) {
+      throw const ProductChangeError('The game is not installed');
+    }
+
+    final old = games.getProductIds(gameId);
+    final remove = old.difference(productIds);
+    final add = productIds.difference(old);
+    ProductRemoval? removal;
+    _applying.add(gameId);
+    try {
+      if (remove.isNotEmpty) {
+        removal = await _gogState.removeProducts(
+          gameId: gameId,
+          path: path,
+          buildName: buildName,
+          keep: productIds.difference(add).toList(),
+          remove: remove.toList(),
+        );
+        if (!ref.mounted) return removal;
+        _gamesNotifier.setProductIds(gameId, old.difference(remove));
+      }
+    } finally {
+      _applying.remove(gameId);
+    }
+    if (add.isNotEmpty) {
+      await startRepairForInstalled(
+        gameId,
+        path: path,
+        buildName: buildName,
+        productIds: productIds.toList(),
+      );
+    }
+    return removal;
+  }
+
+  final Set<int> _applying = {};
+
   /// Resumes the paused download for [gameId]. Always a repair job
   /// underneath, never `downloadGame`: a killed or paused download leaves
   /// its files preallocated to full size, which `download_game`'s size check
@@ -1026,6 +1105,9 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
           if (task.buildName != null) {
             _gamesNotifier.setSelectedBuild(gameId, task.buildName!);
           }
+          // Likewise the product set: DLC added by [applyProductChanges] is
+          // recorded as installed only once its repair succeeded.
+          _gamesNotifier.setProductIds(gameId, task.productIds.toSet());
           _gamesNotifier.markInstalled(gameId, task.path!);
         } else if (resumed) {
           _gamesNotifier.setGameStatus(gameId, GameStatus.paused);
