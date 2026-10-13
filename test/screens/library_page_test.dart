@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/game_card.dart';
@@ -112,6 +113,26 @@ void main() {
       gate.complete();
       await settle(tester);
       expect(find.text('One'), findsWidgets);
+    });
+
+    testWidgets('a card decodes its boxart at the card width', (tester) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'One'
+        ..boxartLinks[1] = 'https://example.invalid/box.jpg';
+      await pumpApp(tester, const LibraryPage(), backend: backend);
+      await settle(tester);
+
+      final finder = find.descendant(
+        of: find.byType(GameCard),
+        matching: find.byType(Image),
+      );
+      expect(finder, findsOneWidget);
+      final provider = tester.widget<Image>(finder).image;
+      expect(provider, isA<ResizeImage>());
+      final expected =
+          (tester.getSize(finder).width * tester.view.devicePixelRatio).ceil();
+      expect((provider as ResizeImage).width, expected);
     });
 
     testWidgets('a failed title card opens the game', (tester) async {

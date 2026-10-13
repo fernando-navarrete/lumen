@@ -62,7 +62,7 @@ class OverviewTab extends ConsumerWidget {
           itemCount: screenshots.length,
           itemBuilder: (context, index) => AsyncCoverImage.resolved(
             screenshots[index],
-            fit: BoxFit.fill,
+            decodeAtLayoutWidth: true,
             borderRadius: AppRadii.buttonLarge,
           ),
         ),

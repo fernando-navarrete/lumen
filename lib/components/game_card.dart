@@ -50,6 +50,7 @@ class GameCard extends ConsumerWidget {
 
     Widget cover = AsyncCoverImage(
       imageUrl: ref.watch(gogStateProvider).getGameBoxartLink(gameId!),
+      decodeAtLayoutWidth: true,
     );
     if (status == GameStatus.notInstalled) {
       cover = ColorFiltered(
