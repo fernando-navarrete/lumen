@@ -79,8 +79,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   never its process group, which is Lumen's own. A new `LaunchStatus.stopping` shows a disabled
   "Stopping…", and a user-stopped game always ends `exited`, whatever its exit code. The `Process`
   handle lives in a private per-game `_LiveLaunch`, not in the immutable `RunningGame`.
-- [ ] **P1 — Sign out in release builds.** `clearAuth` is only reachable from the debug-only Settings
-  card.
+- [x] **P1 — Sign out in release builds.** `clearAuth` is only reachable from the debug-only Settings
+  card. Fixed in `v1.4.0`: a "GOG account" card in Settings calls `Account.signOut`, which refuses
+  (naming what runs) while a download, verification, repair, Proton download, save sync or game is
+  running, clears the stored token, then resets the backend and every provider built on it and returns
+  to the login screen. Installed games, configs, prefixes and Proton versions are kept.
 - [x] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
   changes the stored set; nothing downloads until a manual repair.
   Fixed in `v1.4.0`: the DLC tab builds a pending selection with Apply/Discard; Apply removes dropped DLC's
@@ -123,10 +126,17 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — Big-game resume timing and free-space wording.** Resume's verification pass was only
   timed on a small game (a resume journal in gogdl-lib may be needed for big ones), and the
   free-space dialog can't name the mount because the bridge returns bytes only.
-- [ ] **P2 — Library refresh, sorting and metadata caching.** Since `v1.0.6`, `GogState` caches the
+- [x] **P2 — Library refresh and metadata caching.** Since `v1.0.6`, `GogState` caches the
   owned-games list for the session (`gog_state.dart`'s `_ownedGamesCache`), so it's no longer
   refetched on every Library visit — only titles still are (see 5.1). There is still no manual
-  refresh (to pick up newly purchased/redeemed games without restarting) and no offline view.
+  refresh (to pick up newly purchased/redeemed games without restarting). Fixed in `v1.4.0`: the
+  metadata lives in `library_state.dart`'s session-long providers, and the library's Refresh chip runs
+  `LibraryRefresher.refresh()`, which clears the bridge's cache (`clearCache()`) and invalidates the
+  owned list, failed titles and builds while the grid stays on screen. Not yet checked live against a
+  game bought after launch (the bridge's own test used a demo outside the owned list).
+- [ ] **P2 — Library sorting and an offline view.** Split out of the refresh item above. Sort by name,
+  last played or install state (last played needs the `v1.6.0` playtime tracking), and show the
+  library without a connection (nothing GOG returns is persisted across restarts).
 - [ ] **P2 — Desktop notifications** when a download, repair or sync finishes.
 - [ ] **P2 — Playtime and last-played tracking** (the hero banner already says "CONTINUE PLAYING").
 - [ ] **P2 — `.desktop` shortcuts / launch by game id** from outside the app.
@@ -222,10 +232,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   ROADMAP entry: a stream error arriving after a `finished`/`Finished` event no longer gets silently
   re-derived back to `completed` by `onDone` — `onDone` now no-ops once `onError` has already failed
   the task.
-- [ ] **P2 — Keep library, details and Proton release data in providers.** It currently lives in widget
+- [x] **P2 — Keep library, details and Proton release data in providers.** It currently lives in widget
   `State` with `addPostFrameCallback` fetches. Owned games, names, builds, products, summaries and
   releases would work better as `FutureProvider.family`s: they'd survive tab switches, get loading and
-  error states for free, and could be invalidated for refresh.
+  error states for free, and could be invalidated for refresh. Fixed in `v1.4.0`: `library_state.dart`
+  holds them as non-`autoDispose` providers with automatic retry off (`noRetry`), a failure is an
+  `AsyncError` with an explicit Retry, and `GogState` keeps only the boxart/background Future caches.
 - [x] **P2 — Throttle `ProtonNotifier` and `SavesNotifier` emits** the way `DownloadsNotifier` does.
   Fixed in `v1.1.3`: the throttling/trailing-flush logic moved out of `DownloadsNotifier` into a
   shared `ThrottledTaskBuffer` (`lib/state/emit_throttle.dart`), which all three notifiers now use.
@@ -252,13 +264,17 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `flutter_secure_storage_linux`'s `Libsecret error`/`KeyringLocked` `PlatformException`s to a new
   `KeyringUnavailableError` with actionable text, surfaced through the existing `gogErrorText`
   snackbars.
-- [ ] **P2 — `LibraryPage` loses the selected game** when switching nav tabs and back.
+- [x] **P2 — `LibraryPage` loses the selected game** when switching nav tabs and back. Fixed in
+  `v1.4.0`: `librarySelectionProvider` (`home_state.dart`) keeps the game and its details tab, and
+  clears itself when a refreshed owned list no longer has the game.
 
 ## 5. Performance
 
-- [ ] **P1 — Game titles are fetched serially (5.1)** (`library_page.dart:104`), one `await` per game,
+- [x] **P1 — Game titles are fetched serially (5.1)** (`library_page.dart:104`), one `await` per game,
   on every Library visit (the owned-games list itself is cached since `v1.0.6`, but not titles).
-  Fetch them in parallel (bounded) and cache them in a provider.
+  Fetch them in parallel (bounded) and cache them in a provider. Fixed in `v1.4.0`: `gameTitleProvider`
+  caches each title for the session and fetches through an 8-wide `AsyncLimiter`, so the grid fills in
+  as titles arrive; a failed title doesn't fail the library and is retried by Refresh.
 - [ ] **P2 — Filter the grid without hiding untitled games.** Games whose title hasn't loaded or failed
   render as `SizedBox.shrink()` but still count toward "N games" and take a grid slot. Rarer since
   `v1.0.6` now that non-game products are filtered out server-side, but a slow/failed title fetch
@@ -324,7 +340,7 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `avoid_dynamic_calls`, `prefer_final_locals`, `directives_ordering` and `always_declare_return_types` are on and gate `lint`.
   Still open: the `print` in `lib/screens/login/login_screen.dart:36` should be `debugPrint`/`logGogError`.
 - [ ] **P2 — Merge `formatBytes`/`formatBytesBigint`** (`format.dart`), which are duplicates.
-- [ ] **P2 — Stale comment** at `gog_state.dart:204` about a `buildId` param that no longer exists.
+- [ ] **P2 — Stale comment** at `gog_state.dart:315` about a `buildId` param that no longer exists.
 - [ ] **P2 — Packaging.** No AppImage, Flatpak or `.deb`, and no release pipeline.
 - [x] **P1 — RUSTSEC-2026-0285 accepted.** `rustls` 0.23.43 in `gogdl_flutter`'s `Cargo.lock` was ignored in
   `osv-scanner.toml`. Fixed by pinning bridge `v1.3.3` (`rustls` 0.23.45); the entry is gone.
