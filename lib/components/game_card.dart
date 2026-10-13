@@ -18,7 +18,16 @@ class GameCard extends ConsumerWidget {
   final String gameName;
   final VoidCallback? onTap;
 
-  const GameCard({super.key, this.gameId, required this.gameName, this.onTap});
+  /// Placeholder while the title loads: cover and frame, no text, not tappable.
+  final bool skeleton;
+
+  const GameCard({super.key, this.gameId, required this.gameName, this.onTap})
+    : skeleton = false;
+
+  const GameCard.skeleton({super.key, required int this.gameId})
+    : gameName = '',
+      onTap = null,
+      skeleton = true;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +45,8 @@ class GameCard extends ConsumerWidget {
       }),
     );
 
-    final bool hasUpdate = ref.watch(gameUpdateProvider(gameId!)) != null;
+    final bool hasUpdate =
+        !skeleton && ref.watch(gameUpdateProvider(gameId!)) != null;
 
     Widget cover = AsyncCoverImage(
       imageUrl: ref.watch(gogStateProvider).getGameBoxartLink(gameId!),
@@ -89,20 +99,28 @@ class GameCard extends ConsumerWidget {
                     bottom: Radius.circular(AppRadii.card),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 5,
-                  children: [
-                    AutoMarqueeText(
-                      text: gameName,
-                      style: AppText.bodyMedium(
-                        color: Colors.white,
-                        weight: FontWeight.w600,
+                child: skeleton
+                    ? Container(
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: AppColors.fill08,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 5,
+                        children: [
+                          AutoMarqueeText(
+                            text: gameName,
+                            style: AppText.bodyMedium(
+                              color: Colors.white,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                          _statusLine(status, progress),
+                        ],
                       ),
-                    ),
-                    _statusLine(status, progress),
-                  ],
-                ),
               ),
             ),
           ],

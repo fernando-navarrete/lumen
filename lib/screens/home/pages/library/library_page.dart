@@ -51,6 +51,12 @@ extension _LibraryFilterLabel on _LibraryFilter {
   };
 }
 
+String? _displayName(int id, AsyncValue<String> title) {
+  if (title.isLoading && !title.hasValue) return null;
+  final String? value = title.value;
+  return value == null || value.isEmpty ? 'Game $id' : value;
+}
+
 class _GameGrid extends ConsumerStatefulWidget {
   const _GameGrid({required this.onGameTap});
 
@@ -95,9 +101,11 @@ class _GameGridState extends ConsumerState<_GameGrid> {
       );
     }
 
-    // A game whose title hasn't loaded (or failed) is '' here.
-    final List<String> gameNames = [
-      for (final id in ownedGames) ref.watch(gameTitleProvider(id)).value ?? '',
+    // null while the title loads; a failed (or empty) one falls back to
+    // "Game <id>" so a game you own never disappears from the grid.
+    final List<String?> gameNames = [
+      for (final id in ownedGames)
+        _displayName(id, ref.watch(gameTitleProvider(id))),
     ];
 
     final gogState = ref.watch(gogStateProvider);
@@ -108,18 +116,35 @@ class _GameGridState extends ConsumerState<_GameGrid> {
     final List<int> visible = [
       for (int i = 0; i < ownedGames.length; i++)
         if (_filter.matches(gamesState.getGameStatus(ownedGames[i])) &&
-            (query.isEmpty || gameNames[i].toLowerCase().contains(query)))
+            (query.isEmpty ||
+                (gameNames[i]?.toLowerCase().contains(query) ?? false)))
           i,
     ];
 
-    // Featured game: first installed one, else the first in the library.
-    final int featuredIndex = ownedGames.indexWhere(
-      (id) => gamesState.getGameStatus(id) == GameStatus.downloaded,
-    );
-    final int featuredId = ownedGames[featuredIndex < 0 ? 0 : featuredIndex];
-    final String featuredName =
-        gameNames[featuredIndex < 0 ? 0 : featuredIndex];
-    final bool featuredInstalled = featuredIndex >= 0;
+    // Featured game: first installed one, else the first in the library,
+    // preferring games whose title actually loaded (not a fallback).
+    final List<bool> titled = [
+      for (final id in ownedGames)
+        ref.watch(gameTitleProvider(id)).value?.isNotEmpty ?? false,
+    ];
+    int pick(bool Function(int i) test) {
+      for (int i = 0; i < ownedGames.length; i++) {
+        if (test(i)) return i;
+      }
+      return -1;
+    }
+
+    bool installedAt(int i) =>
+        gamesState.getGameStatus(ownedGames[i]) == GameStatus.downloaded;
+    final int installedIndex = pick((i) => installedAt(i) && titled[i]);
+    final int featuredIndex = installedIndex >= 0
+        ? installedIndex
+        : pick((i) => titled[i]) >= 0
+        ? pick((i) => titled[i])
+        : 0;
+    final bool featuredInstalled = installedAt(featuredIndex);
+    final int featuredId = ownedGames[featuredIndex];
+    final String featuredName = gameNames[featuredIndex] ?? '';
 
     return Center(
       child: ConstrainedBox(
@@ -201,12 +226,13 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final int i = visible[index];
-                  if (gameNames[i].isEmpty) {
-                    return const SizedBox.shrink();
+                  final String? name = gameNames[i];
+                  if (name == null) {
+                    return GameCard.skeleton(gameId: ownedGames[i]);
                   }
                   return GameCard(
                     gameId: ownedGames[i],
-                    gameName: gameNames[i],
+                    gameName: name,
                     onTap: () {
                       widget.onGameTap(ownedGames[i]);
                     },

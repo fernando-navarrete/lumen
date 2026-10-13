@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/game_card.dart';
+import 'package:lumen/components/hero_banner.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/screens/home/pages/library/library_page.dart';
+import 'package:lumen/state/home_state.dart';
 
 import '../helpers/fake_gog_backend.dart';
 import '../helpers/pump_app.dart';
@@ -77,8 +79,98 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(GameCard), findsOneWidget);
+    expect(find.byType(GameCard), findsNWidgets(2));
     expect(find.text('Two'), findsWidgets);
+    expect(find.text('Game 1'), findsWidgets);
+  });
+
+  group('untitled games', () {
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+
+    testWidgets('a loading title shows a counted skeleton card', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      final backend = FakeGogBackend()
+        ..ownedGames = [1, 2]
+        ..titles[1] = 'One'
+        ..titles[2] = 'Two';
+      backend.delayOn['getGameTitle'] = (args) async {
+        if (args['gameId'] == 1) await gate.future;
+      };
+      await pumpApp(tester, const LibraryPage(), backend: backend);
+      await settle(tester);
+
+      expect(find.byType(GameCard), findsNWidgets(2));
+      expect(find.text('2 games'), findsOneWidget);
+      expect(find.text('One'), findsNothing);
+
+      gate.complete();
+      await settle(tester);
+      expect(find.text('One'), findsWidgets);
+    });
+
+    testWidgets('a failed title card opens the game', (tester) async {
+      final backend = FakeGogBackend()..ownedGames = [1];
+      backend.throwOn['getGameTitle'] = Exception('boom');
+      final container = await pumpApp(
+        tester,
+        const LibraryPage(),
+        backend: backend,
+      );
+      await settle(tester);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GameCard),
+          matching: find.text('Game 1'),
+        ),
+      );
+      await tester.pump();
+      expect(container.read(librarySelectionProvider)?.gameId, 1);
+    });
+
+    testWidgets('search matches the fallback name', (tester) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1, 2]
+        ..titles[2] = 'Two';
+      backend.delayOn['getGameTitle'] = (args) async {
+        if (args['gameId'] == 1) throw Exception('boom');
+      };
+      final container = await pumpApp(
+        tester,
+        const LibraryPage(),
+        backend: backend,
+      );
+      await settle(tester);
+      container.read(librarySearchProvider.notifier).set('game 1');
+      await settle(tester);
+
+      expect(find.byType(GameCard), findsOneWidget);
+    });
+
+    testWidgets('the hero skips a game whose title failed', (tester) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1, 2]
+        ..titles[2] = 'Two';
+      backend.delayOn['getGameTitle'] = (args) async {
+        if (args['gameId'] == 1) throw Exception('boom');
+      };
+      await pumpApp(tester, const LibraryPage(), backend: backend);
+      await settle(tester);
+
+      expect(
+        find.descendant(
+          of: find.byType(HeroBanner),
+          matching: find.text('Two'),
+        ),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('Refresh keeps the grid visible, then shows the new game', (

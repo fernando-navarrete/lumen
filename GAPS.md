@@ -275,10 +275,12 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   Fetch them in parallel (bounded) and cache them in a provider. Fixed in `v1.4.0`: `gameTitleProvider`
   caches each title for the session and fetches through an 8-wide `AsyncLimiter`, so the grid fills in
   as titles arrive; a failed title doesn't fail the library and is retried by Refresh.
-- [ ] **P2 — Filter the grid without hiding untitled games.** Games whose title hasn't loaded or failed
+- [x] **P2 — Filter the grid without hiding untitled games.** Games whose title hasn't loaded or failed
   render as `SizedBox.shrink()` but still count toward "N games" and take a grid slot. Rarer since
   `v1.0.6` now that non-game products are filtered out server-side, but a slow/failed title fetch
   for an actual game still hits this.
+  Fixed in `v1.4.1`: a loading title shows a skeleton card, a failed one a "Game `<id>`" card with
+  its boxart; both count and the failed one opens. The hero skips games without a loaded title.
 - [ ] **P2 — Screenshots use `BoxFit.fill`** (`overview_tab.dart:81`), which distorts them; use `cover`.
   Consider `cacheWidth` for grid thumbnails.
 
