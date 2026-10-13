@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/game_card.dart';
+import 'package:lumen/models/game_build.dart';
 import 'package:lumen/screens/home/pages/library/library_page.dart';
 
 import '../helpers/fake_gog_backend.dart';
@@ -126,5 +127,65 @@ void main() {
 
     expect(find.text("Couldn't refresh your library."), findsOneWidget);
     expect(find.byType(GameCard), findsOneWidget);
+  });
+
+  group('update badge', () {
+    const installed =
+        '{"version": 1, "games": {"1": {"status": "downloaded", '
+        '"selectedBuild": "1.0", "installPath": "/g", "productIds": [1]}}}';
+    GameBuild b(String n, int ts) => GameBuild(
+      buildId: n,
+      versionName: n,
+      releaseDate: '2024',
+      releaseDateTimestamp: ts,
+    );
+
+    Future<void> pumpLibrary(
+      WidgetTester tester,
+      FakeGogBackend backend, {
+      Map<String, Object> prefs = const {},
+    }) async {
+      await pumpApp(
+        tester,
+        const LibraryPage(),
+        backend: backend,
+        prefs: prefs,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump();
+      }
+    }
+
+    testWidgets('an installed game with a newer build shows it', (
+      tester,
+    ) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'Game'
+        ..builds[1] = [b('2.0', 2), b('1.0', 1)];
+      await pumpLibrary(tester, backend, prefs: {'games': installed});
+      expect(find.text('Update available'), findsOneWidget);
+    });
+
+    testWidgets('a failed builds fetch shows no badge and no error', (
+      tester,
+    ) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'Game'
+        ..throwOn['getGameBuilds'] = Exception('boom');
+      await pumpLibrary(tester, backend, prefs: {'games': installed});
+      expect(find.text('Update available'), findsNothing);
+      expect(find.byType(GameCard), findsOneWidget);
+    });
+
+    testWidgets('a game that is not installed has none', (tester) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'Game'
+        ..builds[1] = [b('2.0', 2)];
+      await pumpLibrary(tester, backend);
+      expect(find.text('Update available'), findsNothing);
+    });
   });
 }

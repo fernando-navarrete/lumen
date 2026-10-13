@@ -83,7 +83,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   card.
 - [ ] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
   changes the stored set; nothing downloads until a manual repair.
-- [ ] **P1 — Update detection.** Nothing flags that a newer build exists than the installed one.
+- [x] **P1 — Update detection.** Nothing flags that a newer build exists than the installed one.
+  Fixed in `v1.4.0`: `gameUpdateProvider`, an "Update available" badge on the card and header, and an Update
+  action on the Builds tab. Known limit: a deliberately rolled-back install keeps showing the badge (a "pin this
+  build" option is future work).
 - [x] **P1 — Downloads page actions.** Add dismiss/clear for failed and completed tasks, and a Retry
   button for failed downloads and repairs (only failed verifications get "Repair" today). Surface the
   actual error text for downloads and repairs. Fixed in `v1.3.0`: dismiss (×) and "Clear finished"
