@@ -515,7 +515,7 @@ class _ActiveTaskCard extends ConsumerWidget {
             width: 48,
             height: 64,
             child: AsyncCoverImage(
-              imageUrl: gogState.getGameBoxartLink(gameId),
+              imageUrl: gogState.getBoxartLink(gameId),
               borderRadius: AppRadii.chipSmall,
             ),
           ),
@@ -618,7 +618,7 @@ class _RecentInstallRow extends ConsumerWidget {
             width: 34,
             height: 46,
             child: AsyncCoverImage(
-              imageUrl: gogState.getGameBoxartLink(gameId),
+              imageUrl: gogState.getBoxartLink(gameId),
               borderRadius: AppRadii.chipSmall,
             ),
           ),

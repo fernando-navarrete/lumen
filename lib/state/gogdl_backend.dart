@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide
         GameBuild,
+        GameLinks,
         DownloadableProduct,
         ProtonRelease,
+        ProtonReleasePage,
         InstallSize,
         ProductRemoval;
 import 'package:gogdl_flutter/gogdl_flutter.dart'
@@ -17,9 +19,11 @@ import 'package:gogdl_flutter/gogdl_flutter.dart'
         ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/game_links.dart';
 import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
 
@@ -54,12 +58,10 @@ class GogdlBackend implements GogBackend {
   Future<String> getGameTitle(int gameId) => _api.getGameTitle(gameId: gameId);
 
   @override
-  Future<String> getBackgroundImageLink(int gameId) =>
-      _api.getBackgroundImageLink(gameId: gameId);
-
-  @override
-  Future<String> getGameBoxartLink(int gameId) =>
-      _api.getGameBoxartLink(gameId: gameId);
+  Future<GameLinks> getGameLinks(int gameId) async {
+    final links = await _api.getGameLinks(gameId: gameId);
+    return GameLinks(boxart: links.boxart, background: links.background);
+  }
 
   @override
   Future<String> getGameSummary(int gameId) =>
@@ -181,9 +183,12 @@ class GogdlBackend implements GogBackend {
   );
 
   @override
-  Future<List<ProtonRelease>> getProtonReleases(int page) async {
-    final result = await _api.getProtonReleases(page: page);
-    return result.map(_adaptRelease).toList();
+  Future<ProtonReleasePage> getProtonReleasePage(int page) async {
+    final result = await _api.getProtonReleasePage(page: page);
+    return ProtonReleasePage(
+      releases: result.releases.map(_adaptRelease).toList(),
+      hasMore: result.hasMore,
+    );
   }
 
   @override

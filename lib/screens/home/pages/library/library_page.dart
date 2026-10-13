@@ -164,7 +164,7 @@ class _GameGridState extends ConsumerState<_GameGrid> {
               padding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
               sliver: SliverToBoxAdapter(
                 child: HeroBanner(
-                  imageUrl: gogState.getGameBackgroundLink(featuredId),
+                  imageUrl: gogState.getBackgroundLink(featuredId),
                   eyebrow: featuredInstalled ? 'CONTINUE PLAYING' : 'FEATURED',
                   title: featuredName,
                   metaChildren: [

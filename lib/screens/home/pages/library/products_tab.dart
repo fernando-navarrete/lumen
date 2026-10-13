@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
@@ -9,6 +7,7 @@ import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/retry_message.dart';
+import 'package:lumen/components/side_column_layout.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
@@ -134,7 +133,6 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     final GamesState gamesState = ref.watch(gamesStateProvider);
     final String? buildName = gamesState.getSelectedBuild(widget.gameId);
     final key = buildName == null
@@ -167,122 +165,109 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
     final dlcIds = {
       for (final p in dlcProducts ?? const <DownloadableProduct>[]) p.id,
     };
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SideColumnLayout(
+      main: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        locked
-                            ? 'Finish or cancel the download to change DLC'
-                            : installed
-                            ? 'Choose DLC to install or remove, then apply'
-                            : 'Choose which DLC to install with the game',
-                        style: AppText.caption(color: AppColors.textSecondary),
-                      ),
-                    ),
-                    if (interactive && dlcIds.isNotEmpty) ...[
-                      TextButton(
-                        onPressed: () => _setSelection(gamesState, {
-                          ...selectedProductIds,
-                          ...dlcIds,
-                        }),
-                        child: const Text('Select all'),
-                      ),
-                      TextButton(
-                        onPressed: () => _setSelection(
-                          gamesState,
-                          selectedProductIds.difference(dlcIds),
-                        ),
-                        child: const Text('Select none'),
-                      ),
-                    ],
-                  ],
+                Expanded(
+                  child: Text(
+                    locked
+                        ? 'Finish or cancel the download to change DLC'
+                        : installed
+                        ? 'Choose DLC to install or remove, then apply'
+                        : 'Choose which DLC to install with the game',
+                    style: AppText.caption(color: AppColors.textSecondary),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                if (productsAsync != null &&
-                    !productsAsync.isLoading &&
-                    dlcProducts == null)
-                  RetryMessage(
-                    message: "Couldn't load products.",
-                    onRetry: () => ref.invalidate(gameProductsProvider(key!)),
-                  )
-                else if (dlcProducts != null && dlcProducts.isEmpty)
-                  Text(
-                    'This game has no DLC',
-                    style: AppText.meta(color: AppColors.textSecondary),
-                  )
-                else if (dlcProducts != null)
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: dlcProducts.length,
-                    itemBuilder: (context, index) {
-                      final product = dlcProducts[index];
-                      return _BuildListItem(
-                        product: product,
-                        isSelected: selectedProductIds.contains(product.id),
-                        onTap: (product) {
-                          if (!interactive) return;
-                          final next = {...selectedProductIds};
-                          if (!next.remove(product.id)) next.add(product.id);
-                          _setSelection(gamesState, next);
-                        },
-                      );
-                    },
-                  )
-                else
-                  const CenteredLoader(),
-                if (installed && _pending != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Row(
-                    spacing: AppSpacing.sm,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          [
-                            if (installCount > 0) 'Install $installCount DLC',
-                            if (removeCount > 0) 'Remove $removeCount DLC',
-                          ].join(' · '),
-                          style: AppText.meta(color: AppColors.primaryLight),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: _applying
-                            ? null
-                            : () => setState(() => _pending = null),
-                        child: const Text('Discard'),
-                      ),
-                      PrimaryButton.icon(
-                        icon: Icons.check,
-                        label: _applying ? 'Applying…' : 'Apply changes',
-                        enabled: !_applying,
-                        glowing: true,
-                        onTap: () => _apply(baseIds),
-                      ),
-                    ],
+                if (interactive && dlcIds.isNotEmpty) ...[
+                  TextButton(
+                    onPressed: () => _setSelection(gamesState, {
+                      ...selectedProductIds,
+                      ...dlcIds,
+                    }),
+                    child: const Text('Select all'),
+                  ),
+                  TextButton(
+                    onPressed: () => _setSelection(
+                      gamesState,
+                      selectedProductIds.difference(dlcIds),
+                    ),
+                    child: const Text('Select none'),
                   ),
                 ],
               ],
             ),
-          ),
+            const SizedBox(height: AppSpacing.md),
+            if (productsAsync != null &&
+                !productsAsync.isLoading &&
+                dlcProducts == null)
+              RetryMessage(
+                message: "Couldn't load products.",
+                onRetry: () => ref.invalidate(gameProductsProvider(key!)),
+              )
+            else if (dlcProducts != null && dlcProducts.isEmpty)
+              Text(
+                'This game has no DLC',
+                style: AppText.meta(color: AppColors.textSecondary),
+              )
+            else if (dlcProducts != null)
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: dlcProducts.length,
+                itemBuilder: (context, index) {
+                  final product = dlcProducts[index];
+                  return _BuildListItem(
+                    product: product,
+                    isSelected: selectedProductIds.contains(product.id),
+                    onTap: (product) {
+                      if (!interactive) return;
+                      final next = {...selectedProductIds};
+                      if (!next.remove(product.id)) next.add(product.id);
+                      _setSelection(gamesState, next);
+                    },
+                  );
+                },
+              )
+            else
+              const CenteredLoader(),
+            if (installed && _pending != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                spacing: AppSpacing.sm,
+                children: [
+                  Expanded(
+                    child: Text(
+                      [
+                        if (installCount > 0) 'Install $installCount DLC',
+                        if (removeCount > 0) 'Remove $removeCount DLC',
+                      ].join(' · '),
+                      style: AppText.meta(color: AppColors.primaryLight),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _applying
+                        ? null
+                        : () => setState(() => _pending = null),
+                    child: const Text('Discard'),
+                  ),
+                  PrimaryButton.icon(
+                    icon: Icons.check,
+                    label: _applying ? 'Applying…' : 'Apply changes',
+                    enabled: !_applying,
+                    glowing: true,
+                    onTap: () => _apply(baseIds),
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
-        SizedBox(width: _getTabWidth(size.width)),
-      ],
+      ),
     );
-  }
-
-  // NOTE: diverges from OverviewTab._getTabWidth (threshold 600 vs 1080,
-  // exponent 1.5 vs 1.3) — preserved as-is from before the refactor.
-  double _getTabWidth(double width) {
-    final double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
-    return tabWidth;
   }
 }
 
@@ -299,10 +284,11 @@ class _BuildListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClickableContainer(
-      onTap: () => onTap(product),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: ClickableContainer(
+        onTap: () => onTap(product),
+        focusRadius: AppRadii.card,
         child: Panel(
           selected: isSelected,
           child: Row(

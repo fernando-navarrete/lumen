@@ -316,13 +316,24 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   `downloading` and `paused` and shows only while a game is in one of those states (a selected chip
   that disappears falls back to "All").
 
-- [ ] **P2 — Move off the bridge's deprecated getters before `gogdl_flutter` v1.5.0.** Lumen still
+- [x] **P2 — Move off the bridge's deprecated getters before `gogdl_flutter` v1.5.0.** Lumen still
   calls `getGameBoxartLink`/`getBackgroundImageLink` (replace with `getGameLinks`, one request per
   game) and `getProtonReleases` (replace with `getProtonReleasePage`, whose `hasMore` stops a fully
   filtered page looking like the end of the list). The bridge's `@Deprecated` isn't generated, so the
   analyzer won't warn: v1.5.0 removes them and the build breaks.
+  Fixed in `v1.5.0`: `GogBackend.getGameLinks` and `getProtonReleasePage` with app-owned `GameLinks`
+  and `ProtonReleasePage`; one links request per game, and the Proton dialog follows `hasMore`.
 
 ## 7. Testing, tooling and docs
+
+- [ ] **P2 — Old keyring item left behind after the `v1.5.0` application ID change.** The ID moved
+  to `io.github.fernando_navarrete.Lumen`; the SharedPreferences file is copied across on first
+  start, but the keyring item (`flutter_secure_storage_linux` names its schema and account after
+  the ID) is not, so each install signs in once more and the old
+  `io.github.fernandonr189.lumen/FlutterSecureStorage` token stays in the keyring. Delete it from
+  Passwords and Keys (or `secret-tool clear account io.github.fernandonr189.lumen.secureStorage`),
+  or have `Account` remove it. The old `~/.local/share/io.github.fernandonr189.lumen/` is also kept,
+  on purpose, so a downgrade still works.
 
 - [x] **P0 — No tests at all.** Fixed in `v1.1.0`: 102 tests under `test/`, built against a fake
   `GogBackend` (`test/helpers/fake_gog_backend.dart`) so none of them need the Rust bridge's native

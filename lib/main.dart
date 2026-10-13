@@ -6,6 +6,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lumen/app.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/legacy_prefs_migration.dart';
 import 'package:lumen/state/shared_preferences_provider.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +23,7 @@ Future<void> main() async {
   // Resolved up front (rather than left to each notifier's build() to fetch
   // asynchronously) so ProtonNotifier/GamesNotifier can load their persisted
   // state synchronously during build() — see sharedPreferencesProvider.
+  await migrateLegacyPreferences();
   final prefs = await SharedPreferences.getInstance();
   runApp(
     ProviderScope(

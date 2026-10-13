@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/screens/home/pages/settings/proton_manager.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/launch_state.dart';
@@ -30,7 +31,7 @@ void main() {
     tester,
   ) async {
     final backend = FakeGogBackend()
-      ..throwOn['getProtonReleases'] = Exception('boom');
+      ..throwOn['getProtonReleasePage'] = Exception('boom');
 
     await pumpApp(tester, const ProtonManagerSection(), backend: backend);
     await openDialog(tester);
@@ -44,22 +45,23 @@ void main() {
     'tapping Retry after clearing the failure re-fetches the same page',
     (tester) async {
       final backend = FakeGogBackend()
-        ..throwOn['getProtonReleases'] = Exception('boom');
+        ..throwOn['getProtonReleasePage'] = Exception('boom');
 
       await pumpApp(tester, const ProtonManagerSection(), backend: backend);
       await openDialog(tester);
 
       backend.throwOn.clear();
-      backend.protonReleases = [
-        const ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000),
-      ];
+      backend.protonReleasePages[1] = const ProtonReleasePage(
+        releases: [ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000)],
+        hasMore: true,
+      );
 
       await tester.tap(find.text('Retry'));
       await tester.pump();
       await tester.pump();
 
       expect(find.text('GE-Proton9-1'), findsOneWidget);
-      final calls = backend.callsTo('getProtonReleases');
+      final calls = backend.callsTo('getProtonReleasePage');
       expect(calls, hasLength(2));
       expect(calls[0].args['page'], 1);
       expect(calls[1].args['page'], 1);
@@ -69,7 +71,7 @@ void main() {
   testWidgets(
     'an empty page shows "No releases available" with no Load more button',
     (tester) async {
-      final backend = FakeGogBackend()..protonReleases = [];
+      final backend = FakeGogBackend();
 
       await pumpApp(tester, const ProtonManagerSection(), backend: backend);
       await openDialog(tester);
@@ -82,15 +84,60 @@ void main() {
 
   testWidgets('a non-empty page shows Load more, not an error', (tester) async {
     final backend = FakeGogBackend()
-      ..protonReleases = [
-        const ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000),
-      ];
+      ..protonReleasePages[1] = const ProtonReleasePage(
+        releases: [ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000)],
+        hasMore: true,
+      );
 
     await pumpApp(tester, const ProtonManagerSection(), backend: backend);
     await openDialog(tester);
 
     expect(find.text('GE-Proton9-1'), findsOneWidget);
     expect(find.text('Load more'), findsOneWidget);
+  });
+
+  testWidgets('the last page ends the list with "No more releases"', (
+    tester,
+  ) async {
+    final backend = FakeGogBackend()
+      ..protonReleasePages[1] = const ProtonReleasePage(
+        releases: [ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1000)],
+        hasMore: false,
+      );
+
+    await pumpApp(tester, const ProtonManagerSection(), backend: backend);
+    await openDialog(tester);
+
+    expect(find.text('GE-Proton9-1'), findsOneWidget);
+    expect(find.text('Load more'), findsNothing);
+    expect(find.text('No more releases'), findsOneWidget);
+  });
+
+  testWidgets('a fully filtered page with hasMore still offers Load more', (
+    tester,
+  ) async {
+    final backend = FakeGogBackend()
+      ..protonReleasePages[1] = const ProtonReleasePage(
+        releases: [],
+        hasMore: true,
+      )
+      ..protonReleasePages[2] = const ProtonReleasePage(
+        releases: [ProtonRelease(tagName: 'GE-Proton9-2', downloadSize: 1000)],
+        hasMore: false,
+      );
+
+    await pumpApp(tester, const ProtonManagerSection(), backend: backend);
+    await openDialog(tester);
+
+    expect(find.text('No releases available'), findsNothing);
+    expect(find.text('Load more'), findsOneWidget);
+
+    await tester.tap(find.text('Load more'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('GE-Proton9-2'), findsOneWidget);
+    expect(backend.callsTo('getProtonReleasePage').last.args['page'], 2);
   });
 
   group('installed versions (v1.3.0)', () {

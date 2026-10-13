@@ -678,6 +678,7 @@ class _RemoveButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClickableContainer(
       onTap: onTap,
+      semanticLabel: 'Remove variable',
       child: Container(
         width: 36,
         height: 36,

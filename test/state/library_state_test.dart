@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/library_state.dart';
 
@@ -168,16 +169,20 @@ void main() {
       'caches per page, errors on failure, refetches on invalidate',
       () async {
         const release = ProtonRelease(tagName: 'GE-Proton9-1', downloadSize: 1);
-        final backend = FakeGogBackend()..protonReleases = [release];
+        final backend = FakeGogBackend()
+          ..protonReleasePages[1] = const ProtonReleasePage(
+            releases: [release],
+            hasMore: true,
+          );
         final container = await createContainer(backend: backend);
 
-        expect(await container.read(protonReleasesProvider(1).future), [
-          release,
-        ]);
+        final page = await container.read(protonReleasesProvider(1).future);
+        expect(page.releases, [release]);
+        expect(page.hasMore, true);
         await container.read(protonReleasesProvider(1).future);
-        expect(backend.callsTo('getProtonReleases'), hasLength(1));
+        expect(backend.callsTo('getProtonReleasePage'), hasLength(1));
 
-        backend.throwOn['getProtonReleases'] = Exception('boom');
+        backend.throwOn['getProtonReleasePage'] = Exception('boom');
         await expectLater(
           container.read(protonReleasesProvider(2).future),
           throwsA(isA<MetadataUnavailableError>()),
@@ -186,7 +191,7 @@ void main() {
         backend.throwOn.clear();
         container.invalidate(protonReleasesProvider(2));
         await container.read(protonReleasesProvider(2).future);
-        expect(backend.callsTo('getProtonReleases'), hasLength(3));
+        expect(backend.callsTo('getProtonReleasePage'), hasLength(3));
       },
     );
   });

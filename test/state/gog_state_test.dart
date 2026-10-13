@@ -61,20 +61,13 @@ void main() {
     // Debug and release builds must behave the same: none of these getters
     // is allowed to only special-case `GogError` (that was the bug) or to
     // only swallow the error in one build mode.
-    test('getGameBackgroundLink returns empty', () async {
+    test('getBackgroundLink and getBoxartLink return empty', () async {
       final backend = FakeGogBackend()
-        ..throwOn['getBackgroundImageLink'] = Exception('boom');
+        ..throwOn['getGameLinks'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(await state.getGameBackgroundLink(1), '');
-    });
-
-    test('getGameBoxartLink returns empty', () async {
-      final backend = FakeGogBackend()
-        ..throwOn['getGameBoxartLink'] = Exception('boom');
-      final state = await _state(backend);
-
-      expect(await state.getGameBoxartLink(1), '');
+      expect(await state.getBackgroundLink(1), '');
+      expect(await state.getBoxartLink(1), '');
     });
 
     test('getGameSummary returns empty', () async {
@@ -117,50 +110,53 @@ void main() {
       expect(state.getLoginUrl(), '');
     });
 
-    test('getProtonReleases returns null (v1.1.2)', () async {
+    test('getProtonReleasePage returns null (v1.1.2)', () async {
       final backend = FakeGogBackend()
-        ..throwOn['getProtonReleases'] = Exception('boom');
+        ..throwOn['getProtonReleasePage'] = Exception('boom');
       final state = await _state(backend);
 
-      expect(await state.getProtonReleases(1), isNull);
+      expect(await state.getProtonReleasePage(1), isNull);
     });
   });
 
   group(
-    'v1.1.2 — getProtonReleases distinguishes failure from end-of-list',
+    'v1.1.2 — getProtonReleasePage distinguishes failure from end-of-list',
     () {
-      test('an empty page returns an empty list, not null', () async {
-        final backend = FakeGogBackend()..protonReleases = [];
+      test('an empty last page returns a page, not null', () async {
+        final backend = FakeGogBackend();
         final state = await _state(backend);
 
-        expect(await state.getProtonReleases(1), isEmpty);
+        final page = await state.getProtonReleasePage(1);
+        expect(page, isNotNull);
+        expect(page!.releases, isEmpty);
+        expect(page.hasMore, false);
       });
     },
   );
 
   group('v1.0.11 — banner links are cached, not refetched on every call', () {
-    test(
-      'getGameBackgroundLink hits the backend once for the same id',
-      () async {
-        final backend = FakeGogBackend()
-          ..backgroundLinks[1] = 'https://a/bg.jpg';
-        final state = await _state(backend);
-
-        await state.getGameBackgroundLink(1);
-        await state.getGameBackgroundLink(1);
-
-        expect(backend.callsTo('getBackgroundImageLink'), hasLength(1));
-      },
-    );
-
-    test('getGameBoxartLink hits the backend once for the same id', () async {
-      final backend = FakeGogBackend()..boxartLinks[1] = 'https://a/box.jpg';
+    test('both links share one backend request per game', () async {
+      final backend = FakeGogBackend()
+        ..backgroundLinks[1] = 'https://a/bg.jpg'
+        ..boxartLinks[1] = 'https://a/box.jpg';
       final state = await _state(backend);
 
-      await state.getGameBoxartLink(1);
-      await state.getGameBoxartLink(1);
+      expect(await state.getBackgroundLink(1), 'https://a/bg.jpg');
+      expect(await state.getBoxartLink(1), 'https://a/box.jpg');
+      await state.getBackgroundLink(1);
+      await state.getBoxartLink(1);
 
-      expect(backend.callsTo('getGameBoxartLink'), hasLength(1));
+      expect(backend.callsTo('getGameLinks'), hasLength(1));
+    });
+
+    test('the same Future instance is returned for the same id', () async {
+      final state = await _state(FakeGogBackend());
+
+      expect(identical(state.getBoxartLink(1), state.getBoxartLink(1)), isTrue);
+      expect(
+        identical(state.getBackgroundLink(1), state.getBackgroundLink(1)),
+        isTrue,
+      );
     });
   });
 

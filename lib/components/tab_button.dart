@@ -35,6 +35,7 @@ class TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClickableContainer(
       onTap: onTap,
+      focusRadius: style == TabButtonStyle.underline ? 0 : AppRadii.chip,
       child: switch (style) {
         TabButtonStyle.pill => Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),

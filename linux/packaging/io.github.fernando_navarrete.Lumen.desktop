@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen
+Comment=GOG library manager and Proton launcher
+Exec=lumen
+Icon=io.github.fernando_navarrete.Lumen
+Categories=Game;
+StartupWMClass=io.github.fernando_navarrete.Lumen
+Terminal=false

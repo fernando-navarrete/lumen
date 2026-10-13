@@ -8,19 +8,21 @@ import 'package:flutter/foundation.dart';
 @visibleForTesting
 String? xdgDataHomeOverride;
 
+/// `$XDG_DATA_HOME` when set (the XDG Base Directory spec), falling back to
+/// `$HOME/.local/share` otherwise.
+String xdgDataHome() {
+  final xdgDataHome =
+      xdgDataHomeOverride ?? Platform.environment['XDG_DATA_HOME'];
+  return (xdgDataHome != null && xdgDataHome.isNotEmpty)
+      ? xdgDataHome
+      : '${Platform.environment['HOME']}/.local/share';
+}
+
 /// Filesystem locations Lumen owns, e.g. Proton-GE prefixes. Not used for
 /// game install directories, which are always user-chosen via `DirPicker`.
 ///
-/// Resolves under `$XDG_DATA_HOME` when set (the XDG Base Directory spec),
-/// falling back to `$HOME/.local/share` otherwise.
-String lumenDataDir() {
-  final xdgDataHome =
-      xdgDataHomeOverride ?? Platform.environment['XDG_DATA_HOME'];
-  final base = (xdgDataHome != null && xdgDataHome.isNotEmpty)
-      ? xdgDataHome
-      : '${Platform.environment['HOME']}/.local/share';
-  return '$base/lumen';
-}
+/// Resolves under [xdgDataHome].
+String lumenDataDir() => '${xdgDataHome()}/lumen';
 
 /// The Proton prefix directory for [gameId], created on first launch.
 String protonPrefixDir(int gameId) => '${lumenDataDir()}/prefixes/$gameId';

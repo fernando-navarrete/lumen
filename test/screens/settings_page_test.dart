@@ -48,8 +48,6 @@ void main() {
     await tester.tap(find.text('Sign out').last);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    // The login panel's fixed-width button overflows in the test font.
-    tester.takeException();
 
     expect(await storage.read(key: 'auth'), isNull);
     expect(find.byType(LoginScreen), findsOneWidget);

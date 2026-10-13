@@ -21,6 +21,7 @@ class ChipButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return ClickableContainer(
       onTap: onTap,
+      focusRadius: AppRadii.chipSmall,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
         decoration: BoxDecoration(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart' show RepairGameProgress;
+import 'package:lumen/components/side_column_layout.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/screens/home/pages/library/builds_tab.dart';
 
@@ -221,4 +222,32 @@ void main() {
       expect(find.text('Active'), findsOneWidget);
     },
   );
+
+  group('side column', () {
+    Future<void> pumpAt(WidgetTester tester, double width) async {
+      await pumpApp(
+        tester,
+        const BuildsTab(gameId: 1),
+        backend: FakeGogBackend(),
+        surfaceSize: Size(width, 900),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('is hidden in a narrow tab', (tester) async {
+      await pumpAt(tester, 560);
+      expect(find.byKey(SideColumnLayout.sideKey), findsNothing);
+    });
+
+    testWidgets('is 280 wide in a medium tab', (tester) async {
+      await pumpAt(tester, 1000);
+      expect(tester.getSize(find.byKey(SideColumnLayout.sideKey)).width, 280);
+    });
+
+    testWidgets('is 340 wide in a wide tab', (tester) async {
+      await pumpAt(tester, 1600);
+      expect(tester.getSize(find.byKey(SideColumnLayout.sideKey)).width, 340);
+    });
+  });
 }

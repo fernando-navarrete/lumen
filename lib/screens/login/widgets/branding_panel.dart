@@ -11,16 +11,8 @@ class BrandingPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final width = (size.width - (size.width * 0.2) - 2) * 0.45;
     return Container(
-      width: width,
-      height: (size.height - (size.height * 0.1)),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(AppRadii.panel),
-          bottomLeft: Radius.circular(AppRadii.panel),
-        ),
         border: const Border(
           right: BorderSide(color: AppColors.border09, width: 0.75),
         ),
@@ -41,31 +33,35 @@ class BrandingPanel extends StatelessWidget {
             const BrandLockup(),
             Expanded(
               child: Center(
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryGlow.withAlpha(64),
-                        blurRadius: 24,
-                        spreadRadius: 1,
-                        offset: const Offset(0, 0),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryGlow.withAlpha(64),
+                          blurRadius: 24,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 0),
+                        ),
+                      ],
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withAlpha(25),
+                        width: 1.8,
                       ),
-                    ],
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                      color: Colors.white.withAlpha(25),
-                      width: 1.8,
+                      color: AppColors.primary.withAlpha(16),
                     ),
-                    color: AppColors.primary.withAlpha(16),
+                    child: const Center(child: GlowingSquare(width: 54)),
                   ),
-                  child: const Center(child: GlowingSquare(width: 54)),
                 ),
               ),
             ),
-            SizedBox(
-              width: width * 0.7,
+            FractionallySizedBox(
+              widthFactor: 0.7,
+              alignment: Alignment.centerLeft,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,

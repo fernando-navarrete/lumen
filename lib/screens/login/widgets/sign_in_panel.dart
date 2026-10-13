@@ -13,16 +13,20 @@ class SignInPanel extends StatelessWidget {
   const SignInPanel({
     super.key,
     required this.step,
-    required this.loginError,
+    required this.errorText,
+    required this.submitting,
     required this.codeController,
+    required this.codeFocusNode,
     required this.onOpenLoginUrl,
     required this.onCodeChanged,
     required this.onSubmitCode,
   });
 
   final LoginStep step;
-  final bool loginError;
+  final String? errorText;
+  final bool submitting;
   final TextEditingController codeController;
+  final FocusNode codeFocusNode;
   final VoidCallback onOpenLoginUrl;
   final ValueChanged<String> onCodeChanged;
   final ValueChanged<String> onSubmitCode;
@@ -32,17 +36,8 @@ class SignInPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     return Container(
-      width: (size.width - (size.width * 0.2) - 2) * 0.55,
-      height: (size.height - (size.height * 0.1)),
-      decoration: const BoxDecoration(
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(AppRadii.panel),
-          bottomRight: Radius.circular(AppRadii.panel),
-        ),
-        color: _panelTint,
-      ),
+      color: _panelTint,
       child: Stack(
         children: [
           _DynamicGradient(step: step),
@@ -138,7 +133,9 @@ class SignInPanel extends StatelessWidget {
                     ),
                     action: _CodeEntry(
                       codeController: codeController,
-                      loginError: loginError,
+                      codeFocusNode: codeFocusNode,
+                      errorText: errorText,
+                      submitting: submitting,
                       onCodeChanged: onCodeChanged,
                       onSubmitCode: onSubmitCode,
                     ),
@@ -202,13 +199,17 @@ class _RedirectUrlPreview extends StatelessWidget {
 class _CodeEntry extends StatelessWidget {
   const _CodeEntry({
     required this.codeController,
-    required this.loginError,
+    required this.codeFocusNode,
+    required this.errorText,
+    required this.submitting,
     required this.onCodeChanged,
     required this.onSubmitCode,
   });
 
   final TextEditingController codeController;
-  final bool loginError;
+  final FocusNode codeFocusNode;
+  final String? errorText;
+  final bool submitting;
   final ValueChanged<String> onCodeChanged;
   final ValueChanged<String> onSubmitCode;
 
@@ -228,6 +229,7 @@ class _CodeEntry extends StatelessWidget {
                 decoration: AppDecorations.codeBlock,
                 child: TextField(
                   controller: codeController,
+                  focusNode: codeFocusNode,
                   onChanged: onCodeChanged,
                   onSubmitted: onSubmitCode,
                   decoration: InputDecoration(
@@ -257,6 +259,7 @@ class _CodeEntry extends StatelessWidget {
             ),
             PrimaryButton(
               glowing: true,
+              enabled: !submitting,
               onTap: () => onSubmitCode(codeController.text),
               child: Text(
                 "Sign in",
@@ -266,7 +269,7 @@ class _CodeEntry extends StatelessWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
-        loginError
+        errorText != null
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -274,7 +277,7 @@ class _CodeEntry extends StatelessWidget {
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Text(
-                      "That code looks incomplete. Copy the full value after code= and try again.",
+                      errorText!,
                       style: AppText.body(color: AppColors.error),
                     ),
                   ),

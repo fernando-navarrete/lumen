@@ -1,11 +1,43 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/game_links.dart';
 import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 
 void main() {
+  group('GameLinks', () {
+    test('equal values are ==, with matching hashCode', () {
+      const a = GameLinks(boxart: 'b', background: 'g');
+      const b = GameLinks(boxart: 'b', background: 'g');
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+      expect(a, isNot(equals(const GameLinks(boxart: 'b', background: 'x'))));
+      expect(GameLinks.empty, const GameLinks(boxart: '', background: ''));
+    });
+  });
+
+  group('ProtonReleasePage', () {
+    const r = ProtonRelease(tagName: 'GE', downloadSize: 1);
+
+    test('equal values are ==, with matching hashCode', () {
+      final a = ProtonReleasePage(releases: [r], hasMore: true);
+      final b = ProtonReleasePage(releases: [r], hasMore: true);
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+      expect(
+        a,
+        isNot(equals(ProtonReleasePage(releases: [r], hasMore: false))),
+      );
+      expect(
+        a,
+        isNot(equals(const ProtonReleasePage(releases: [], hasMore: true))),
+      );
+    });
+  });
+
   group('GameBuild', () {
     const a = GameBuild(
       buildId: '1',

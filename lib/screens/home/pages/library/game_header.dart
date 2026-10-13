@@ -49,7 +49,7 @@ class GameHeader extends ConsumerWidget {
     final update = ref.watch(gameUpdateProvider(gameId));
     final String? title = ref.watch(gameTitleProvider(gameId)).value;
     return HeroBanner(
-      imageUrl: gogState.getGameBackgroundLink(gameId),
+      imageUrl: gogState.getBackgroundLink(gameId),
       title: title ?? 'Loading...',
       metaChildren: [
         Text(
