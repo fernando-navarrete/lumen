@@ -1762,4 +1762,161 @@ void main() {
       expect(statusOf(1), TaskStatus.failed);
     });
   });
+
+  group('DownloadsNotifier — applyProductChanges', () {
+    const installed =
+        '{"version": 3, "games": {"1": {"status": "downloaded", '
+        '"selectedBuild": "1.0", "installPath": "/games/foo", '
+        '"productIds": [1, 2, 3]}}}';
+
+    Future<(ProviderContainer, FakeGogBackend)> start({
+      String json = installed,
+    }) async {
+      final backend = FakeGogBackend();
+      final container = await createContainer(
+        backend: backend,
+        prefs: {'games': json},
+      );
+      addTearDown(backend.closeAll);
+      return (container, backend);
+    }
+
+    Set<int> ids(ProviderContainer c) =>
+        c.read(gamesStateProvider).getProductIds(1);
+
+    test('adding records the set only when the repair succeeds', () async {
+      var (container, backend) = await start();
+      final notifier = container.read(downloadsStateProvider.notifier);
+      final removal = await notifier.applyProductChanges(
+        1,
+        productIds: {1, 2, 3, 4},
+        baseProductIds: {1},
+      );
+      expect(removal, isNull);
+      expect(backend.callsTo('removeProducts'), isEmpty);
+      expect(backend.callsTo('repairDownload'), hasLength(1));
+      expect(ids(container), {1, 2, 3});
+      final controller = backend.repairController(1);
+      controller.add(const RepairGameProgress.finished());
+      await controller.close();
+      await settle();
+      expect(ids(container), {1, 2, 3, 4});
+
+      (container, backend) = await start();
+      await container
+          .read(downloadsStateProvider.notifier)
+          .applyProductChanges(
+            1,
+            productIds: {1, 2, 3, 4},
+            baseProductIds: {1},
+          );
+      backend.repairController(1).addError(Exception('boom'));
+      await settle();
+      expect(ids(container), {1, 2, 3});
+
+      (container, backend) = await start();
+      final n = container.read(downloadsStateProvider.notifier);
+      await n.applyProductChanges(
+        1,
+        productIds: {1, 2, 3, 4},
+        baseProductIds: {1},
+      );
+      n.cancel(1);
+      await settle();
+      expect(ids(container), {1, 2, 3});
+    });
+
+    test(
+      'removing calls removeProducts, updates the config, no repair',
+      () async {
+        final (container, backend) = await start();
+        final removal = await container
+            .read(downloadsStateProvider.notifier)
+            .applyProductChanges(1, productIds: {1, 2}, baseProductIds: {1});
+        expect(removal, backend.productRemoval);
+        final call = backend.callsTo('removeProducts').single;
+        expect(call.args['keep'], [1, 2]);
+        expect(call.args['remove'], [3]);
+        expect(call.args['path'], '/games/foo');
+        expect(call.args['buildName'], '1.0');
+        expect(backend.callsTo('repairDownload'), isEmpty);
+        expect(ids(container), {1, 2});
+      },
+    );
+
+    test('a failed removal leaves the config and starts no repair', () async {
+      final (container, backend) = await start();
+      backend.throwOn['removeProducts'] = Exception('boom');
+      await expectLater(
+        container
+            .read(downloadsStateProvider.notifier)
+            .applyProductChanges(1, productIds: {1, 2, 4}, baseProductIds: {1}),
+        throwsException,
+      );
+      expect(ids(container), {1, 2, 3});
+      expect(backend.callsTo('repairDownload'), isEmpty);
+    });
+
+    test('mixed: removal first, then a repair with the new set', () async {
+      final (container, backend) = await start();
+      await container
+          .read(downloadsStateProvider.notifier)
+          .applyProductChanges(1, productIds: {1, 2, 4}, baseProductIds: {1});
+      final remove = backend.callsTo('removeProducts').single;
+      expect(remove.args['keep'], [1, 2]);
+      expect(remove.args['remove'], [3]);
+      expect(ids(container), {1, 2}); // removal true on disk, add pending
+      expect(
+        backend.callsTo('repairDownload').single.args['selectedProducts'],
+        unorderedEquals([1, 2, 4]),
+      );
+      final controller = backend.repairController(1);
+      controller.add(const RepairGameProgress.finished());
+      await controller.close();
+      await settle();
+      expect(ids(container), {1, 2, 4});
+    });
+
+    test('refused while a task runs, and when not installed', () async {
+      var (container, backend) = await start();
+      final notifier = container.read(downloadsStateProvider.notifier);
+      await notifier.startRepairForInstalled(
+        1,
+        path: '/games/foo',
+        buildName: '1.0',
+        productIds: [1, 2, 3],
+      );
+      await expectLater(
+        notifier.applyProductChanges(
+          1,
+          productIds: {1, 2},
+          baseProductIds: {1},
+        ),
+        throwsA(isA<ProductChangeError>()),
+      );
+      expect(backend.callsTo('removeProducts'), isEmpty);
+
+      (container, backend) = await start(
+        json:
+            '{"version": 3, "games": {"1": {"status": "notInstalled", '
+            '"selectedBuild": "1.0", "productIds": [1, 2]}}}',
+      );
+      await expectLater(
+        container
+            .read(downloadsStateProvider.notifier)
+            .applyProductChanges(1, productIds: {1}, baseProductIds: {1}),
+        throwsA(isA<ProductChangeError>()),
+      );
+    });
+
+    test('dropping a base product throws', () async {
+      final (container, _) = await start();
+      await expectLater(
+        container
+            .read(downloadsStateProvider.notifier)
+            .applyProductChanges(1, productIds: {2, 3}, baseProductIds: {1}),
+        throwsArgumentError,
+      );
+    });
+  });
 }

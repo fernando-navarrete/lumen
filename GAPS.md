@@ -81,8 +81,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   handle lives in a private per-game `_LiveLaunch`, not in the immutable `RunningGame`.
 - [ ] **P1 — Sign out in release builds.** `clearAuth` is only reachable from the debug-only Settings
   card.
-- [ ] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
+- [x] **P1 — Install or remove DLC on an already installed game.** Toggling products on the DLC tab only
   changes the stored set; nothing downloads until a manual repair.
+  Fixed in `v1.4.0`: the DLC tab builds a pending selection with Apply/Discard; Apply removes dropped DLC's
+  files (`removeProducts`) then repairs to add new ones. Known limits: only another Apply is blocked during
+  the removal call, and there is no size estimate before Apply (only the freed bytes afterwards).
 - [x] **P1 — Update detection.** Nothing flags that a newer build exists than the installed one.
   Fixed in `v1.4.0`: `gameUpdateProvider`, an "Update available" badge on the card and header, and an Update
   action on the Builds tab. Known limit: a deliberately rolled-back install keeps showing the badge (a "pin this
@@ -282,8 +285,9 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — Unify the responsive side-column widths.** `OverviewTab`, `BuildsTab` and `ProductsTab`
   each use different `pow(...)` formulas (flagged in code comments); share one breakpoint helper.
 - [ ] **P2 — Check whether the GOG summary contains HTML** that's being shown raw in `OverviewTab`.
-- [ ] **P2 — Make the DLC tab usable.** It has no empty state when a game has no DLC. The label
+- [x] **P2 — Make the DLC tab usable.** It has no empty state when a game has no DLC. The label
   "Select all products to download" is unclear. Also add select-all and select-none actions.
+  Fixed in `v1.4.0`: empty state, clearer labels, Select all / Select none.
 - [ ] **P2 — Keyboard and accessibility.** `ClickableContainer` is a bare `GestureDetector`, so it has
   no focus, keyboard activation or semantics. Use `InkWell`/`FocusableActionDetector`.
 - [ ] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
