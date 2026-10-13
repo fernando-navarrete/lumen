@@ -4,6 +4,7 @@ import 'package:lumen/common/async_limiter.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
 /// Thrown by the metadata providers when [GogState] reports a failure by
@@ -43,17 +44,17 @@ final ownedGamesProvider = FutureProvider<List<int>>(
   name: 'ownedGamesProvider',
 );
 
-/// How many title lookups may be in flight at once. Phase 0 timed 9 titles at
+/// How many metadata lookups (titles, builds) may be in flight at once. Phase 0 timed 9 titles at
 /// 4.0 s serially and 0.55 to 1.8 s with 4 to 16 in flight: the calls are
 /// latency-bound, so 8 is plenty.
-const titleFetchConcurrency = 8;
+const metadataFetchConcurrency = 8;
 
-final titleFetchLimiterProvider = Provider<AsyncLimiter>(
-  (ref) => AsyncLimiter(titleFetchConcurrency),
-  name: 'titleFetchLimiterProvider',
+final metadataFetchLimiterProvider = Provider<AsyncLimiter>(
+  (ref) => AsyncLimiter(metadataFetchConcurrency),
+  name: 'metadataFetchLimiterProvider',
 );
 
-/// Every title read shares [titleFetchLimiterProvider], so a big library
+/// Every title read shares [metadataFetchLimiterProvider], so a big library
 /// resolves in parallel up to the bound and the grid fills in as each
 /// arrives. A failure is an `AsyncError` for that game only and stays so
 /// until [LibraryRefresher.refresh].
@@ -61,7 +62,7 @@ final gameTitleProvider = FutureProvider.family<String, int>(
   (ref, gameId) async {
     final gog = ref.watch(gogStateProvider);
     final title = await ref
-        .watch(titleFetchLimiterProvider)
+        .watch(metadataFetchLimiterProvider)
         .run(() => gog.getGameName(gameId));
     return _orThrow(title, 'title');
   },
@@ -85,11 +86,39 @@ final gameScreenshotsProvider = FutureProvider.family<List<String>, int>(
 );
 
 final gameBuildsProvider = FutureProvider.family<List<GameBuild>, int>(
-  (ref, gameId) async =>
-      _orThrow(await ref.watch(gogStateProvider).getBuilds(gameId), 'builds'),
+  (ref, gameId) async {
+    final gog = ref.watch(gogStateProvider);
+    final builds = await ref
+        .watch(metadataFetchLimiterProvider)
+        .run(() => gog.getBuilds(gameId));
+    return _orThrow(builds, 'builds');
+  },
   retry: noRetry,
   name: 'gameBuildsProvider',
 );
+
+/// The newest listed build when [gameId] is installed on an older one, else
+/// `null`. Loading, failed and delisted-installed-build cases are all `null`
+/// (the delisted one is the Builds tab's stale-build note, not an update).
+/// Only installed games watch [gameBuildsProvider], so only they fetch.
+final gameUpdateProvider = Provider.family<GameBuild?, int>((ref, gameId) {
+  final installed = ref.watch(
+    gamesStateProvider.select(
+      (s) => s.getGameStatus(gameId) == GameStatus.downloaded
+          ? s.getSelectedBuild(gameId)
+          : null,
+    ),
+  );
+  if (installed == null || installed.isEmpty) return null;
+  final builds = ref.watch(gameBuildsProvider(gameId)).value;
+  if (builds == null) return null;
+  final current = builds.where((b) => b.versionName == installed).firstOrNull;
+  final latest = latestBuild(builds);
+  if (current == null || latest == null) return null;
+  return latest.releaseDateTimestamp > current.releaseDateTimestamp
+      ? latest
+      : null;
+}, name: 'gameUpdateProvider');
 
 typedef GameProductsKey = ({int gameId, String buildName});
 
@@ -117,7 +146,7 @@ final protonReleasesProvider = FutureProvider.family<List<ProtonRelease>, int>(
 );
 
 /// The library's Refresh. Clears the backend's cache,
-/// then re-reads the owned list and any title that failed. Titles that
+/// then re-reads the owned list, any title that failed and watched builds. Titles that
 /// loaded are kept: they don't change, and refetching them is the slow part.
 class LibraryRefresher {
   LibraryRefresher(this._ref);
@@ -133,6 +162,9 @@ class LibraryRefresher {
       if (_ref.read(gameTitleProvider(id)).hasError) {
         _ref.invalidate(gameTitleProvider(id));
       }
+      // Only refetches builds something is watching (installed games' update
+      // checks, an open Builds tab); unread family members are untouched.
+      _ref.invalidate(gameBuildsProvider(id));
     }
     _ref.invalidate(ownedGamesProvider);
     try {

@@ -162,11 +162,15 @@ the refresh/Retry — `ownedGamesProvider`, and the families `gameTitleProvider`
 `gameSummaryProvider`, `gameScreenshotsProvider`, `gameBuildsProvider`, `gameProductsProvider`
 (keyed by `(gameId:, buildName:)`) and `protonReleasesProvider(page)`. A `GogState` `null` becomes a
 thrown `MetadataUnavailableError` (an `AsyncError`); summary and screenshots keep `''`/`[]` on
-failure. `gameTitleProvider` fetches through `titleFetchLimiterProvider`, an 8-wide `AsyncLimiter`
-(`lib/common/async_limiter.dart`), so a large library loads titles in parallel and the grid fills in
-as each arrives. The library's Refresh is `libraryRefresherProvider`'s `LibraryRefresher.refresh()`: it
+failure. `gameTitleProvider` and `gameBuildsProvider` fetch through `metadataFetchLimiterProvider`, an 8-wide
+`AsyncLimiter` (`lib/common/async_limiter.dart`), so a large library loads titles in parallel and the grid fills in
+as each arrives. `gameUpdateProvider(gameId)` is the newest listed build when an installed game's
+`selectedBuild` is an older listed one (null while loading, on failure, when the installed build is delisted — the
+Builds tab's stale note — or for a game that isn't installed, which never fetches builds); it drives the "Update
+available" badge and the Builds tab's Update action. A repair records its build (`setSelectedBuild`) only when it
+succeeds, so a failed Switch/Update keeps the old build and the badge. The library's Refresh is `libraryRefresherProvider`'s `LibraryRefresher.refresh()`: it
 calls `GogState.clearCache()` (the bridge's `clearCache()`, which drops its memoized owned products, builds and downloadable products; a failure is logged and the refresh goes on, and the Builds tab's Refresh chip does the same before invalidating `gameBuildsProvider`), invalidates the
-titles that failed (loaded ones are kept) and `ownedGamesProvider`, whose previous value stays on
+titles that failed (loaded ones are kept), every `gameBuildsProvider` and `ownedGamesProvider`, whose previous value stays on
 screen meanwhile; it returns false if the owned list can't be fetched. Every provider passes `retry: noRetry`, since Riverpod 3's automatic retry would hammer GOG
 and hang widget tests; Retry is always an explicit invalidate. An empty owned list is real data
 (upstream drops a game whose lookup failed, so it may be transient) — the empty state's Retry

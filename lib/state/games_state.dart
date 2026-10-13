@@ -282,8 +282,8 @@ class GamesNotifier extends Notifier<GamesState> {
   /// Changes [gameId]'s selected build, preserving the rest of its config
   /// (status, install path, products, Proton override, executable, launch
   /// settings, ...). Callers that need to re-sync an installed game against
-  /// the new build (e.g. the Builds tab) are responsible for starting a
-  /// repair themselves — this only records the selection.
+  /// the new build (e.g. the Builds tab) start a repair themselves and let
+  /// it call this on success, so a failed one keeps the old build.
   void setSelectedBuild(int gameId, String buildName) {
     final existing = state.games[gameId];
     if (existing != null && existing.selectedBuild == buildName) {

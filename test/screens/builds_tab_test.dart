@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart' show RepairGameProgress;
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/screens/home/pages/library/builds_tab.dart';
 
@@ -155,6 +156,69 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'an installed game on an older build is offered Update; the build is '
+    'recorded only once the repair finishes',
+    (tester) async {
+      final backend = FakeGogBackend()
+        ..builds[gameId] = [
+          const GameBuild(
+            buildId: 'b2',
+            versionName: '2.0.0',
+            releaseDate: '2026-02-01T00:00:00+0000',
+            releaseDateTimestamp: 2,
+          ),
+          const GameBuild(
+            buildId: 'b1',
+            versionName: '1.0.0',
+            releaseDate: '2026-01-01T00:00:00+0000',
+            releaseDateTimestamp: 1,
+          ),
+        ];
+      const json =
+          '{"version": 1, "games": {"1": {"status": "downloaded", '
+          '"selectedBuild": "1.0.0", "installPath": "/games/foo", '
+          '"productIds": [1]}}}';
+
+      await pumpApp(
+        tester,
+        const BuildsTab(gameId: gameId),
+        backend: backend,
+        prefs: {'games': json},
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Latest'), findsOneWidget);
+      expect(find.text('Update'), findsOneWidget);
+      expect(find.text('Active'), findsOneWidget);
+
+      await tester.tap(find.text('Update'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Update to 2.0.0?'), findsOneWidget);
+      await tester.tap(find.text('Update').last);
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      final repair = backend.callsTo('repairDownload').single;
+      expect(repair.args['buildName'], '2.0.0');
+      // Still on 1.0.0 (its row is the Active one) while the repair runs.
+      expect(find.text('Update'), findsOneWidget);
+
+      final controller = backend.repairController(gameId);
+      controller.add(const RepairGameProgress.finished());
+      unawaited(controller.close());
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('Update'), findsNothing);
+      expect(find.text('Active'), findsOneWidget);
     },
   );
 }

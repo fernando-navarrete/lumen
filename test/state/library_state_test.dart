@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/library_state.dart';
 
 import '../helpers/container.dart';
@@ -191,7 +192,7 @@ void main() {
   });
 
   group('title concurrency', () {
-    test('at most titleFetchConcurrency lookups are in flight', () async {
+    test('at most metadataFetchConcurrency lookups are in flight', () async {
       final ids = List.generate(20, (i) => i + 1);
       final gate = Completer<void>();
       var inFlight = 0;
@@ -211,11 +212,11 @@ void main() {
         for (final id in ids) container.read(gameTitleProvider(id).future),
       ]);
       await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(inFlight, titleFetchConcurrency);
+      expect(inFlight, metadataFetchConcurrency);
 
       gate.complete();
       expect(await all, [for (final id in ids) 'Game $id']);
-      expect(peak, titleFetchConcurrency);
+      expect(peak, metadataFetchConcurrency);
     });
 
     test('a failed title does not fail the others', () async {
@@ -302,5 +303,103 @@ void main() {
         expect(container.read(ownedGamesProvider).value, [1]);
       },
     );
+  });
+
+  group('gameUpdateProvider', () {
+    GameBuild build(String name, int ts) => GameBuild(
+      buildId: name,
+      versionName: name,
+      releaseDate: '2024',
+      releaseDateTimestamp: ts,
+    );
+    String installedOn(String name) =>
+        '{"version": 1, "games": {"1": {"status": "downloaded", '
+        '"selectedBuild": "$name", "productIds": [1]}}}';
+
+    test('a newer listed build is the update', () async {
+      final backend = FakeGogBackend()
+        ..builds[1] = [build('2.0', 20), build('1.0', 10)];
+      final container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('1.0')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1))?.versionName, '2.0');
+    });
+
+    test('null when on the latest, delisted, loading, or failed', () async {
+      final backend = FakeGogBackend()..builds[1] = [build('2.0', 20)];
+      var container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('2.0')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      expect(container.read(gameUpdateProvider(1)), isNull); // loading
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1)), isNull); // latest
+
+      container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('0.1-delisted')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1)), isNull);
+
+      backend.throwOn['getGameBuilds'] = Exception('boom');
+      container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('1.0')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await container
+          .read(gameBuildsProvider(1).future)
+          .then((_) {}, onError: (_) {});
+      expect(container.read(gameUpdateProvider(1)), isNull);
+    });
+
+    test('a game that is not installed never fetches builds', () async {
+      final backend = FakeGogBackend()..builds[1] = [build('2.0', 20)];
+      final container = await createContainer(backend: backend);
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(gameUpdateProvider(1)), isNull);
+      expect(backend.callsTo('getGameBuilds'), isEmpty);
+    });
+
+    test('clears once the installed build is the latest', () async {
+      final backend = FakeGogBackend()
+        ..builds[1] = [build('2.0', 20), build('1.0', 10)];
+      final container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('1.0')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1)), isNotNull);
+      container.read(gamesStateProvider.notifier).setSelectedBuild(1, '2.0');
+      expect(container.read(gameUpdateProvider(1)), isNull);
+    });
+
+    test('refresh surfaces a build published after the first load', () async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'One'
+        ..builds[1] = [build('1.0', 10)];
+      final container = await createContainer(
+        backend: backend,
+        prefs: {'games': installedOn('1.0')},
+      );
+      container.listen(gameUpdateProvider(1), (_, _) {});
+      await container.read(ownedGamesProvider.future);
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1)), isNull);
+
+      backend.builds[1] = [build('2.0', 20), build('1.0', 10)];
+      await container.read(libraryRefresherProvider).refresh();
+      await container.read(gameBuildsProvider(1).future);
+      expect(container.read(gameUpdateProvider(1))?.versionName, '2.0');
+    });
   });
 }

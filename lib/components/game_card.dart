@@ -7,6 +7,7 @@ import 'package:lumen/components/gradient_progress_bar.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
@@ -35,6 +36,8 @@ class GameCard extends ConsumerWidget {
       }),
     );
 
+    final bool hasUpdate = ref.watch(gameUpdateProvider(gameId!)) != null;
+
     Widget cover = AsyncCoverImage(
       imageUrl: ref.watch(gogStateProvider).getGameBoxartLink(gameId!),
     );
@@ -52,6 +55,29 @@ class GameCard extends ConsumerWidget {
         child: Stack(
           children: [
             Positioned.fill(child: cover),
+            if (hasUpdate)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(AppRadii.chip),
+                  ),
+                  child: Text(
+                    'Update available',
+                    style: AppText.onest(
+                      size: 10,
+                      weight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 0,
               left: 0,

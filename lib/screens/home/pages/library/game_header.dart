@@ -46,6 +46,7 @@ class GameHeader extends ConsumerWidget {
         gamesState.getProtonVersion(gameId) ??
         ref.watch(protonStateProvider).defaultVersion;
 
+    final update = ref.watch(gameUpdateProvider(gameId));
     final String? title = ref.watch(gameTitleProvider(gameId)).value;
     return HeroBanner(
       imageUrl: gogState.getGameBackgroundLink(gameId),
@@ -57,6 +58,14 @@ class GameHeader extends ConsumerWidget {
         ),
         if (buildVersion != null && buildVersion.isNotEmpty)
           Text(buildVersion, style: AppText.meta()),
+        if (update != null)
+          Text(
+            'Update available · ${update.versionName}',
+            style: AppText.meta(
+              color: AppColors.primaryLight,
+              weight: FontWeight.w600,
+            ),
+          ),
         if (proton != null)
           Row(
             spacing: 6,

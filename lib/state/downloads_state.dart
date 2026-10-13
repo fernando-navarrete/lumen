@@ -821,7 +821,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
   }
 
   /// Repairs an already-installed game against an explicit build (e.g. after
-  /// switching builds on the Builds tab), rather than reusing a previous
+  /// switching builds on the Builds tab; the game's recorded build changes
+  /// only when the repair succeeds), rather than reusing a previous
   /// task's path/build/products the way [startRepair] does. A still-running
   /// task for the game blocks a second start; anything else is dequeued
   /// first, same trick [startVerificationForInstalled] uses.
@@ -1020,6 +1021,11 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
           status: finished ? TaskStatus.completed : TaskStatus.failed,
         );
         if (finished && task.path != null) {
+          // The recorded build moves only now, so a failed or cancelled
+          // switch/update keeps the old build (and the update badge).
+          if (task.buildName != null) {
+            _gamesNotifier.setSelectedBuild(gameId, task.buildName!);
+          }
           _gamesNotifier.markInstalled(gameId, task.path!);
         } else if (resumed) {
           _gamesNotifier.setGameStatus(gameId, GameStatus.paused);

@@ -56,15 +56,17 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
       return;
     }
 
+    final isUpdate = ref.read(gameUpdateProvider(gameId)) == gameBuild;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => _SwitchBuildDialog(versionName: gameBuild.versionName),
+      builder: (_) => _SwitchBuildDialog(
+        versionName: gameBuild.versionName,
+        isUpdate: isUpdate,
+      ),
     );
     if (confirmed != true || !mounted) {
       return;
     }
-
-    gamesNotifier.setSelectedBuild(gameId, gameBuild.versionName);
 
     final installPath = gamesState.getInstallPath(gameId);
     final productIds = gamesState.getProductIds(gameId).toList();
@@ -83,9 +85,10 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            "Switching build — check the Downloads tab for progress",
+            "${isUpdate ? 'Updating' : 'Switching build'} — check the "
+            "Downloads tab for progress",
           ),
         ),
       );
@@ -97,6 +100,8 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
     final size = MediaQuery.of(context).size;
     final buildsAsync = ref.watch(gameBuildsProvider(widget.gameId));
     final List<GameBuild>? builds = buildsAsync.value;
+    final GameBuild? latest = builds == null ? null : latestBuild(builds);
+    final GameBuild? update = ref.watch(gameUpdateProvider(widget.gameId));
     final gamesState = ref.watch(gamesStateProvider);
     final String? selectedName = gamesState.getSelectedBuild(widget.gameId);
     final int selectedBuild = selectedName == null
@@ -165,6 +170,8 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                     itemCount: builds.length,
                     itemBuilder: (context, index) => _BuildListItem(
                       isSelected: index == selectedBuild,
+                      isLatest: builds[index] == latest,
+                      isUpdate: builds[index] == update,
                       gameBuild: builds[index],
                       onTap: _onBuildTap,
                     ),
@@ -191,9 +198,10 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 /// silent, free action the way selecting a build for a not-yet-installed
 /// game is.
 class _SwitchBuildDialog extends StatelessWidget {
-  const _SwitchBuildDialog({required this.versionName});
+  const _SwitchBuildDialog({required this.versionName, required this.isUpdate});
 
   final String versionName;
+  final bool isUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +218,10 @@ class _SwitchBuildDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Switch to $versionName?', style: AppText.sectionLabel),
+              Text(
+                '${isUpdate ? 'Update' : 'Switch'} to $versionName?',
+                style: AppText.sectionLabel,
+              ),
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Lumen will re-download the files that changed for this build.',
@@ -229,8 +240,8 @@ class _SwitchBuildDialog extends StatelessWidget {
                     ),
                   ),
                   PrimaryButton.icon(
-                    icon: Icons.sync,
-                    label: 'Switch',
+                    icon: isUpdate ? Icons.system_update_alt : Icons.sync,
+                    label: isUpdate ? 'Update' : 'Switch',
                     glowing: true,
                     onTap: () => Navigator.of(context).pop(true),
                   ),
@@ -250,11 +261,15 @@ class _BuildListItem extends StatelessWidget {
     required this.gameBuild,
     required this.onTap,
     required this.isSelected,
+    required this.isLatest,
+    required this.isUpdate,
   });
 
   final GameBuild gameBuild;
   final Function(GameBuild) onTap;
   final bool isSelected;
+  final bool isLatest;
+  final bool isUpdate;
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +290,21 @@ class _BuildListItem extends StatelessWidget {
                   spacing: 3,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(gameBuild.versionName, style: AppText.cardTitle()),
+                    Row(
+                      spacing: AppSpacing.sm,
+                      children: [
+                        Text(gameBuild.versionName, style: AppText.cardTitle()),
+                        if (isLatest)
+                          Text(
+                            'Latest',
+                            style: AppText.onest(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: AppColors.primaryLight,
+                            ),
+                          ),
+                      ],
+                    ),
                     Text(releaseDate, style: AppText.cardDesc()),
                   ],
                 ),
@@ -300,7 +329,7 @@ class _BuildListItem extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppRadii.chip),
                       ),
                       child: Text(
-                        'Switch',
+                        isUpdate ? 'Update' : 'Switch',
                         style: AppText.onest(
                           size: 12.5,
                           weight: FontWeight.w600,

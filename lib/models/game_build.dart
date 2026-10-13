@@ -29,3 +29,15 @@ class GameBuild {
   int get hashCode =>
       Object.hash(buildId, versionName, releaseDate, releaseDateTimestamp);
 }
+
+/// The newest of [builds] by `releaseDateTimestamp`, or `null` if empty.
+GameBuild? latestBuild(Iterable<GameBuild> builds) {
+  GameBuild? latest;
+  for (final b in builds) {
+    if (latest == null ||
+        b.releaseDateTimestamp > latest.releaseDateTimestamp) {
+      latest = b;
+    }
+  }
+  return latest;
+}

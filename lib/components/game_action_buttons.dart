@@ -85,10 +85,6 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
     }
   }
 
-  GameBuild _latestBuild(List<GameBuild> builds) => builds.reduce(
-    (a, b) => b.releaseDateTimestamp > a.releaseDateTimestamp ? b : a,
-  );
-
   /// Preloads the default build (latest) and products (all) for
   /// [widget.gameId], but only fills in defaults when nothing has been
   /// saved yet — a prior user choice is left untouched. Never picks a build
@@ -113,7 +109,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
       );
       if (!mounted) return;
       if (builds != null && builds.isNotEmpty) {
-        buildName = _latestBuild(builds).versionName;
+        buildName = latestBuild(builds)!.versionName;
         gamesNotifier.setSelectedBuild(gameId, buildName);
       }
     }

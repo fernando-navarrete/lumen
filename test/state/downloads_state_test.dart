@@ -483,6 +483,65 @@ void main() {
     );
 
     test(
+      'a build switch records the new build only when the repair succeeds',
+      () async {
+        Future<(ProviderContainer, FakeGogBackend)> start() async {
+          final backend = FakeGogBackend();
+          final container = await createContainer(
+            backend: backend,
+            prefs: {
+              'games':
+                  '{"version": 1, "games": {"1": {"status": "downloaded", '
+                  '"selectedBuild": "1.0", "installPath": "/games/foo", '
+                  '"productIds": [1]}}}',
+            },
+          );
+          addTearDown(backend.closeAll);
+          await container
+              .read(downloadsStateProvider.notifier)
+              .startRepairForInstalled(
+                1,
+                path: '/games/foo',
+                buildName: '2.0',
+                productIds: [1],
+              );
+          return (container, backend);
+        }
+
+        String? build(ProviderContainer c) =>
+            c.read(gamesStateProvider).getSelectedBuild(1);
+
+        var (container, backend) = await start();
+        expect(build(container), '1.0'); // still running
+        var controller = backend.repairController(1);
+        controller.add(const RepairGameProgress.finished());
+        await controller.close();
+        await settle();
+        expect(build(container), '2.0');
+
+        (container, backend) = await start();
+        controller = backend.repairController(1);
+        controller.add(const RepairGameProgress.allocationError('a.dat'));
+        controller.add(const RepairGameProgress.finished());
+        await controller.close();
+        await settle();
+        expect(build(container), '1.0'); // failed
+
+        (container, backend) = await start();
+        controller = backend.repairController(1);
+        controller.addError(Exception('boom'));
+        await controller.close();
+        await settle();
+        expect(build(container), '1.0'); // errored
+
+        (container, backend) = await start();
+        container.read(downloadsStateProvider.notifier).cancel(1);
+        await settle();
+        expect(build(container), '1.0'); // cancelled
+      },
+    );
+
+    test(
       'allocation errors are kept separate from damaged files and fail the task',
       () async {
         final backend = FakeGogBackend();
