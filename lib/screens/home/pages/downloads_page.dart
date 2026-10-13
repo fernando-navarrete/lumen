@@ -9,6 +9,7 @@ import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/saves_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
@@ -526,13 +527,11 @@ class _ActiveTaskCard extends ConsumerWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: FutureBuilder<String?>(
-                        future: gogState.getGameName(gameId),
-                        builder: (context, snapshot) => Text(
-                          snapshot.data ?? "Loading...",
-                          style: AppText.cardTitle(),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      child: Text(
+                        ref.watch(gameTitleProvider(gameId)).value ??
+                            "Loading...",
+                        style: AppText.cardTitle(),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (progress != null)
@@ -628,16 +627,13 @@ class _RecentInstallRow extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 2,
               children: [
-                FutureBuilder<String?>(
-                  future: gogState.getGameName(gameId),
-                  builder: (context, snapshot) => Text(
-                    snapshot.data ?? "Loading...",
-                    style: AppText.bodyMedium(
-                      color: Colors.white,
-                      weight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                Text(
+                  ref.watch(gameTitleProvider(gameId)).value ?? "Loading...",
+                  style: AppText.bodyMedium(
+                    color: Colors.white,
+                    weight: FontWeight.w600,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   statusText,

@@ -6,44 +6,29 @@ import 'package:lumen/components/game_action_buttons.dart';
 import 'package:lumen/components/game_card.dart';
 import 'package:lumen/components/hero_banner.dart';
 import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/components/refresh_chip.dart';
 import 'package:lumen/screens/home/pages/library/game_details_view.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 import 'package:lumen/state/home_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
-/// Switches between the owned-games grid and the details of a selected game.
-class LibraryPage extends StatefulWidget {
+/// Switches between the owned-games grid and the details of the game held
+/// by [librarySelectionProvider].
+class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key});
 
   @override
-  State<LibraryPage> createState() => _LibraryPageState();
-}
-
-class _LibraryPageState extends State<LibraryPage> {
-  int? selectedGame;
-
-  @override
-  Widget build(BuildContext context) {
-    return (selectedGame == null)
-        ? _GameGrid(
-            onGameTap: (gameId) {
-              setState(() {
-                selectedGame = gameId;
-              });
-            },
-          )
-        : GameDetailsView(
-            gameId: selectedGame!,
-            goBack: () {
-              setState(() {
-                selectedGame = null;
-              });
-            },
-          );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selection = ref.watch(librarySelectionProvider);
+    final notifier = ref.read(librarySelectionProvider.notifier);
+    return selection == null
+        ? _GameGrid(onGameTap: notifier.select)
+        : GameDetailsView(gameId: selection.gameId, goBack: notifier.clear);
   }
 }
 
@@ -76,61 +61,44 @@ class _GameGrid extends ConsumerStatefulWidget {
 }
 
 class _GameGridState extends ConsumerState<_GameGrid> {
-  bool _loading = true;
-  List<int>? _ownedGames;
-  List<String> _gameNames = [];
   _LibraryFilter _filter = _LibraryFilter.all;
 
-  @override
-  void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
-    super.initState();
-  }
-
-  Future<void> _load({bool retry = false}) async {
-    if (!mounted) return;
-    setState(() => _loading = true);
-    final gogState = ref.read(gogStateProvider);
-    if (retry) {
-      gogState.invalidateOwnedGames();
-    }
-    final owned = await gogState.getOwnedGames();
-    if (!mounted) return;
-    setState(() {
-      _ownedGames = owned;
-      _gameNames = List.filled(owned?.length ?? 0, '');
-      _loading = false;
-    });
-    if (owned == null) {
-      return;
-    }
-    for (int i = 0; i < owned.length; i++) {
-      final name = await gogState.getGameName(owned[i]);
-      if (!mounted) return;
-      if (name != null) {
-        setState(() => _gameNames[i] = name);
-      }
+  Future<void> _refresh() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await ref.read(libraryRefresherProvider).refresh();
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text("Couldn't refresh your library.")),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    final owned = ref.watch(ownedGamesProvider);
+    void retry() => ref.invalidate(ownedGamesProvider);
+    // An invalidate keeps the previous value, so a refresh doesn't land here.
+    if (owned.isLoading && !owned.hasValue) {
       return const CenteredLoader();
     }
-    if (_ownedGames == null) {
+    final List<int>? ownedGames = owned.value;
+    if (ownedGames == null) {
       return _LibraryMessage(
         message: "Couldn't load your library.",
-        onRetry: () => _load(retry: true),
+        onRetry: retry,
       );
     }
-    if (_ownedGames!.isEmpty) {
+    if (ownedGames.isEmpty) {
       return _LibraryMessage(
         message: 'No games in your library.',
-        onRetry: () => _load(retry: true),
+        onRetry: retry,
       );
     }
-    final List<int> ownedGames = _ownedGames!;
+
+    // A game whose title hasn't loaded (or failed) is '' here.
+    final List<String> gameNames = [
+      for (final id in ownedGames) ref.watch(gameTitleProvider(id)).value ?? '',
+    ];
 
     final gogState = ref.watch(gogStateProvider);
     final gamesState = ref.watch(gamesStateProvider);
@@ -140,7 +108,7 @@ class _GameGridState extends ConsumerState<_GameGrid> {
     final List<int> visible = [
       for (int i = 0; i < ownedGames.length; i++)
         if (_filter.matches(gamesState.getGameStatus(ownedGames[i])) &&
-            (query.isEmpty || _gameNames[i].toLowerCase().contains(query)))
+            (query.isEmpty || gameNames[i].toLowerCase().contains(query)))
           i,
     ];
 
@@ -150,7 +118,7 @@ class _GameGridState extends ConsumerState<_GameGrid> {
     );
     final int featuredId = ownedGames[featuredIndex < 0 ? 0 : featuredIndex];
     final String featuredName =
-        _gameNames[featuredIndex < 0 ? 0 : featuredIndex];
+        gameNames[featuredIndex < 0 ? 0 : featuredIndex];
     final bool featuredInstalled = featuredIndex >= 0;
 
     return Center(
@@ -217,6 +185,7 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                         color: AppColors.text40,
                       ),
                     ),
+                    RefreshChip(busy: owned.isLoading, onTap: _refresh),
                   ],
                 ),
               ),
@@ -232,12 +201,12 @@ class _GameGridState extends ConsumerState<_GameGrid> {
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final int i = visible[index];
-                  if (_gameNames[i].isEmpty) {
+                  if (gameNames[i].isEmpty) {
                     return const SizedBox.shrink();
                   }
                   return GameCard(
                     gameId: ownedGames[i],
-                    gameName: _gameNames[i],
+                    gameName: gameNames[i],
                     onTap: () {
                       widget.onGameTap(ownedGames[i]);
                     },

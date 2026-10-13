@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'container.dart';
 import 'fake_gog_backend.dart';
+import 'fake_secure_storage.dart';
 
 /// Pumps [child] inside a real [MaterialApp]/[Scaffold], wired to a fresh
 /// [ProviderContainer] built the same way [createContainer] builds one for
@@ -22,6 +23,7 @@ Future<ProviderContainer> pumpApp(
   WidgetTester tester,
   Widget child, {
   FakeGogBackend? backend,
+  FakeSecureStorage? secureStorage,
   Map<String, Object> prefs = const {},
   List<Override> overrides = const [],
   Size surfaceSize = const Size(1600, 1000),
@@ -31,6 +33,7 @@ Future<ProviderContainer> pumpApp(
 
   final container = await createContainer(
     backend: backend,
+    secureStorage: secureStorage,
     prefs: prefs,
     overrides: overrides,
   );

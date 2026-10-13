@@ -6,12 +6,14 @@ import 'package:lumen/common/clickable_container.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
+import 'package:lumen/components/refresh_chip.dart';
+import 'package:lumen/components/retry_message.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/theme/app_colors.dart';
-import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
@@ -26,52 +28,13 @@ class BuildsTab extends ConsumerStatefulWidget {
 }
 
 class _BuildsTabState extends ConsumerState<BuildsTab> {
-  bool _loading = true;
-  List<GameBuild>? _builds;
-  int selectedBuild = -1;
-
-  /// Set when the game is installed, has a non-empty recorded build, but
-  /// that build isn't in [_builds] — GOG delisted or renamed it after
-  /// install. Surfaced as a note above the list, since otherwise nothing
-  /// being Active here looks unexplained (see game_action_buttons.dart's
-  /// `_checkBuild`, which blocks Verify/Play in the same situation).
-  String? _staleBuildName;
-
-  @override
-  void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadBuilds());
-    super.initState();
-  }
-
-  Future<void> _loadBuilds() async {
-    setState(() => _loading = true);
-    final GogState gogState = ref.read(gogStateProvider);
-    final builds = await gogState.getBuilds(widget.gameId);
+  Future<void> _reload() async {
+    await ref.read(gogStateProvider).clearCache();
     if (!mounted) return;
-
-    final GamesState gamesState = ref.read(gamesStateProvider);
-    final String? selectedName = gamesState.getSelectedBuild(widget.gameId);
-    final installed =
-        gamesState.getGameStatus(widget.gameId) == GameStatus.downloaded;
-    final index = selectedName == null
-        ? -1
-        : builds?.indexWhere((b) => b.versionName == selectedName) ?? -1;
-    setState(() {
-      _builds = builds;
-      selectedBuild = index;
-      _staleBuildName =
-          installed &&
-              builds != null &&
-              selectedName != null &&
-              selectedName.isNotEmpty &&
-              index == -1
-          ? selectedName
-          : null;
-      _loading = false;
-    });
+    ref.invalidate(gameBuildsProvider(widget.gameId));
   }
 
-  Future<void> _onBuildTap(int index, GameBuild gameBuild) async {
+  Future<void> _onBuildTap(GameBuild gameBuild) async {
     final gamesState = ref.read(gamesStateProvider);
     final gamesNotifier = ref.read(gamesStateProvider.notifier);
     final gameId = widget.gameId;
@@ -89,9 +52,6 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
     if (status != GameStatus.downloaded) {
       // Not installed yet — just record the selection, nothing to repair.
-      setState(() {
-        selectedBuild = index;
-      });
       gamesNotifier.setSelectedBuild(gameId, gameBuild.versionName);
       return;
     }
@@ -104,9 +64,6 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
       return;
     }
 
-    setState(() {
-      selectedBuild = index;
-    });
     gamesNotifier.setSelectedBuild(gameId, gameBuild.versionName);
 
     final installPath = gamesState.getInstallPath(gameId);
@@ -138,6 +95,27 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final buildsAsync = ref.watch(gameBuildsProvider(widget.gameId));
+    final List<GameBuild>? builds = buildsAsync.value;
+    final gamesState = ref.watch(gamesStateProvider);
+    final String? selectedName = gamesState.getSelectedBuild(widget.gameId);
+    final int selectedBuild = selectedName == null
+        ? -1
+        : builds?.indexWhere((b) => b.versionName == selectedName) ?? -1;
+
+    // The installed game has a recorded build that GOG no longer lists —
+    // GOG delisted or renamed it after install. Surfaced as a note above the
+    // list, since otherwise nothing being Active here looks unexplained (see
+    // game_action_buttons.dart's `_checkBuild`, which blocks Verify/Play in
+    // the same situation).
+    final String? staleBuildName =
+        gamesState.getGameStatus(widget.gameId) == GameStatus.downloaded &&
+            builds != null &&
+            selectedName != null &&
+            selectedName.isNotEmpty &&
+            selectedBuild == -1
+        ? selectedName
+        : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -155,40 +133,40 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.sm),
-                    _RefreshChip(onTap: _loadBuilds),
+                    RefreshChip(onTap: _reload),
                   ],
                 ),
                 const SizedBox(height: AppSpacing.md),
-                if (_staleBuildName != null) ...[
+                if (staleBuildName != null) ...[
                   Text(
-                    'Installed build "$_staleBuildName" is no longer listed '
+                    'Installed build "$staleBuildName" is no longer listed '
                     'by GOG. Select the build to switch to — Lumen will '
                     'repair the install against it.',
                     style: AppText.meta(color: AppColors.error),
                   ),
                   const SizedBox(height: AppSpacing.md),
                 ],
-                if (_loading)
+                if (buildsAsync.isLoading)
                   const CenteredLoader()
-                else if (_builds == null)
-                  _BuildsMessage(
+                else if (builds == null)
+                  RetryMessage(
                     message: "Couldn't load builds.",
-                    onRetry: _loadBuilds,
+                    onRetry: _reload,
                   )
-                else if (_builds!.isEmpty)
-                  _BuildsMessage(
+                else if (builds.isEmpty)
+                  RetryMessage(
                     message: 'No builds available.',
-                    onRetry: _loadBuilds,
+                    onRetry: _reload,
                   )
                 else
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _builds!.length,
+                    itemCount: builds.length,
                     itemBuilder: (context, index) => _BuildListItem(
                       isSelected: index == selectedBuild,
-                      gameBuild: _builds![index],
-                      onTap: (gameBuild) => _onBuildTap(index, gameBuild),
+                      gameBuild: builds[index],
+                      onTap: _onBuildTap,
                     ),
                   ),
               ],
@@ -266,73 +244,7 @@ class _SwitchBuildDialog extends StatelessWidget {
   }
 }
 
-/// Message with a Retry action, for when the builds fetch failed or came
-/// back empty.
-class _BuildsMessage extends StatelessWidget {
-  const _BuildsMessage({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(AppSpacing.lg),
-    decoration: AppDecorations.glassRow(),
-    child: Column(
-      spacing: AppSpacing.md,
-      children: [
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: AppText.bodyMedium(color: AppColors.text70),
-        ),
-        PrimaryButton(
-          onTap: onRetry,
-          child: Text('Retry', style: AppText.button(color: Colors.white)),
-        ),
-      ],
-    ),
-  );
-}
-
 /// Quiet "↻ Refresh" chip re-fetching the build list.
-class _RefreshChip extends StatelessWidget {
-  const _RefreshChip({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClickableContainer(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.fill06,
-          border: Border.all(color: AppColors.border10),
-          borderRadius: BorderRadius.circular(AppRadii.chip),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 6,
-          children: [
-            const Icon(Icons.refresh, size: 14, color: AppColors.text80),
-            Text(
-              'Refresh',
-              style: AppText.onest(
-                size: 12.5,
-                weight: FontWeight.w600,
-                color: AppColors.text80,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _BuildListItem extends StatelessWidget {
   const _BuildListItem({
     required this.gameBuild,

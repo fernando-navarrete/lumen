@@ -103,8 +103,10 @@ class ProtonState {
 /// downloads/repairs — see [DownloadsNotifier]), and persisting the set of
 /// installed versions plus the app-wide default to SharedPreferences.
 class ProtonNotifier extends Notifier<ProtonState> {
-  late final GogState _gogState;
-  late final SharedPreferences _prefs;
+  // Not `final`: `Account.signOut` invalidates this provider, and Riverpod
+  // reuses the notifier instance when it rebuilds `build()`.
+  late GogState _gogState;
+  late SharedPreferences _prefs;
 
   static const _installedKey = 'protonInstalled';
   static const _defaultKey = 'protonDefault';
@@ -138,7 +140,7 @@ class ProtonNotifier extends Notifier<ProtonState> {
 
   // Throttles progress-event emits to ~10Hz with a trailing flush, the same
   // way `DownloadsNotifier` does — see lib/state/emit_throttle.dart.
-  late final ThrottledTaskBuffer<String, ProtonTask> _buffer;
+  late ThrottledTaskBuffer<String, ProtonTask> _buffer;
 
   /// Commits [next] as the replacement for [current] if [current] is still
   /// the task registered for its tag — either the latest buffered value in
@@ -160,10 +162,6 @@ class ProtonNotifier extends Notifier<ProtonState> {
       _buffer.put(next.tag, next, throttle: throttle);
     }
     return next;
-  }
-
-  Future<List<ProtonRelease>?> fetchReleases(int page) {
-    return _gogState.getProtonReleases(page);
   }
 
   /// Downloads and extracts [release] into [targetDir] (defaulting to

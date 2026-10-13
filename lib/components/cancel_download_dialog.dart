@@ -4,7 +4,7 @@ import 'package:lumen/common/directory_size.dart';
 import 'package:lumen/common/format.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
-import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
@@ -22,7 +22,7 @@ Future<void> confirmCancelDownload(
       games.getPendingInstallPath(gameId) ??
       ref.read(downloadsStateProvider).tasks[gameId]?.path;
   final canDelete = games.games[gameId]?.ownsPendingInstallDir ?? false;
-  final name = await ref.read(gogStateProvider).getGameName(gameId);
+  final name = await readGameTitle(ref.read, gameId);
   if (!context.mounted) return;
 
   final deleteFiles = await showCancelDownloadDialog(

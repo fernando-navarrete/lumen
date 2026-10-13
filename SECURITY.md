@@ -32,6 +32,13 @@ locked commit. A git dependency reachable only over the LAN is not allowed.
 scan two lockfiles with OSV-Scanner: `pubspec.lock`, and the Rust `Cargo.lock` of the `gogdl_flutter` commit that
 `pubspec.lock` pins (most of the code that ships is that Rust, built into the app).
 
+The bridge's `Cargo.lock` is pruned first (`tool/prune_cargo_lock.dart`) to the crates `cargo tree` resolves for it
+(every target, all of its features, dev and build dependencies). A lockfile also lists optional crates that no enabled
+feature builds: `quinn-proto` sits in the bridge's because `reqwest`'s `rustls` feature names `quinn?/...`, though only
+`http3` would build it, so OSV-Scanner flagged advisories for code that never compiles. A pruned crate isn't ignored,
+it is simply not in the build: if one joins the graph later, it stays in the file and is scanned. If `cargo tree`
+and the lockfile disagree (a crate in the tree that the lockfile lacks), `bridge-lock` fails.
+
 - **Any vulnerability fails the job**, whatever its severity, unless it is accepted (below).
 - **RUSTSEC informational advisories** (`unmaintained`, `unsound`, `notice`) are printed in the log and kept in the
   `osv-scanner.json` artifact, but never fail it.
@@ -76,7 +83,8 @@ tagged branch onto `main`: semi-linear merges would land different SHAs than the
 
 ## If a package we use is reported compromised
 
-1. **Find it.** Check `pubspec.lock` and the bridge's `Cargo.lock` (the `bridge-lock` artifact) for the bad name and
+1. **Find it.** Check `pubspec.lock` and the bridge's `Cargo.lock` (the `bridge-lock` artifact's `Cargo.full.lock`, since
+   `Cargo.lock` there is pruned to what builds) for the bad name and
    versions, on `main` and on open branches.
 2. **Did it run?** Look at the CI logs of `lint`, `test` and `bridge-lock` since the bad version was published, and at
    the local `~/.pub-cache` and `.dart_tool` dates. A package's build hooks and the Rust build script run at

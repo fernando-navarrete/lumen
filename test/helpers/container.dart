@@ -14,10 +14,13 @@ import 'fake_secure_storage.dart';
 /// [secureStorageProvider] overridden with [secureStorage] (a fresh
 /// [FakeSecureStorage] if omitted) and [sharedPreferencesProvider]
 /// overridden with an instance seeded from [prefs], plus any extra
-/// [overrides]. Registers `addTearDown(container.dispose)` on the current
+/// [overrides]. With [backendFactory], each (re)build of
+/// [gogBackendProvider] gets a new fake from it and disposes the old one,
+/// like production does after a sign-out. Registers `addTearDown(container.dispose)` on the current
 /// test.
 Future<ProviderContainer> createContainer({
   FakeGogBackend? backend,
+  FakeGogBackend Function()? backendFactory,
   FakeSecureStorage? secureStorage,
   Map<String, Object> prefs = const {},
   List<Override> overrides = const [],
@@ -26,7 +29,14 @@ Future<ProviderContainer> createContainer({
   final resolvedPrefs = await SharedPreferences.getInstance();
   final container = ProviderContainer(
     overrides: [
-      gogBackendProvider.overrideWithValue(backend ?? FakeGogBackend()),
+      if (backendFactory != null)
+        gogBackendProvider.overrideWith((ref) {
+          final b = backendFactory();
+          ref.onDispose(b.dispose);
+          return b;
+        })
+      else
+        gogBackendProvider.overrideWithValue(backend ?? FakeGogBackend()),
       secureStorageProvider.overrideWithValue(
         secureStorage ?? FakeSecureStorage(),
       ),

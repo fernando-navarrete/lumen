@@ -1,13 +1,24 @@
 import 'dart:async';
 
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    hide
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     as bridge
-    show GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    show
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/install_size.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/bridge_stream.dart';
 import 'package:lumen/state/gog_backend.dart';
@@ -89,6 +100,27 @@ class GogdlBackend implements GogBackend {
     );
     return _adaptInstallSize(size);
   }
+
+  @override
+  Future<ProductRemoval> removeProducts({
+    required int gameId,
+    required String path,
+    required String buildName,
+    required List<int> keep,
+    required List<int> remove,
+  }) async {
+    final result = await _api.removeProducts(
+      gameId: gameId,
+      path: path,
+      buildName: buildName,
+      keep: keep,
+      remove: remove,
+    );
+    return _adaptProductRemoval(result);
+  }
+
+  @override
+  Future<void> clearCache() => _api.clearCache();
 
   @override
   Future<int> getFreeSpace(String path) async =>
@@ -221,6 +253,12 @@ class GogdlBackend implements GogBackend {
     downloadBytes: s.downloadBytes.toInt(),
     diskBytes: s.diskBytes.toInt(),
   );
+
+  ProductRemoval _adaptProductRemoval(bridge.ProductRemoval r) =>
+      ProductRemoval(
+        filesRemoved: r.filesRemoved.toInt(),
+        bytesFreed: r.bytesFreed.toInt(),
+      );
 
   GameBuild _adaptBuild(bridge.GameBuild b) => GameBuild(
     buildId: b.buildId,

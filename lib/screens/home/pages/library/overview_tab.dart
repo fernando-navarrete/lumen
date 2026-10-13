@@ -6,92 +6,77 @@ import 'package:lumen/components/async_cover_image.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/section_card.dart';
 import 'package:lumen/state/games_state.dart';
-import 'package:lumen/state/gog_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/text_styles.dart';
 
 /// Game summary, screenshots grid and the details side panel.
-class OverviewTab extends ConsumerStatefulWidget {
+class OverviewTab extends ConsumerWidget {
   const OverviewTab({super.key, required this.gameId});
 
   final int gameId;
 
   @override
-  ConsumerState<OverviewTab> createState() => _OverviewTabState();
-}
-
-class _OverviewTabState extends ConsumerState<OverviewTab> {
-  String? _gameSummary;
-  List<String> _screenshots = [];
-
-  @override
-  void initState() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final GogState gogState = ref.read(gogStateProvider);
-      final summary = await gogState.getGameSummary(widget.gameId);
-      if (!mounted) return;
-      setState(() => _gameSummary = summary);
-      final screenshots = await gogState.getGameScreenshots(widget.gameId);
-      if (!mounted) return;
-      setState(() => _screenshots = screenshots);
-    });
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final size = MediaQuery.of(context).size;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: SingleChildScrollView(child: _summaryColumn())),
+        Expanded(child: SingleChildScrollView(child: _summaryColumn(ref))),
         const SizedBox(width: AppSpacing.lg),
-        SizedBox(width: _getTabWidth(size.width), child: _detailsColumn(size)),
+        SizedBox(
+          width: _getTabWidth(size.width),
+          child: _detailsColumn(ref, size),
+        ),
       ],
     );
   }
 
-  Widget _summaryColumn() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      (_gameSummary == null)
-          ? const CenteredLoader()
-          : ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Text(_gameSummary!, style: AppText.bodyLong),
-            ),
-      const SizedBox(height: AppSpacing.lg),
-      Text("MEDIA", style: AppText.microLabel),
-      const SizedBox(height: AppSpacing.sm),
-      GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          childAspectRatio: 16 / 9,
-          crossAxisSpacing: AppSpacing.sm,
-          mainAxisSpacing: AppSpacing.sm,
+  Widget _summaryColumn(WidgetRef ref) {
+    final String? summary = ref.watch(gameSummaryProvider(gameId)).value;
+    final List<String> screenshots =
+        ref.watch(gameScreenshotsProvider(gameId)).value ?? const [];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        (summary == null)
+            ? const CenteredLoader()
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Text(summary, style: AppText.bodyLong),
+              ),
+        const SizedBox(height: AppSpacing.lg),
+        Text("MEDIA", style: AppText.microLabel),
+        const SizedBox(height: AppSpacing.sm),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 16 / 9,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+          ),
+          itemCount: screenshots.length,
+          itemBuilder: (context, index) => AsyncCoverImage.resolved(
+            screenshots[index],
+            fit: BoxFit.fill,
+            borderRadius: AppRadii.buttonLarge,
+          ),
         ),
-        itemCount: _screenshots.length,
-        itemBuilder: (context, index) => AsyncCoverImage.resolved(
-          _screenshots[index],
-          fit: BoxFit.fill,
-          borderRadius: AppRadii.buttonLarge,
-        ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 
-  Widget _detailsColumn(Size size) {
+  Widget _detailsColumn(WidgetRef ref, Size size) {
     if (_getTabWidth(size.width) <= 0) {
       return const SizedBox.shrink();
     }
 
     final gamesState = ref.watch(gamesStateProvider);
     final protonState = ref.watch(protonStateProvider);
-    final gameId = widget.gameId;
 
     final GameStatus gameStatus = gamesState.getGameStatus(gameId);
     final String statusLabel = switch (gameStatus) {

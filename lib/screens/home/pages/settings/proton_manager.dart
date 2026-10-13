@@ -12,6 +12,7 @@ import 'package:lumen/models/proton_release.dart';
 import 'package:lumen/state/downloads_state.dart' show TaskStatus;
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/launch_state.dart';
+import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/proton_state.dart';
 import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_dimens.dart';
@@ -308,50 +309,38 @@ class _ProtonManagerDialog extends ConsumerStatefulWidget {
 }
 
 class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
-  final List<ProtonRelease> _releases = [];
-  int _nextPage = 1;
-  bool _loading = false;
-  bool _loadedOnce = false;
-  bool _failed = false;
-  bool _reachedEnd = false;
+  /// How many pages of releases are shown; page N+1 is only watched once the
+  /// user asks for more.
+  int _pages = 1;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore());
-  }
-
-  Future<void> _loadMore() async {
-    if (_loading) {
-      return;
-    }
-    setState(() => _loading = true);
-    final releases = await ref
-        .read(protonStateProvider.notifier)
-        .fetchReleases(_nextPage);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _loading = false;
-      _loadedOnce = true;
-      if (releases == null) {
-        _failed = true;
-      } else {
-        _failed = false;
-        if (releases.isEmpty) {
-          _reachedEnd = true;
-        } else {
-          _releases.addAll(releases);
-          _nextPage++;
-        }
+    // A page that failed on an earlier open is retried on reopen.
+    for (var page = 1; page <= _pages; page++) {
+      if (ref.read(protonReleasesProvider(page)).hasError) {
+        ref.invalidate(protonReleasesProvider(page));
       }
-    });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final protonState = ref.watch(protonStateProvider);
+    final pages = [
+      for (var page = 1; page <= _pages; page++)
+        ref.watch(protonReleasesProvider(page)),
+    ];
+    final last = pages.last;
+    final List<ProtonRelease> releases = [
+      for (final page in pages) ...?page.value,
+    ];
+    final bool loading = last.isLoading;
+    final bool failed = last.hasError && !loading;
+    final bool loadedOnce = pages.length > 1 || !loading;
+    final bool reachedEnd =
+        !loading && !failed && (last.value?.isEmpty ?? false);
+    void retry() => ref.invalidate(protonReleasesProvider(_pages));
 
     return Dialog(
       backgroundColor: AppColors.surface,
@@ -389,8 +378,8 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (_releases.isEmpty)
-                        _loading
+                      if (releases.isEmpty)
+                        loading
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(
                                   vertical: AppSpacing.md,
@@ -399,9 +388,9 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                               )
                             : Panel(
                                 child: Text(
-                                  _failed
+                                  failed
                                       ? "Couldn't load releases"
-                                      : _reachedEnd
+                                      : reachedEnd
                                       ? "No releases available"
                                       : "No releases loaded",
                                   style: AppText.bodyMedium(
@@ -413,7 +402,7 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                         Column(
                           spacing: AppSpacing.sm,
                           children: [
-                            for (final release in _releases)
+                            for (final release in releases)
                               _ReleaseRow(
                                 release: release,
                                 protonState: protonState,
@@ -421,22 +410,22 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
                           ],
                         ),
                       const SizedBox(height: AppSpacing.sm),
-                      if (_loadedOnce && !_reachedEnd)
+                      if (loadedOnce && !reachedEnd)
                         PrimaryButton(
-                          enabled: !_loading,
-                          onTap: _loadMore,
+                          enabled: !loading,
+                          onTap: failed
+                              ? retry
+                              : () => setState(() => _pages++),
                           child: Text(
-                            _loading
+                            loading
                                 ? "Loading…"
-                                : _failed
+                                : failed
                                 ? "Retry"
                                 : "Load more",
                             style: AppText.button(color: Colors.white),
                           ),
                         )
-                      else if (_loadedOnce &&
-                          _reachedEnd &&
-                          _releases.isNotEmpty)
+                      else if (loadedOnce && reachedEnd && releases.isNotEmpty)
                         Text(
                           "No more releases",
                           style: AppText.caption(

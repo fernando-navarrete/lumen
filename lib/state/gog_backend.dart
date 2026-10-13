@@ -1,10 +1,16 @@
 import 'dart:async';
 
 import 'package:gogdl_flutter/gogdl_flutter.dart'
-    hide GameBuild, DownloadableProduct, ProtonRelease, InstallSize;
+    hide
+        GameBuild,
+        DownloadableProduct,
+        ProtonRelease,
+        InstallSize,
+        ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/models/install_size.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/models/proton_release.dart';
 
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
@@ -58,6 +64,25 @@ abstract class GogBackend {
     required String buildName,
     required List<int> selectedProducts,
   });
+
+  /// Deletes the files only [remove]'s products list from the install at
+  /// [path], never one [keep]'s also lists, and prunes the directories it
+  /// emptied. A file already gone is not an error. It fetches manifests, so it
+  /// needs a login and the network and can take seconds; calling it again
+  /// finishes a partial run. Don't call it while a job runs on [path].
+  Future<ProductRemoval> removeProducts({
+    required int gameId,
+    required String path,
+    required String buildName,
+    required List<int> keep,
+    required List<int> remove,
+  });
+
+  /// Drops the backend's memoized owned products, game builds and
+  /// downloadable products so the next call to each refetches. Details,
+  /// links, summary and screenshots stay cached; auth and running jobs are
+  /// untouched.
+  Future<void> clearCache();
 
   /// Free bytes on the disk [path] is on — the figure the download's own
   /// pre-flight check uses. [path] needn't exist.

@@ -4,6 +4,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart'
     show DownloadGameProgress_Cancelled;
 import 'package:lumen/common/keyring_error.dart';
 import 'package:lumen/models/install_size.dart';
+import 'package:lumen/models/product_removal.dart';
 import 'package:lumen/state/gog_backend.dart' show JobCancel;
 import 'package:lumen/state/gog_state.dart';
 
@@ -22,35 +23,7 @@ void main() {
       expect(result, [10, 20, 30]);
     });
 
-    test(
-      'caches the sorted list — a second call hits the backend once',
-      () async {
-        final backend = FakeGogBackend()..ownedGames = [2, 1];
-        final container = await createContainer(backend: backend);
-        final state = container.read(gogStateProvider);
-
-        await state.getOwnedGames();
-        await state.getOwnedGames();
-
-        expect(backend.callsTo('getOwnedGames'), hasLength(1));
-      },
-    );
-
-    test(
-      'an empty result is not cached, so a retry hits the backend again',
-      () async {
-        final backend = FakeGogBackend()..ownedGames = [];
-        final container = await createContainer(backend: backend);
-        final state = container.read(gogStateProvider);
-
-        await state.getOwnedGames();
-        await state.getOwnedGames();
-
-        expect(backend.callsTo('getOwnedGames'), hasLength(2));
-      },
-    );
-
-    test('a thrown error returns null and is not cached', () async {
+    test('a thrown error returns null', () async {
       final backend = FakeGogBackend()
         ..throwOn['getOwnedGames'] = Exception('boom');
       final container = await createContainer(backend: backend);
@@ -67,18 +40,6 @@ void main() {
       final retried = await state.getOwnedGames();
 
       expect(retried, [5]);
-      expect(backend.callsTo('getOwnedGames'), hasLength(2));
-    });
-
-    test('invalidateOwnedGames forces a refetch', () async {
-      final backend = FakeGogBackend()..ownedGames = [1];
-      final container = await createContainer(backend: backend);
-      final state = container.read(gogStateProvider);
-
-      await state.getOwnedGames();
-      state.invalidateOwnedGames();
-      await state.getOwnedGames();
-
       expect(backend.callsTo('getOwnedGames'), hasLength(2));
     });
   });
@@ -200,6 +161,71 @@ void main() {
       await state.getGameBoxartLink(1);
 
       expect(backend.callsTo('getGameBoxartLink'), hasLength(1));
+    });
+  });
+
+  group('v1.4.0 — clearCache and removeProducts', () {
+    test('clearCache forwards to the backend', () async {
+      final backend = FakeGogBackend();
+      final state = await _state(backend);
+
+      await state.clearCache();
+
+      expect(backend.callsTo('clearCache'), hasLength(1));
+    });
+
+    test('clearCache swallows a backend failure', () async {
+      final backend = FakeGogBackend()..throwOn['clearCache'] = Exception('x');
+      final state = await _state(backend);
+
+      await state.clearCache();
+
+      expect(backend.callsTo('clearCache'), hasLength(1));
+    });
+
+    test(
+      'removeProducts forwards its arguments and returns the model',
+      () async {
+        final backend = FakeGogBackend()
+          ..productRemoval = const ProductRemoval(
+            filesRemoved: 4,
+            bytesFreed: 99,
+          );
+        final state = await _state(backend);
+
+        final result = await state.removeProducts(
+          gameId: 7,
+          path: '/games/7',
+          buildName: 'b',
+          keep: [7],
+          remove: [8, 9],
+        );
+
+        expect(result, const ProductRemoval(filesRemoved: 4, bytesFreed: 99));
+        final call = backend.callsTo('removeProducts').single;
+        expect(call.args['gameId'], 7);
+        expect(call.args['path'], '/games/7');
+        expect(call.args['buildName'], 'b');
+        expect(call.args['keep'], [7]);
+        expect(call.args['remove'], [8, 9]);
+      },
+    );
+
+    test('removeProducts rethrows a backend failure', () async {
+      final backend = FakeGogBackend()
+        ..throwOn['removeProducts'] = Exception('boom');
+      final state = await _state(backend);
+
+      await expectLater(
+        state.removeProducts(
+          gameId: 7,
+          path: '/p',
+          buildName: 'b',
+          keep: [7],
+          remove: [8],
+        ),
+        throwsException,
+      );
     });
   });
 

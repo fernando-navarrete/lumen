@@ -9,9 +9,11 @@
 #   test:        `flutter test`, same setup.
 #   secrets:     gitleaks over git history with .gitleaks.toml (default rules, no allowlist): an MR's own commits, or on a
 #                tag pipeline everything HEAD, the remote branches and the tags reach. Findings are redacted.
-#   bridge-lock: reads the gogdl_flutter commit pinned in pubspec.lock, fetches it and keeps its rust/Cargo.lock as an
-#                artifact. Most of the code that ships is that Rust, built by the Native Assets hook, so it is scanned too.
-#   scan:        OSV-Scanner on pubspec.lock and the bridge's Cargo.lock, minus the accepted findings in
+#   bridge-lock: reads the gogdl_flutter commit pinned in pubspec.lock, fetches it and keeps its rust/Cargo.lock, pruned
+#                to the crates `cargo tree` resolves (tool/prune_cargo_lock.dart), as an artifact. Most of the code that
+#                ships is that Rust, built by the Native Assets hook, so it is scanned too. The unpruned lockfile and the
+#                crate list are kept beside it.
+#   scan:        OSV-Scanner on pubspec.lock and the bridge's pruned Cargo.lock, minus the accepted findings in
 #                osv-scanner.toml (each needs a reason and an ignoreUntil date). Only a scanner or network error fails it
 #                here (exit codes above 1); the report is kept as an artifact.
 #   scan-gate:   tool/osv_gate.dart reads that report: any vulnerability left fails the job, RUSTSEC informational
@@ -147,10 +149,19 @@ bridge-lock:
   stage: scan
   extends: .ci-image
   rules: !reference [.scan-rules, rules]
-  cache: []
+  variables:
+    CARGO_HOME: "$CI_PROJECT_DIR/.ci/cargo" # only the download caches move; the toolchain stays in the image
+  cache:
+    key:
+      prefix: cargo
+      files:
+        - pubspec.lock # a new bridge pin is the only thing that changes the crates
+    paths:
+      - .ci/cargo/registry/
+      - .ci/cargo/git/
   script:
-    # The bridge's own lockfile at the exact commit pubspec.lock pins, fetched from its GitHub mirror over HTTPS
-    # (no pub get, no cargo).
+    # The bridge's tree at the exact commit pubspec.lock pins, fetched from its GitHub mirror over HTTPS
+    # (no pub get). `cargo tree` needs its manifests, not just the lockfile.
     - |
       ref=$(awk '/^  gogdl_flutter:/{f=1} f&&/resolved-ref:/{gsub(/"/, "", $2); print $2; exit}' pubspec.lock)
       url=$(awk '/^  gogdl_flutter:/{f=1} f&&/^      url:/{gsub(/"/, "", $2); print $2; exit}' pubspec.lock)
@@ -158,11 +169,21 @@ bridge-lock:
       echo "gogdl_flutter $ref"
     - git init -q bridge-src
     - git -C bridge-src fetch --depth 1 "$url" "$ref"
+    - git -C bridge-src checkout -q FETCH_HEAD
+    # Cargo.lock also lists optional crates that no enabled feature builds (reqwest's weak `quinn?/...` feature keeps
+    # quinn-proto there), and OSV-Scanner reads the lockfile as text. So `scan` gets the lockfile pruned to the crates
+    # Cargo resolves (every target, all of the bridge's features, dev and build dependencies). A crate that joins the
+    # build graph later is in `cargo tree`, so it stays in the file and is scanned: no ignore list to keep honest.
     - mkdir bridge
-    - git -C bridge-src show FETCH_HEAD:rust/Cargo.lock > bridge/Cargo.lock # the name OSV-Scanner recognizes
+    - cp bridge-src/rust/Cargo.lock bridge/Cargo.full.lock
+    - cd bridge-src/rust && rustc --version && cargo tree --locked --target all --all-features -e normal,build,dev --prefix none --format '{p}' > ../../bridge/cargo-tree.txt && cd ../..
+    - dart tool/prune_cargo_lock.dart bridge/Cargo.full.lock bridge/cargo-tree.txt bridge/Cargo.lock # the name OSV-Scanner recognizes
   artifacts:
     expire_in: 30 days
-    paths: [bridge/Cargo.lock]
+    paths:
+      - bridge/Cargo.lock
+      - bridge/Cargo.full.lock
+      - bridge/cargo-tree.txt
 
 scan:
   stage: scan
