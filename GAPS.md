@@ -281,8 +281,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   for an actual game still hits this.
   Fixed in `v1.4.1`: a loading title shows a skeleton card, a failed one a "Game `<id>`" card with
   its boxart; both count and the failed one opens. The hero skips games without a loaded title.
-- [ ] **P2 — Screenshots use `BoxFit.fill`** (`overview_tab.dart:81`), which distorts them; use `cover`.
+- [x] **P2 — Screenshots use `BoxFit.fill`** (`overview_tab.dart:81`), which distorts them; use `cover`.
   Consider `cacheWidth` for grid thumbnails.
+  Fixed in `v1.4.2`: screenshots use `BoxFit.cover`, and `AsyncCoverImage(decodeAtLayoutWidth: true)`
+  decodes them (and the game cards' boxart) at the laid-out width × `devicePixelRatio`.
 
 ## 6. UI / UX
 
