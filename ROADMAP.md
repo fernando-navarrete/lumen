@@ -106,7 +106,7 @@ Follow-up patches (`v1.2.1+`), one per tag:
 - Disk space check before install (§2).
 - Proton version removal UI, with optional file deletion (§2).
 
-## v1.4.0 — Library and account
+## v1.4.0 ✅ — Library and account
 
 - Move library, details and Proton release data into `FutureProvider.family`s (§4).
 - Fetch titles in parallel and cache them, and add a library refresh (§2, §5.1).
