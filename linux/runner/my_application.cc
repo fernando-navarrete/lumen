@@ -14,6 +14,27 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+static const gint kDefaultWidth = 1280;
+static const gint kDefaultHeight = 720;
+// The smallest window the library, details and login layouts still fit in.
+static const gint kMinWidth = 960;
+static const gint kMinHeight = 600;
+
+// Uses the installed theme icon when there is one; otherwise (e.g. under
+// `flutter run`) loads the PNG the bundle carries in data/.
+static void set_window_icon(GtkWindow* window) {
+  if (gtk_icon_theme_has_icon(gtk_icon_theme_get_default(), APPLICATION_ID)) {
+    gtk_window_set_icon_name(window, APPLICATION_ID);
+    return;
+  }
+  g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe == nullptr) return;
+  g_autofree gchar* dir = g_path_get_dirname(exe);
+  g_autofree gchar* icon = g_build_filename(dir, "data", APPLICATION_ID ".png",
+                                            nullptr);
+  gtk_window_set_icon_from_file(window, icon, nullptr);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
@@ -52,7 +73,14 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "Lumen");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  gtk_window_set_default_size(window, kDefaultWidth, kDefaultHeight);
+
+  GdkGeometry min_size = {};
+  min_size.min_width = kMinWidth;
+  min_size.min_height = kMinHeight;
+  gtk_window_set_geometry_hints(window, nullptr, &min_size, GDK_HINT_MIN_SIZE);
+
+  set_window_icon(window);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

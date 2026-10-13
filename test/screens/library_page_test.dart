@@ -137,6 +137,22 @@ void main() {
       expect((provider as ResizeImage).width, expected);
     });
 
+    testWidgets('the hero and the card share one getGameLinks call', (
+      tester,
+    ) async {
+      final backend = FakeGogBackend()
+        ..ownedGames = [1]
+        ..titles[1] = 'One'
+        ..boxartLinks[1] = 'https://example.invalid/box.jpg'
+        ..backgroundLinks[1] = 'https://example.invalid/bg.jpg';
+      await pumpApp(tester, const LibraryPage(), backend: backend);
+      await settle(tester);
+
+      expect(find.byType(HeroBanner), findsOneWidget);
+      expect(find.byType(GameCard), findsOneWidget);
+      expect(backend.callsTo('getGameLinks'), hasLength(1));
+    });
+
     testWidgets('a failed title card opens the game', (tester) async {
       final backend = FakeGogBackend()..ownedGames = [1];
       backend.throwOn['getGameTitle'] = Exception('boom');

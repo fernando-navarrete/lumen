@@ -49,7 +49,7 @@ class GameCard extends ConsumerWidget {
         !skeleton && ref.watch(gameUpdateProvider(gameId!)) != null;
 
     Widget cover = AsyncCoverImage(
-      imageUrl: ref.watch(gogStateProvider).getGameBoxartLink(gameId!),
+      imageUrl: ref.watch(gogStateProvider).getBoxartLink(gameId!),
       decodeAtLayoutWidth: true,
     );
     if (status == GameStatus.notInstalled) {
@@ -61,6 +61,7 @@ class GameCard extends ConsumerWidget {
 
     return ClickableContainer(
       onTap: onTap,
+      focusRadius: AppRadii.card,
       child: Container(
         decoration: AppDecorations.card(borderColor: AppColors.border09),
         child: Stack(

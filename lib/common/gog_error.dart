@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/format.dart';
+import 'package:lumen/common/keyring_error.dart';
 
 /// `GogError` is an opaque Rust handle with no `toString()` override, so
 /// printing one gives `Instance of 'GogErrorImpl'`. Its `message()` is the
@@ -38,6 +39,22 @@ String jobErrorText(Object error) {
     case GogErrorKind.unknown:
       return error.message();
   }
+}
+
+/// Text for a failed sign-in, shown inline under the code field. Until the
+/// bridge reports a rejected code apart from a network failure, any other
+/// `GogError` gets the generic hint.
+String loginErrorText(Object error) {
+  if (error is KeyringUnavailableError) {
+    return error.message;
+  }
+  if (error is GogError) {
+    return error.kind() == GogErrorKind.network
+        ? 'Network error — check your connection and try again'
+        : "Couldn't sign in. Check your connection, then copy the full "
+              'value after code= and try again.';
+  }
+  return "Couldn't sign in: ${gogErrorText(error)}";
 }
 
 /// Debug-only log for anything that came out of the bridge.

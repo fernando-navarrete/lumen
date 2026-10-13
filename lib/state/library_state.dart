@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:lumen/common/async_limiter.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
-import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/gog_state.dart';
 
@@ -134,11 +134,12 @@ final gameProductsProvider =
       name: 'gameProductsProvider',
     );
 
-/// One page of Proton-GE releases (1-based). An empty page is the end of
-/// the list; a failure is an `AsyncError`.
-final protonReleasesProvider = FutureProvider.family<List<ProtonRelease>, int>(
+/// One page of Proton-GE releases (1-based). `hasMore == false` is the end of
+/// the list (an empty page with `hasMore` is not); a failure is an
+/// `AsyncError`.
+final protonReleasesProvider = FutureProvider.family<ProtonReleasePage, int>(
   (ref, page) async => _orThrow(
-    await ref.watch(gogStateProvider).getProtonReleases(page),
+    await ref.watch(gogStateProvider).getProtonReleasePage(page),
     'releases',
   ),
   retry: noRetry,

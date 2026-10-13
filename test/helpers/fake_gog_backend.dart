@@ -3,15 +3,18 @@ import 'dart:async';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide
         GameBuild,
+        GameLinks,
         DownloadableProduct,
         ProtonRelease,
+        ProtonReleasePage,
         InstallSize,
         ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/game_links.dart';
 import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/product_removal.dart';
-import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/state/gog_backend.dart';
 
 /// A single recorded call to [FakeGogBackend], for assertions like "repair
@@ -58,7 +61,10 @@ class FakeGogBackend implements GogBackend {
   final Map<int, List<String>> screenshots = {};
   final Map<int, List<GameBuild>> builds = {};
   final Map<int, List<DownloadableProduct>> products = {};
-  List<ProtonRelease> protonReleases = [];
+
+  /// Proton release pages by 1-based page number; a missing page is an empty
+  /// last page.
+  final Map<int, ProtonReleasePage> protonReleasePages = {};
   InstallSize installSize = const InstallSize(downloadBytes: 0, diskBytes: 0);
   ProductRemoval productRemoval = const ProductRemoval(
     filesRemoved: 0,
@@ -222,17 +228,13 @@ class FakeGogBackend implements GogBackend {
   }
 
   @override
-  Future<String> getBackgroundImageLink(int gameId) async {
-    _record('getBackgroundImageLink', {'gameId': gameId});
-    _maybeThrow('getBackgroundImageLink');
-    return backgroundLinks[gameId] ?? '';
-  }
-
-  @override
-  Future<String> getGameBoxartLink(int gameId) async {
-    _record('getGameBoxartLink', {'gameId': gameId});
-    _maybeThrow('getGameBoxartLink');
-    return boxartLinks[gameId] ?? '';
+  Future<GameLinks> getGameLinks(int gameId) async {
+    _record('getGameLinks', {'gameId': gameId});
+    _maybeThrow('getGameLinks');
+    return GameLinks(
+      boxart: boxartLinks[gameId] ?? '',
+      background: backgroundLinks[gameId] ?? '',
+    );
   }
 
   @override
@@ -386,10 +388,11 @@ class FakeGogBackend implements GogBackend {
 
   // ---- Proton-GE ----
   @override
-  Future<List<ProtonRelease>> getProtonReleases(int page) async {
-    _record('getProtonReleases', {'page': page});
-    _maybeThrow('getProtonReleases');
-    return protonReleases;
+  Future<ProtonReleasePage> getProtonReleasePage(int page) async {
+    _record('getProtonReleasePage', {'page': page});
+    _maybeThrow('getProtonReleasePage');
+    return protonReleasePages[page] ??
+        const ProtonReleasePage(releases: [], hasMore: false);
   }
 
   @override

@@ -333,13 +333,13 @@ class _ProtonManagerDialogState extends ConsumerState<_ProtonManagerDialog> {
     ];
     final last = pages.last;
     final List<ProtonRelease> releases = [
-      for (final page in pages) ...?page.value,
+      for (final page in pages) ...?page.value?.releases,
     ];
     final bool loading = last.isLoading;
     final bool failed = last.hasError && !loading;
     final bool loadedOnce = pages.length > 1 || !loading;
     final bool reachedEnd =
-        !loading && !failed && (last.value?.isEmpty ?? false);
+        !loading && !failed && (last.value?.hasMore == false);
     void retry() => ref.invalidate(protonReleasesProvider(_pages));
 
     return Dialog(

@@ -3,15 +3,18 @@ import 'dart:async';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide
         GameBuild,
+        GameLinks,
         DownloadableProduct,
         ProtonRelease,
+        ProtonReleasePage,
         InstallSize,
         ProductRemoval;
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/game_links.dart';
 import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/product_removal.dart';
-import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 
 /// Everything [GogState] needs from a GOG backend, abstracted away from any
 /// particular implementation. [GogState] talks only to this interface —
@@ -48,8 +51,9 @@ abstract class GogBackend {
   // Metadata
   Future<List<int>> getOwnedGames();
   Future<String> getGameTitle(int gameId);
-  Future<String> getBackgroundImageLink(int gameId);
-  Future<String> getGameBoxartLink(int gameId);
+
+  /// The box art and background links of [gameId], from one request.
+  Future<GameLinks> getGameLinks(int gameId);
   Future<String> getGameSummary(int gameId);
   Future<List<String>> getGameScreenshots(int gameId);
   Future<List<GameBuild>> getGameBuilds(int gameId);
@@ -123,7 +127,10 @@ abstract class GogBackend {
   });
 
   // Proton-GE
-  Future<List<ProtonRelease>> getProtonReleases(int page);
+
+  /// One page (1-based) of Proton-GE releases. `hasMore` says whether to ask
+  /// for the next page, even when every release on this one was left out.
+  Future<ProtonReleasePage> getProtonReleasePage(int page);
   Stream<ProtonDownloadProgress> downloadProtonRelease({
     required String tagName,
     required String path,

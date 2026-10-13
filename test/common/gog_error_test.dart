@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/keyring_error.dart';
 
 /// Stands in for the opaque native `GogError`, so no native library loads.
 class _FakeGogError extends Fake implements GogError {
@@ -77,6 +78,27 @@ void main() {
 
     test('anything that is not a GogError falls back to toString', () {
       expect(jobErrorText(Exception('boom')), 'Exception: boom');
+    });
+  });
+
+  group('loginErrorText', () {
+    test('a keyring failure shows its own text', () {
+      expect(
+        loginErrorText(KeyringUnavailableError('Keyring is locked', 'detail')),
+        'Keyring is locked',
+      );
+    });
+
+    test('a network kind and any other GogError read differently', () {
+      final network = loginErrorText(_FakeGogError(GogErrorKind.network));
+      final other = loginErrorText(_FakeGogError(GogErrorKind.unknown));
+      expect(network, contains('Network error'));
+      expect(other, contains('copy the full value after code='));
+      expect(other, isNot(network));
+    });
+
+    test('anything else includes the error text', () {
+      expect(loginErrorText(StateError('boom')), contains('boom'));
     });
   });
 }

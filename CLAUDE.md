@@ -15,7 +15,7 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `ProtonReleasePage`, `GameLinks`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart
 classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
 these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
 `DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
@@ -174,9 +174,12 @@ titles that failed (loaded ones are kept), every `gameBuildsProvider` and `owned
 screen meanwhile; it returns false if the owned list can't be fetched. Every provider passes `retry: noRetry`, since Riverpod 3's automatic retry would hammer GOG
 and hang widget tests; Retry is always an explicit invalidate. An empty owned list is real data
 (upstream drops a game whose lookup failed, so it may be transient) — the empty state's Retry
-invalidates. `readGameTitle(ref.read, id)` is the one-shot read for dialogs. Only the boxart and
-background-link Futures are still cached inside `GogState`, because the hero banners and cards feed
-them straight to `FutureBuilder`s.
+invalidates. `readGameTitle(ref.read, id)` is the one-shot read for dialogs. Only the image links are
+still cached inside `GogState`, because the hero banners and cards feed them straight to
+`FutureBuilder`s: one `GameLinks` Future per game (`getGameLinks`, one request for both links), plus
+the two derived `getBoxartLink`/`getBackgroundLink` Futures, each the same instance on every call.
+`protonReleasesProvider(page)` yields a `ProtonReleasePage`: `hasMore == false` ends the list, and a
+page whose releases were all filtered out but has `hasMore` still offers "Load more".
 
 **Backend streams are single-subscription.** Each `GogState` job-starting method (verification,
 download, repair, Proton download, save download, save upload) starts a new backend job and returns
@@ -192,6 +195,15 @@ notifier updates on every event.
 persist to prefs (`GamesNotifier`, `ProtonNotifier`) load their persisted state synchronously inside
 `build()`. Don't reintroduce an async `SharedPreferences.getInstance().then(...)` load path; that
 previously raced app startup and let the UI read/clobber empty state.
+
+**Application ID.** The GTK `APPLICATION_ID` (`linux/CMakeLists.txt`) is `io.github.fernando_navarrete.Lumen`
+(`lumenAppId`, `lib/common/legacy_prefs_migration.dart`; a test keeps the two equal). It names the
+window class, the desktop file and icons under `linux/packaging/`, the SharedPreferences directory
+and the keyring schema. Before `v1.5.0` it was `io.github.fernandonr189.lumen`, so `main()` runs
+`migrateLegacyPreferences()` before loading prefs: it copies the old `shared_preferences.json` to the
+new directory when the new one doesn't exist. The keyring token isn't carried over (users sign in
+once). The window has a 960×600 minimum size and an icon (`tool/render_icons.sh` renders the PNGs
+from the SVG).
 
 **`secureStorageProvider`** (`lib/state/secure_storage_provider.dart`) is the single
 `FlutterSecureStorage` instance `GogState` uses for the stored auth token, so a fake can stand in for
@@ -301,7 +313,7 @@ zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
 
 ### UI structure
 
-`login_screen.dart` → `home_screen.dart` (top nav bar switches between `library`, `downloads`,
+`login_screen.dart` (shows a `CenteredLoader` while the stored session restores, so a restored session never builds the card; its steps advance on app resume, focus and typing, never a timer; failures show inline via `loginErrorText` in `gog_error.dart`, and a pasted redirect URL is reduced to its code by `extractLoginCode`; the branding pane hides below `Breakpoints.loginSplit`) → `home_screen.dart` (top nav bar switches between `library`, `downloads`,
 `settings` pages via `navBarItemProvider`, a `NavBarNotifier extends Notifier<NavBarItem>` in
 `lib/state/home_state.dart` — the single source of truth for the selected tab; `NavBar` and
 `HomeScreen` both watch it rather than keeping their own copy) → `library_page.dart` →

@@ -68,6 +68,7 @@ class PrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final button = ClickableContainer(
       onTap: enabled ? onTap : null,
+      focusRadius: large ? AppRadii.buttonLarge : AppRadii.control,
       child: Container(
         decoration: BoxDecoration(
           color: glowing ? AppColors.primary : AppColors.fill10,

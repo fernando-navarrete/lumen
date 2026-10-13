@@ -7,17 +7,20 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart'
     hide
         GameBuild,
+        GameLinks,
         DownloadableProduct,
         ProtonRelease,
+        ProtonReleasePage,
         InstallSize,
         ProductRemoval;
 import 'package:lumen/common/gog_error.dart';
 import 'package:lumen/common/keyring_error.dart';
 import 'package:lumen/models/downloadable_product.dart';
 import 'package:lumen/models/game_build.dart';
+import 'package:lumen/models/game_links.dart';
 import 'package:lumen/models/install_size.dart';
 import 'package:lumen/models/product_removal.dart';
-import 'package:lumen/models/proton_release.dart';
+import 'package:lumen/models/proton_release_page.dart';
 import 'package:lumen/state/gog_backend.dart';
 import 'package:lumen/state/gogdl_backend.dart';
 import 'package:lumen/state/secure_storage_provider.dart';
@@ -35,8 +38,12 @@ class GogState {
   /// in flight. Caching the Future itself (not just its resolved value) means
   /// a FutureBuilder fed the same Future instance across rebuilds stays in
   /// its "has data" state instead of resetting to pending and re-issuing the
-  /// bridge call. Titles, the owned-games list and the rest of the metadata
-  /// are cached by the providers in `library_state.dart` instead.
+  /// bridge call. One [GameLinks] Future per game feeds both links, so a game
+  /// costs one request; the two derived `Future<String>`s are cached too, so
+  /// each call returns the same instance. Titles, the owned-games list and
+  /// the rest of the metadata are cached by the providers in
+  /// `library_state.dart` instead.
+  final HashMap<int, Future<GameLinks>> _linksCache = HashMap();
   final HashMap<int, Future<String>> _boxartLinkCache = HashMap();
   final HashMap<int, Future<String>> _backgroundLinkCache = HashMap();
 
@@ -56,31 +63,25 @@ class GogState {
     }
   }
 
-  Future<String> getGameBackgroundLink(int gameId) => _backgroundLinkCache
-      .putIfAbsent(gameId, () => _fetchGameBackgroundLink(gameId));
+  Future<GameLinks> _gameLinks(int gameId) =>
+      _linksCache.putIfAbsent(gameId, () => _fetchGameLinks(gameId));
 
-  Future<String> _fetchGameBackgroundLink(int gameId) async {
+  Future<GameLinks> _fetchGameLinks(int gameId) async {
     try {
-      final String link = await _backend.getBackgroundImageLink(gameId);
-      return link;
+      return await _backend.getGameLinks(gameId);
     } catch (e) {
       logGogError(e);
-      return '';
+      return GameLinks.empty;
     }
   }
 
-  Future<String> getGameBoxartLink(int gameId) =>
-      _boxartLinkCache.putIfAbsent(gameId, () => _fetchGameBoxartLink(gameId));
+  Future<String> getBackgroundLink(int gameId) => _backgroundLinkCache
+      .putIfAbsent(gameId, () async => (await _gameLinks(gameId)).background);
 
-  Future<String> _fetchGameBoxartLink(int gameId) async {
-    try {
-      final String link = await _backend.getGameBoxartLink(gameId);
-      return link;
-    } catch (e) {
-      logGogError(e);
-      return '';
-    }
-  }
+  Future<String> getBoxartLink(int gameId) => _boxartLinkCache.putIfAbsent(
+    gameId,
+    () async => (await _gameLinks(gameId)).boxart,
+  );
 
   Future<String> getGameSummary(int gameId) async {
     try {
@@ -395,9 +396,9 @@ class GogState {
     }
   }
 
-  Future<List<ProtonRelease>?> getProtonReleases(int page) async {
+  Future<ProtonReleasePage?> getProtonReleasePage(int page) async {
     try {
-      return await _backend.getProtonReleases(page);
+      return await _backend.getProtonReleasePage(page);
     } catch (e) {
       logGogError(e);
       return null;

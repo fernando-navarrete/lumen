@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
@@ -8,6 +6,7 @@ import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
 import 'package:lumen/components/refresh_chip.dart';
 import 'package:lumen/components/retry_message.dart';
+import 'package:lumen/components/side_column_layout.dart';
 import 'package:lumen/models/game_build.dart';
 import 'package:lumen/state/downloads_state.dart';
 import 'package:lumen/state/games_state.dart';
@@ -97,7 +96,6 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     final buildsAsync = ref.watch(gameBuildsProvider(widget.gameId));
     final List<GameBuild>? builds = buildsAsync.value;
     final GameBuild? latest = builds == null ? null : latestBuild(builds);
@@ -121,75 +119,56 @@ class _BuildsTabState extends ConsumerState<BuildsTab> {
             selectedBuild == -1
         ? selectedName
         : null;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return SideColumnLayout(
+      main: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Select which build to install. Switching re-downloads the changed files.',
-                        style: AppText.meta(color: AppColors.textSecondary),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    RefreshChip(onTap: _reload),
-                  ],
+                Expanded(
+                  child: Text(
+                    'Select which build to install. Switching re-downloads the changed files.',
+                    style: AppText.meta(color: AppColors.textSecondary),
+                  ),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                if (staleBuildName != null) ...[
-                  Text(
-                    'Installed build "$staleBuildName" is no longer listed '
-                    'by GOG. Select the build to switch to — Lumen will '
-                    'repair the install against it.',
-                    style: AppText.meta(color: AppColors.error),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-                if (buildsAsync.isLoading)
-                  const CenteredLoader()
-                else if (builds == null)
-                  RetryMessage(
-                    message: "Couldn't load builds.",
-                    onRetry: _reload,
-                  )
-                else if (builds.isEmpty)
-                  RetryMessage(
-                    message: 'No builds available.',
-                    onRetry: _reload,
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: builds.length,
-                    itemBuilder: (context, index) => _BuildListItem(
-                      isSelected: index == selectedBuild,
-                      isLatest: builds[index] == latest,
-                      isUpdate: builds[index] == update,
-                      gameBuild: builds[index],
-                      onTap: _onBuildTap,
-                    ),
-                  ),
+                const SizedBox(width: AppSpacing.sm),
+                RefreshChip(onTap: _reload),
               ],
             ),
-          ),
+            const SizedBox(height: AppSpacing.md),
+            if (staleBuildName != null) ...[
+              Text(
+                'Installed build "$staleBuildName" is no longer listed '
+                'by GOG. Select the build to switch to — Lumen will '
+                'repair the install against it.',
+                style: AppText.meta(color: AppColors.error),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            if (buildsAsync.isLoading)
+              const CenteredLoader()
+            else if (builds == null)
+              RetryMessage(message: "Couldn't load builds.", onRetry: _reload)
+            else if (builds.isEmpty)
+              RetryMessage(message: 'No builds available.', onRetry: _reload)
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: builds.length,
+                itemBuilder: (context, index) => _BuildListItem(
+                  isSelected: index == selectedBuild,
+                  isLatest: builds[index] == latest,
+                  isUpdate: builds[index] == update,
+                  gameBuild: builds[index],
+                  onTap: _onBuildTap,
+                ),
+              ),
+          ],
         ),
-        SizedBox(width: _getTabWidth(size.width)),
-      ],
+      ),
     );
-  }
-
-  // NOTE: diverges from OverviewTab._getTabWidth (threshold 600 vs 1080,
-  // exponent 1.5 vs 1.3) — preserved as-is from before the refactor.
-  double _getTabWidth(double width) {
-    final double tabWidth = width > 600 ? pow(width * 0.05, 1.5).toDouble() : 0;
-    return tabWidth;
   }
 }
 
@@ -274,10 +253,11 @@ class _BuildListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final releaseDate = gameBuild.releaseDate.replaceAll(RegExp(r'\+0000'), '');
-    return ClickableContainer(
-      onTap: () => onTap(gameBuild),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: ClickableContainer(
+        onTap: () => onTap(gameBuild),
+        focusRadius: AppRadii.card,
         child: Panel(
           selected: isSelected,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),

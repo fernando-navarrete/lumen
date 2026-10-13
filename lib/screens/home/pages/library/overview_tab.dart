@@ -1,10 +1,9 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/components/async_cover_image.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/section_card.dart';
+import 'package:lumen/components/side_column_layout.dart';
 import 'package:lumen/state/games_state.dart';
 import 'package:lumen/state/library_state.dart';
 import 'package:lumen/state/proton_state.dart';
@@ -20,17 +19,9 @@ class OverviewTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final size = MediaQuery.of(context).size;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: SingleChildScrollView(child: _summaryColumn(ref))),
-        const SizedBox(width: AppSpacing.lg),
-        SizedBox(
-          width: _getTabWidth(size.width),
-          child: _detailsColumn(ref, size),
-        ),
-      ],
+    return SideColumnLayout(
+      main: SingleChildScrollView(child: _summaryColumn(ref)),
+      side: _detailsColumn(ref),
     );
   }
 
@@ -70,11 +61,7 @@ class OverviewTab extends ConsumerWidget {
     );
   }
 
-  Widget _detailsColumn(WidgetRef ref, Size size) {
-    if (_getTabWidth(size.width) <= 0) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _detailsColumn(WidgetRef ref) {
     final gamesState = ref.watch(gamesStateProvider);
     final protonState = ref.watch(protonStateProvider);
 
@@ -116,13 +103,6 @@ class OverviewTab extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  double _getTabWidth(double width) {
-    final double tabWidth = width > 1080
-        ? pow(width * 0.05, 1.3).toDouble()
-        : 0;
-    return tabWidth;
   }
 }
 
