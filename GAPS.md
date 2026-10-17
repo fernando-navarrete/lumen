@@ -27,11 +27,11 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 ## 2. Missing features
 
 - [ ] **P2 — Prefix tools.** "Open prefix folder", "reset prefix", winecfg and winetricks, plus an
-  "open install folder" action. (`v1.6.0`)
-- [ ] **P2 — Desktop notifications** when a download, repair or sync finishes. (`v1.6.0`)
+  "open install folder" action. (`v1.7.0`)
+- [ ] **P2 — Desktop notifications** when a download, repair or sync finishes. (`v1.7.0`)
 - [ ] **P2 — Playtime and last-played tracking** (the hero banner already says "CONTINUE PLAYING").
-  (`v1.6.0`)
-- [ ] **P2 — `.desktop` shortcuts / launch by game id** from outside the app. (`v1.6.0`)
+  (`v1.7.0`)
+- [ ] **P2 — `.desktop` shortcuts / launch by game id** from outside the app. (`v1.7.0`)
 - [ ] **P2 — Cancel a Proton-GE download.** The bridge takes a `CancelToken` and gogdl-lib cleans up a
   dropped extraction, so only `ProtonNotifier` (which ignores `Cancelled`) and a UI action are missing.
 - [ ] **P2 — Cancel a save sync.** Same for `SavesNotifier`, which maps `Cancelled` to `failed` today.
@@ -67,8 +67,33 @@ Tested against `FakeGogBackend` or on one desktop only.
 - [ ] **P2 — Flatpak and `.deb`.** The spike on `org.freedesktop.Platform` failed at startup (no GTK 3
   or `libsecret`); it needs `org.gnome.Platform` (408 MB download) or a bundled GTK. The Secret
   Service, file-chooser portal paths and Proton inside the sandbox weren't tested.
-- [ ] **P2 — AppImage auto-update** (AppImageUpdate/zsync) and a **public download channel**: releases
-  live on the self-hosted GitLab and the GitHub mirror carries none.
+- [ ] **P1 — GitHub releases.** Releases live on the self-hosted GitLab, which users can't reach, and
+  the GitHub mirror carries none. A `github-release` job after `release` would wait for the push
+  mirror to deliver the tag (it is asynchronous), refuse unless GitHub's tag is at `CI_COMMIT_SHA`,
+  then create the release from `release_notes.md` with the AppImage and `.sha256` from `package`,
+  and upload with `--clobber` on a re-run. It needs a fine-grained token (`Contents: read and write` on
+  `lumen` only, with an expiry), protected and scoped to a `github-release` environment like
+  `RENOVATE_TOKEN`, and a `gh` image pinned by digest. (`v1.6.0`)
+- [ ] **P1 — AUR package.** `lumen` is taken on the AUR (an unrelated CLI that also installs
+  `/usr/bin/lumen`), so a name like `lumen-gog-bin` installing `/usr/bin/lumen-gog`. A
+  `linux/packaging/aur/PKGBUILD.in` template whose `source` is the GitHub release URL (so it needs
+  GitHub releases first); it extracts the AppImage in `prepare()` into `/opt/lumen-gog`, so pacman
+  owns the files and no FUSE is needed, and installs the `.desktop` file (with `Exec` rewritten),
+  icons and metainfo. An `aur` job after `github-release`, in a digest-pinned `archlinux:base-devel`
+  image as a non-root user: fill in the version and sha256, `makepkg -f` to prove it builds (optionally
+  `namcap`), regenerate `.SRCINFO`, and push to `ssh://aur@aur.archlinux.org/<name>.git`, skipping the
+  commit when nothing changed. A dedicated SSH key as a protected file variable scoped to an `aur`
+  environment, and known hosts pinned to the AUR's published fingerprints (no `ssh-keyscan`). The
+  first push, which creates the package, is done by hand. (`v1.6.0`)
+- [ ] **P2 — AppImage auto-update.** Embed update information with `appimagetool -u
+  "gh-releases-zsync|fernando-navarrete|lumen|latest|Lumen-*-x86_64.AppImage.zsync"` in
+  `tool/build_appimage.sh` and upload the generated `.zsync` with the release, so Gear Lever,
+  AppImageUpdate and AppImageLauncher update Lumen in place on any distro. Needs GitHub releases.
+  (`v1.6.0`)
+- [ ] **P2 — `.rpm`/`.deb` repositories through OBS or Copr.** The openSUSE Build Service can build for
+  Fedora, openSUSE, Debian and Ubuntu from one spec, and both it and Copr take updates through an API,
+  so a later job could follow the `aur` pattern. Official distro repositories (Debian, Fedora, Ubuntu)
+  need a human packager or sponsor and aren't a CI job.
 
 ## 5. CI and supply chain
 

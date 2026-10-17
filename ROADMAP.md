@@ -14,7 +14,16 @@ what already shipped is in [CHANGELOG.md](CHANGELOG.md) and `devlog/` (one file 
 - A minor release gets a `devlog/vX.Y.0-<name>.md` with its decisions and pitfalls; its patches are
   appended to it.
 
-## v1.6.0 — Extras
+## v1.6.0 — Distribution
+
+- GitHub releases from the tag pipeline: a `github-release` job after `release` (GAPS §4).
+- An AUR package (`lumen` is taken; e.g. `lumen-gog-bin`), updated by an `aur` job after
+  `github-release` (§4).
+- AppImage auto-update through zsync update information on the GitHub releases (§4).
+- Docs: the `.gitlab-ci.yml` header, CLAUDE.md's release section, the new secrets in SECURITY.md's
+  "Rotate secrets" list, and the release steps under "Versioning rules".
+
+## v1.7.0 — Extras
 
 - Prefix tools: open folder, reset, winecfg and winetricks, open install folder (GAPS §2).
 - Desktop notifications when a task finishes (§2).
