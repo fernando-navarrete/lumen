@@ -19,13 +19,16 @@ void main() {
       '"pendingInstallPath": "/games/foo", '
       '"productIds": $ids}}}';
 
-  FakeGogBackend backendWithDlc() =>
-      FakeGogBackend()
-        ..products[gameId] = const [
-          DownloadableProduct(id: 1, name: 'Base', productType: 'GAME'),
-          DownloadableProduct(id: 2, name: 'Soundtrack', productType: 'DLC'),
-          DownloadableProduct(id: 3, name: 'Artbook', productType: 'DLC'),
-        ];
+  FakeGogBackend backendWithDlc() => FakeGogBackend()
+    ..products[gameId] = const [
+      DownloadableProduct(id: 1, name: 'Base', productType: ProductType.game),
+      DownloadableProduct(
+        id: 2,
+        name: 'Soundtrack',
+        productType: ProductType.dlc,
+      ),
+      DownloadableProduct(id: 3, name: 'Artbook', productType: ProductType.dlc),
+    ];
 
   Future<void> pumpFrames(WidgetTester tester) async {
     await tester.pump();
@@ -48,6 +51,7 @@ void main() {
       findsOneWidget,
     );
 
+    expect(find.text('DLC'), findsWidgets);
     await tester.tap(find.text('Soundtrack'));
     await pumpFrames(tester);
     expect(container.read(gamesStateProvider).getProductIds(gameId), {1, 2});
@@ -65,7 +69,7 @@ void main() {
   testWidgets('a game with no DLC shows the empty state', (tester) async {
     final backend = FakeGogBackend()
       ..products[gameId] = const [
-        DownloadableProduct(id: 1, name: 'Base', productType: 'GAME'),
+        DownloadableProduct(id: 1, name: 'Base', productType: ProductType.game),
       ];
     await pumpApp(
       tester,

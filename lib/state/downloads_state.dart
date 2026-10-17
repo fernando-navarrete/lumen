@@ -508,21 +508,21 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
       (event) {
         final prev = task;
         switch (event) {
-          case VerifyDownloadProgress_Started(:final field0):
+          case VerifyDownloadProgress_Started(:final totalBytes):
             task = task.copyWith(
-              totalBytes: field0.toInt(),
+              totalBytes: totalBytes.toInt(),
               stage: 'verifying',
             );
-          case VerifyDownloadProgress_Progress(:final field0):
-            task = task.copyWith(downloadedBytes: field0.toInt());
-          case VerifyDownloadProgress_CouldNotResolvePath(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.unreadable);
-          case VerifyDownloadProgress_FileNotFound(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.missing);
-          case VerifyDownloadProgress_ChecksumMismatch(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.corrupt);
-          case VerifyDownloadProgress_Finished(:final field0):
-            task = task.copyWith(chunksToRedownload: field0.toInt());
+          case VerifyDownloadProgress_Progress(:final checkedBytes):
+            task = task.copyWith(downloadedBytes: checkedBytes.toInt());
+          case VerifyDownloadProgress_CouldNotResolvePath(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.unreadable);
+          case VerifyDownloadProgress_FileNotFound(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.missing);
+          case VerifyDownloadProgress_ChecksumMismatch(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.corrupt);
+          case VerifyDownloadProgress_Finished(:final badChunks):
+            task = task.copyWith(chunksToRedownload: badChunks.toInt());
             task = _commit(prev, task);
             return;
           case VerifyDownloadProgress_Cancelled():
@@ -680,8 +680,8 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             );
           case DownloadGameProgress_FileAllocation(:final allocatedFiles):
             task = task.copyWith(processedFiles: allocatedFiles.toInt());
-          case DownloadGameProgress_AllocationError(:final field0):
-            task = task.copyWith(errorFiles: [...task.errorFiles, field0]);
+          case DownloadGameProgress_AllocationError(:final path):
+            task = task.copyWith(errorFiles: [...task.errorFiles, path]);
           case DownloadGameProgress_DownloadProgress(:final downloadedBytes):
             task = task.copyWith(
               downloadedBytes: downloadedBytes.toInt(),
@@ -1054,19 +1054,19 @@ class DownloadsNotifier extends Notifier<DownloadsState> {
             );
           case RepairGameProgress_FileAllocation(:final allocatedFiles):
             task = task.copyWith(processedFiles: allocatedFiles.toInt());
-          case RepairGameProgress_AllocationError(:final field0):
-            task = task.copyWith(errorFiles: [...task.errorFiles, field0]);
+          case RepairGameProgress_AllocationError(:final path):
+            task = task.copyWith(errorFiles: [...task.errorFiles, path]);
           case RepairGameProgress_Verification(:final checkedBytes):
             task = task.copyWith(
               downloadedBytes: checkedBytes.toInt(),
               stage: 'verifyingChunks',
             );
-          case RepairGameProgress_CouldNotResolvePath(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.unreadable);
-          case RepairGameProgress_FileNotFound(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.missing);
-          case RepairGameProgress_ChecksumMismatch(:final field0):
-            task = _withVerifyFailure(task, field0, VerifyFailure.corrupt);
+          case RepairGameProgress_CouldNotResolvePath(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.unreadable);
+          case RepairGameProgress_FileNotFound(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.missing);
+          case RepairGameProgress_ChecksumMismatch(:final path):
+            task = _withVerifyFailure(task, path, VerifyFailure.corrupt);
           case RepairGameProgress_DownloadStarted(:final totalBytes):
             task = task.copyWith(
               totalBytes: totalBytes.toInt(),

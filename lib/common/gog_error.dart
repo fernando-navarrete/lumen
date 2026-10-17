@@ -36,23 +36,26 @@ String jobErrorText(Object error) {
       return "Couldn't write to the install folder — check that it's "
           'writable and its drive is mounted';
     case GogErrorKind.cloudSavesUnsupported:
+    case GogErrorKind.invalidLoginCode:
     case GogErrorKind.unknown:
       return error.message();
   }
 }
 
-/// Text for a failed sign-in, shown inline under the code field. Until the
-/// bridge reports a rejected code apart from a network failure, any other
-/// `GogError` gets the generic hint.
+/// Text for a failed sign-in, shown inline under the code field.
 String loginErrorText(Object error) {
   if (error is KeyringUnavailableError) {
     return error.message;
   }
   if (error is GogError) {
-    return error.kind() == GogErrorKind.network
-        ? 'Network error — check your connection and try again'
-        : "Couldn't sign in. Check your connection, then copy the full "
-              'value after code= and try again.';
+    return switch (error.kind()) {
+      GogErrorKind.invalidLoginCode =>
+        "GOG didn't accept that code. It may have expired — open the GOG "
+            'login again and copy the new code.',
+      GogErrorKind.network =>
+        'Network error — check your connection and try again',
+      _ => "Couldn't sign in: ${error.message()}",
+    };
   }
   return "Couldn't sign in: ${gogErrorText(error)}";
 }

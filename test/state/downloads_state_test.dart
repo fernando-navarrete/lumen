@@ -145,7 +145,9 @@ void main() {
           productIds: [1],
         );
         final controller = backend.downloadController(1);
-        controller.add(const DownloadGameProgress.allocationError('bad.dat'));
+        controller.add(
+          const DownloadGameProgress.allocationError(path: 'bad.dat'),
+        );
         controller.add(const DownloadGameProgress.finished());
         await controller.close();
         await settle();
@@ -276,13 +278,17 @@ void main() {
       );
       final controller = backend.verifyController(1);
 
-      controller.add(VerifyDownloadProgress.started(BigInt.from(1000)));
+      controller.add(
+        VerifyDownloadProgress.started(totalBytes: BigInt.from(1000)),
+      );
       await settle();
       var task = container.read(downloadsStateProvider).tasks[1]!;
       expect(task.stage, 'verifying');
       expect(task.totalBytes, 1000);
 
-      controller.add(VerifyDownloadProgress.progress(BigInt.from(400)));
+      controller.add(
+        VerifyDownloadProgress.progress(checkedBytes: BigInt.from(400)),
+      );
       await settle();
       task = container.read(downloadsStateProvider).tasks[1]!;
       expect(task.progress, 0.4);
@@ -306,18 +312,26 @@ void main() {
         final controller = backend.verifyController(1);
 
         controller.add(
-          VerifyDownloadProgress.fileNotFound('missing.dat', BigInt.zero),
+          VerifyDownloadProgress.fileNotFound(
+            path: 'missing.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
         controller.add(
-          VerifyDownloadProgress.checksumMismatch('corrupt.dat', BigInt.zero),
+          VerifyDownloadProgress.checksumMismatch(
+            path: 'corrupt.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
         controller.add(
           VerifyDownloadProgress.couldNotResolvePath(
-            'bad-path.dat',
-            BigInt.zero,
+            path: 'bad-path.dat',
+            chunkSize: BigInt.zero,
           ),
         );
-        controller.add(VerifyDownloadProgress.finished(BigInt.from(3)));
+        controller.add(
+          VerifyDownloadProgress.finished(badChunks: BigInt.from(3)),
+        );
         await controller.close();
         await settle();
 
@@ -352,7 +366,7 @@ void main() {
         productIds: [1],
       );
       final controller = backend.verifyController(1);
-      controller.add(VerifyDownloadProgress.finished(BigInt.zero));
+      controller.add(VerifyDownloadProgress.finished(badChunks: BigInt.zero));
       await controller.close();
       await settle();
 
@@ -388,9 +402,14 @@ void main() {
 
         final firstController = backend.verifyController(1);
         firstController.add(
-          VerifyDownloadProgress.fileNotFound('missing.dat', BigInt.zero),
+          VerifyDownloadProgress.fileNotFound(
+            path: 'missing.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
-        firstController.add(VerifyDownloadProgress.finished(BigInt.from(1)));
+        firstController.add(
+          VerifyDownloadProgress.finished(badChunks: BigInt.from(1)),
+        );
         await firstController.close();
         await settle();
         expect(
@@ -412,7 +431,9 @@ void main() {
         );
 
         final secondController = backend.verifyController(1);
-        secondController.add(VerifyDownloadProgress.finished(BigInt.zero));
+        secondController.add(
+          VerifyDownloadProgress.finished(badChunks: BigInt.zero),
+        );
         await secondController.close();
         await settle();
         expect(
@@ -443,10 +464,16 @@ void main() {
         final controller = backend.repairController(1);
 
         controller.add(
-          RepairGameProgress.fileNotFound('missing.dat', BigInt.zero),
+          RepairGameProgress.fileNotFound(
+            path: 'missing.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
         controller.add(
-          RepairGameProgress.checksumMismatch('corrupt.dat', BigInt.zero),
+          RepairGameProgress.checksumMismatch(
+            path: 'corrupt.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
         await settle();
         var task = container.read(downloadsStateProvider).tasks[1]!;
@@ -521,7 +548,7 @@ void main() {
 
         (container, backend) = await start();
         controller = backend.repairController(1);
-        controller.add(const RepairGameProgress.allocationError('a.dat'));
+        controller.add(const RepairGameProgress.allocationError(path: 'a.dat'));
         controller.add(const RepairGameProgress.finished());
         await controller.close();
         await settle();
@@ -558,9 +585,14 @@ void main() {
         final controller = backend.repairController(1);
 
         controller.add(
-          RepairGameProgress.fileNotFound('missing.dat', BigInt.zero),
+          RepairGameProgress.fileNotFound(
+            path: 'missing.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
-        controller.add(const RepairGameProgress.allocationError('alloc.dat'));
+        controller.add(
+          const RepairGameProgress.allocationError(path: 'alloc.dat'),
+        );
         controller.add(const RepairGameProgress.finished());
         await controller.close();
         await settle();
@@ -588,9 +620,14 @@ void main() {
         );
         final verifyController = backend.verifyController(1);
         verifyController.add(
-          VerifyDownloadProgress.fileNotFound('missing.dat', BigInt.zero),
+          VerifyDownloadProgress.fileNotFound(
+            path: 'missing.dat',
+            chunkSize: BigInt.zero,
+          ),
         );
-        verifyController.add(VerifyDownloadProgress.finished(BigInt.from(1)));
+        verifyController.add(
+          VerifyDownloadProgress.finished(badChunks: BigInt.from(1)),
+        );
         await verifyController.close();
         await settle();
         expect(
@@ -660,7 +697,9 @@ void main() {
         productIds: [1],
       );
       final controller = backend.verifyController(1);
-      controller.add(VerifyDownloadProgress.progress(BigInt.from(10)));
+      controller.add(
+        VerifyDownloadProgress.progress(checkedBytes: BigInt.from(10)),
+      );
       controller.addError(Exception('late error'));
       await controller.close();
       await settle();
@@ -733,7 +772,9 @@ void main() {
         productIds: [1],
       );
       final controller = backend.verifyController(1);
-      controller.add(VerifyDownloadProgress.finished(BigInt.from(0)));
+      controller.add(
+        VerifyDownloadProgress.finished(badChunks: BigInt.from(0)),
+      );
       controller.addError(Exception('late error, after finished'));
       await controller.close();
       await settle();
@@ -876,11 +917,15 @@ void main() {
         );
         final controller = backend.verifyController(1);
 
-        controller.add(VerifyDownloadProgress.started(BigInt.from(1000)));
+        controller.add(
+          VerifyDownloadProgress.started(totalBytes: BigInt.from(1000)),
+        );
         await settle();
         final before = container.read(downloadsStateProvider).tasks[1]!;
 
-        controller.add(VerifyDownloadProgress.progress(BigInt.from(400)));
+        controller.add(
+          VerifyDownloadProgress.progress(checkedBytes: BigInt.from(400)),
+        );
         await settle();
         final after = container.read(downloadsStateProvider).tasks[1]!;
 
@@ -904,7 +949,10 @@ void main() {
       );
       final controller = backend.verifyController(1);
       controller.add(
-        VerifyDownloadProgress.fileNotFound('missing.dat', BigInt.zero),
+        VerifyDownloadProgress.fileNotFound(
+          path: 'missing.dat',
+          chunkSize: BigInt.zero,
+        ),
       );
       await settle();
 
@@ -983,12 +1031,16 @@ void main() {
       final freshController = backend.verifyController(1);
       expect(identical(staleController, freshController), isFalse);
 
-      freshController.add(VerifyDownloadProgress.started(BigInt.from(500)));
+      freshController.add(
+        VerifyDownloadProgress.started(totalBytes: BigInt.from(500)),
+      );
       await settle();
       final beforeStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
 
       // An event on the orphaned stream must not overwrite the fresh task.
-      staleController.add(VerifyDownloadProgress.started(BigInt.from(999999)));
+      staleController.add(
+        VerifyDownloadProgress.started(totalBytes: BigInt.from(999999)),
+      );
       await settle();
       final afterStaleEvent = container.read(downloadsStateProvider).tasks[1]!;
 
@@ -1015,7 +1067,7 @@ void main() {
         );
         backend
             .verifyController(1)
-            .add(VerifyDownloadProgress.started(BigInt.from(500)));
+            .add(VerifyDownloadProgress.started(totalBytes: BigInt.from(500)));
         await settle();
 
         notifier.cancel(1);
@@ -1176,7 +1228,7 @@ void main() {
           productIds: [3],
         );
         final controller = backend.verifyController(3);
-        controller.add(VerifyDownloadProgress.finished(BigInt.zero));
+        controller.add(VerifyDownloadProgress.finished(badChunks: BigInt.zero));
         await controller.close();
         await settle();
         expect(
@@ -1719,7 +1771,7 @@ void main() {
       );
       backend
           .verifyController(2)
-          .add(VerifyDownloadProgress.finished(BigInt.zero));
+          .add(VerifyDownloadProgress.finished(badChunks: BigInt.zero));
       await backend.verifyController(2).close();
       await notifier.startRepairForInstalled(
         3,

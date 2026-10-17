@@ -51,14 +51,18 @@ void main() {
         await notifier.downloadRelease(_release, targetDir);
         final controller = backend.protonDownloadController(_release.tagName);
 
-        controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+        controller.add(
+          ProtonDownloadProgress.started(totalBytes: BigInt.from(1000)),
+        );
         await settle();
         var task = container
             .read(protonStateProvider)
             .taskFor(_release.tagName)!;
         expect(task.stage, 'downloading');
 
-        controller.add(ProtonDownloadProgress.progress(BigInt.from(1000)));
+        controller.add(
+          ProtonDownloadProgress.progress(downloadedBytes: BigInt.from(1000)),
+        );
         await settle();
         task = container.read(protonStateProvider).taskFor(_release.tagName)!;
         expect(task.stage, 'extracting');
@@ -66,7 +70,7 @@ void main() {
         // Deliberately different from '$targetDir/$tag', since the bridge
         // sanitizes the tag for the filesystem.
         final reportedPath = '$targetDir/GE-Proton9_1';
-        controller.add(ProtonDownloadProgress.finished(reportedPath));
+        controller.add(ProtonDownloadProgress.finished(path: reportedPath));
         await controller.close();
         await settle();
 
@@ -98,8 +102,12 @@ void main() {
         await notifier.downloadRelease(_release, targetDir);
         final controller = backend.protonDownloadController(_release.tagName);
 
-        controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
-        controller.add(ProtonDownloadProgress.progress(BigInt.from(500)));
+        controller.add(
+          ProtonDownloadProgress.started(totalBytes: BigInt.from(1000)),
+        );
+        controller.add(
+          ProtonDownloadProgress.progress(downloadedBytes: BigInt.from(500)),
+        );
         await controller.close();
         await settle();
 
@@ -155,7 +163,7 @@ void main() {
         expect(identical(first, second), false);
 
         final reportedPath = '$targetDir/GE-Proton9_1';
-        second.add(ProtonDownloadProgress.finished(reportedPath));
+        second.add(ProtonDownloadProgress.finished(path: reportedPath));
         await second.close();
         await settle();
 
@@ -310,7 +318,7 @@ void main() {
       await notifier.downloadRelease(_release, targetDir);
       final first = backend.protonDownloadController(_release.tagName);
       final reported = fakeProtonInstall('$targetDir/GE-Proton9_1');
-      first.add(ProtonDownloadProgress.finished(reported));
+      first.add(ProtonDownloadProgress.finished(path: reported));
       await first.close();
       await settle();
       expect(
@@ -466,7 +474,7 @@ void main() {
         await notifier.downloadRelease(_release, targetDir);
         final controller = backend.protonDownloadController(_release.tagName);
         final reportedPath = '$targetDir/GE-Proton9_1';
-        controller.add(ProtonDownloadProgress.finished(reportedPath));
+        controller.add(ProtonDownloadProgress.finished(path: reportedPath));
         await controller.close();
         await settle();
 
@@ -496,13 +504,17 @@ void main() {
         await notifier.downloadRelease(_release, targetDir);
         final controller = backend.protonDownloadController(_release.tagName);
 
-        controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+        controller.add(
+          ProtonDownloadProgress.started(totalBytes: BigInt.from(1000)),
+        );
         await settle();
         final before = container
             .read(protonStateProvider)
             .taskFor(_release.tagName)!;
 
-        controller.add(ProtonDownloadProgress.progress(BigInt.from(200)));
+        controller.add(
+          ProtonDownloadProgress.progress(downloadedBytes: BigInt.from(200)),
+        );
         await settle();
         final after = container
             .read(protonStateProvider)
@@ -528,12 +540,18 @@ void main() {
 
       // No settle() between these -- all but the last should be coalesced
       // by the throttle, and the terminal finished+close must still flush.
-      controller.add(ProtonDownloadProgress.started(BigInt.from(1000)));
+      controller.add(
+        ProtonDownloadProgress.started(totalBytes: BigInt.from(1000)),
+      );
       for (var i = 1; i <= 5; i++) {
-        controller.add(ProtonDownloadProgress.progress(BigInt.from(i * 100)));
+        controller.add(
+          ProtonDownloadProgress.progress(
+            downloadedBytes: BigInt.from(i * 100),
+          ),
+        );
       }
       final reportedPath = '$targetDir/GE-Proton9_1';
-      controller.add(ProtonDownloadProgress.finished(reportedPath));
+      controller.add(ProtonDownloadProgress.finished(path: reportedPath));
       await controller.close();
       await settle();
 
@@ -566,14 +584,18 @@ void main() {
       );
       expect(identical(staleController, freshController), isFalse);
 
-      freshController.add(ProtonDownloadProgress.started(BigInt.from(500)));
+      freshController.add(
+        ProtonDownloadProgress.started(totalBytes: BigInt.from(500)),
+      );
       await settle();
       final beforeStaleEvent = container
           .read(protonStateProvider)
           .taskFor(_release.tagName)!;
 
       // An event on the orphaned stream must not overwrite the fresh task.
-      staleController.add(ProtonDownloadProgress.progress(BigInt.from(999)));
+      staleController.add(
+        ProtonDownloadProgress.progress(downloadedBytes: BigInt.from(999)),
+      );
       await settle();
       final afterStaleEvent = container
           .read(protonStateProvider)

@@ -42,19 +42,16 @@ void main() {
     const a = GameBuild(
       buildId: '1',
       versionName: '1.0',
-      releaseDate: '2024-01-01',
       releaseDateTimestamp: 1704067200,
     );
     const b = GameBuild(
       buildId: '1',
       versionName: '1.0',
-      releaseDate: '2024-01-01',
       releaseDateTimestamp: 1704067200,
     );
     const c = GameBuild(
       buildId: '2',
       versionName: '1.1',
-      releaseDate: '2024-02-01',
       releaseDateTimestamp: 1706745600,
     );
 
@@ -99,9 +96,21 @@ void main() {
   });
 
   group('DownloadableProduct', () {
-    const a = DownloadableProduct(id: 1, name: 'Game', productType: 'GAME');
-    const b = DownloadableProduct(id: 1, name: 'Game', productType: 'GAME');
-    const c = DownloadableProduct(id: 2, name: 'DLC', productType: 'DLC');
+    const a = DownloadableProduct(
+      id: 1,
+      name: 'Game',
+      productType: ProductType.game,
+    );
+    const b = DownloadableProduct(
+      id: 1,
+      name: 'Game',
+      productType: ProductType.game,
+    );
+    const c = DownloadableProduct(
+      id: 2,
+      name: 'DLC',
+      productType: ProductType.dlc,
+    );
 
     test('equal values are ==, with matching hashCode', () {
       expect(a, equals(b));

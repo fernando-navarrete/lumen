@@ -180,7 +180,6 @@ void main() {
           const GameBuild(
             buildId: 'b1',
             versionName: 'latest',
-            releaseDate: '2026-02-01T00:00:00+0000',
             releaseDateTimestamp: 1,
           ),
         ];

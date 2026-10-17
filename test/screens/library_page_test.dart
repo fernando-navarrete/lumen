@@ -360,12 +360,8 @@ void main() {
     const installed =
         '{"version": 1, "games": {"1": {"status": "downloaded", '
         '"selectedBuild": "1.0", "installPath": "/g", "productIds": [1]}}}';
-    GameBuild b(String n, int ts) => GameBuild(
-      buildId: n,
-      versionName: n,
-      releaseDate: '2024',
-      releaseDateTimestamp: ts,
-    );
+    GameBuild b(String n, int ts) =>
+        GameBuild(buildId: n, versionName: n, releaseDateTimestamp: ts);
 
     Future<void> pumpLibrary(
       WidgetTester tester,

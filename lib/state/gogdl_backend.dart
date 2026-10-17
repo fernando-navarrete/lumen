@@ -5,6 +5,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart'
         GameBuild,
         GameLinks,
         DownloadableProduct,
+        ProductType,
         ProtonRelease,
         ProtonReleasePage,
         InstallSize,
@@ -14,6 +15,7 @@ import 'package:gogdl_flutter/gogdl_flutter.dart'
     show
         GameBuild,
         DownloadableProduct,
+        ProductType,
         ProtonRelease,
         InstallSize,
         ProductRemoval;
@@ -268,12 +270,19 @@ class GogdlBackend implements GogBackend {
   GameBuild _adaptBuild(bridge.GameBuild b) => GameBuild(
     buildId: b.buildId,
     versionName: b.versionName,
-    releaseDate: b.releaseDate,
     releaseDateTimestamp: b.releaseDateTimestamp,
   );
 
   DownloadableProduct _adaptProduct(bridge.DownloadableProduct p) =>
-      DownloadableProduct(id: p.id, name: p.name, productType: p.productType);
+      DownloadableProduct(
+        id: p.id,
+        name: p.name,
+        productType: switch (p.productType) {
+          bridge.ProductType.game => ProductType.game,
+          bridge.ProductType.dlc => ProductType.dlc,
+          bridge.ProductType.other => ProductType.other,
+        },
+      );
 
   ProtonRelease _adaptRelease(bridge.ProtonRelease r) =>
       ProtonRelease(tagName: r.tagName, downloadSize: r.downloadSize.toInt());

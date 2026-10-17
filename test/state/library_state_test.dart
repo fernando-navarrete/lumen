@@ -15,7 +15,6 @@ import '../helpers/fake_gog_backend.dart';
 const _build = GameBuild(
   buildId: '1',
   versionName: '1.0',
-  releaseDate: '2024-01-01',
   releaseDateTimestamp: 1,
 );
 
@@ -145,7 +144,11 @@ void main() {
 
   group('gameProductsProvider', () {
     test('caches per game and build, and errors on failure', () async {
-      const dlc = DownloadableProduct(id: 2, name: 'DLC', productType: 'DLC');
+      const dlc = DownloadableProduct(
+        id: 2,
+        name: 'DLC',
+        productType: ProductType.dlc,
+      );
       final backend = FakeGogBackend()..products[1] = [dlc];
       final container = await createContainer(backend: backend);
       const key = (gameId: 1, buildName: '1.0');
@@ -311,12 +314,8 @@ void main() {
   });
 
   group('gameUpdateProvider', () {
-    GameBuild build(String name, int ts) => GameBuild(
-      buildId: name,
-      versionName: name,
-      releaseDate: '2024',
-      releaseDateTimestamp: ts,
-    );
+    GameBuild build(String name, int ts) =>
+        GameBuild(buildId: name, versionName: name, releaseDateTimestamp: ts);
     String installedOn(String name) =>
         '{"version": 1, "games": {"1": {"status": "downloaded", '
         '"selectedBuild": "$name", "productIds": [1]}}}';

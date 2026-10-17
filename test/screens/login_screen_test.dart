@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gogdl_flutter/gogdl_flutter.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/screens/home/home_screen.dart';
 import 'package:lumen/screens/login/login_screen.dart';
@@ -11,6 +12,15 @@ import '../helpers/fake_gog_backend.dart';
 import '../helpers/fake_secure_storage.dart';
 import '../helpers/pump_app.dart';
 import '../helpers/temp_data_home.dart';
+
+/// Stands in for the opaque native `GogError`, so no native library loads.
+class _FakeGogError extends Fake implements GogError {
+  @override
+  GogErrorKind kind() => GogErrorKind.invalidLoginCode;
+
+  @override
+  String message() => 'raw message';
+}
 
 void main() {
   setUp(useTempDataHome);
@@ -103,6 +113,18 @@ void main() {
     expect(find.textContaining("Couldn't sign in"), findsOneWidget);
     expect(find.byType(SnackBar), findsNothing);
     expect(find.byType(SignInPanel), findsOneWidget);
+  });
+
+  testWidgets('a rejected code reads as a bad code', (tester) async {
+    final backend = FakeGogBackend()
+      ..throwOn['loginWithCode'] = _FakeGogError();
+    await pumpLogin(tester, backend: backend);
+    await tester.enterText(find.byType(TextField), 'abc');
+    await tester.tap(find.text('Sign in'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining("GOG didn't accept that code"), findsOneWidget);
+    expect(find.textContaining('incomplete'), findsNothing);
   });
 
   testWidgets('a keyring failure on the token write shows inline', (

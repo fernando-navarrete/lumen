@@ -21,3 +21,10 @@ String formatBytesBigint(BigInt bytes) {
   }
   return "${value.toStringAsFixed(unitIndex == 0 ? 0 : 1)} ${units[unitIndex]}";
 }
+
+/// Formats Unix [seconds] as a UTC date, e.g. `"2024-01-31"`.
+String formatReleaseDate(int seconds) {
+  final d = DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.year}-${two(d.month)}-${two(d.day)}';
+}

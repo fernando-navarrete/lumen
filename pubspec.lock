@@ -292,11 +292,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "v1.4.3"
-      resolved-ref: "69d4f9a26dd1a53a041a5c94c8c93a066f91cfba"
+      ref: "v1.5.0"
+      resolved-ref: c9fc04c86c607aa08bc04a3de3160315e8fa5052
       url: "https://github.com/fernando-navarrete/gogdl_flutter.git"
     source: git
-    version: "1.4.3"
+    version: "1.5.0"
   google_fonts:
     dependency: "direct main"
     description:

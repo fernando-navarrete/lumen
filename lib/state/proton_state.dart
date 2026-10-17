@@ -212,14 +212,14 @@ class ProtonNotifier extends Notifier<ProtonState> {
     stream.listen(
       (event) {
         switch (event) {
-          case ProtonDownloadProgress_Started(:final field0):
+          case ProtonDownloadProgress_Started(:final totalBytes):
             task = _commit(
               task,
-              task.copyWith(total: field0.toInt(), stage: 'downloading'),
+              task.copyWith(total: totalBytes.toInt(), stage: 'downloading'),
               throttle: true,
             );
-          case ProtonDownloadProgress_Progress(:final field0):
-            final transferred = field0.toInt();
+          case ProtonDownloadProgress_Progress(:final downloadedBytes):
+            final transferred = downloadedBytes.toInt();
             final stage = task.total > 0 && transferred >= task.total
                 ? 'extracting'
                 : 'downloading';
@@ -233,8 +233,8 @@ class ProtonNotifier extends Notifier<ProtonState> {
             // interleave with Progress for the whole transfer rather than
             // marking a phase — the byte counters above decide the stage.
             return;
-          case ProtonDownloadProgress_Finished(:final field0):
-            extractedPath = field0;
+          case ProtonDownloadProgress_Finished(:final path):
+            extractedPath = path;
           case ProtonDownloadProgress_Cancelled():
             // Nothing cancels a Proton download in v1.3.0. With no
             // `Finished`, `onDone` fails the task.

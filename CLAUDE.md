@@ -16,7 +16,7 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
 Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `ProtonReleasePage`, `GameLinks`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart
-classes under `lib/models/`, not bridge-generated ones — a new backend adapts its own types into
+classes under `lib/models/` (`DownloadableProduct.productType` is the app's own `ProductType` enum; `GameBuild` keeps only `releaseDateTimestamp`, which the Builds tab formats with `formatReleaseDate`), not bridge-generated ones — a new backend adapts its own types into
 these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
 `DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
 the exceptions: all six stay the bridge's own freezed unions, and their owning notifiers

@@ -5,13 +5,11 @@
 class GameBuild {
   final String buildId;
   final String versionName;
-  final String releaseDate;
   final int releaseDateTimestamp;
 
   const GameBuild({
     required this.buildId,
     required this.versionName,
-    required this.releaseDate,
     required this.releaseDateTimestamp,
   });
 
@@ -22,12 +20,10 @@ class GameBuild {
           runtimeType == other.runtimeType &&
           buildId == other.buildId &&
           versionName == other.versionName &&
-          releaseDate == other.releaseDate &&
           releaseDateTimestamp == other.releaseDateTimestamp;
 
   @override
-  int get hashCode =>
-      Object.hash(buildId, versionName, releaseDate, releaseDateTimestamp);
+  int get hashCode => Object.hash(buildId, versionName, releaseDateTimestamp);
 }
 
 /// The newest of [builds] by `releaseDateTimestamp`, or `null` if empty.

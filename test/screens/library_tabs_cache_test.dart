@@ -67,7 +67,6 @@ void main() {
         const GameBuild(
           buildId: '1',
           versionName: '1.0',
-          releaseDate: 'x',
           releaseDateTimestamp: 1,
         ),
       ];
@@ -107,8 +106,12 @@ void main() {
 
     backend.throwOn.clear();
     backend.products[gameId] = const [
-      DownloadableProduct(id: 1, name: 'Base', productType: 'GAME'),
-      DownloadableProduct(id: 2, name: 'Soundtrack', productType: 'DLC'),
+      DownloadableProduct(id: 1, name: 'Base', productType: ProductType.game),
+      DownloadableProduct(
+        id: 2,
+        name: 'Soundtrack',
+        productType: ProductType.dlc,
+      ),
     ];
     await tester.tap(find.text('Retry'));
     await pumpFrames(tester);
