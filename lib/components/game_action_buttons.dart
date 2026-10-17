@@ -160,7 +160,7 @@ class _GameActionButtonsState extends ConsumerState<GameActionButtons> {
             action: gameLogExists(gameId)
                 ? SnackBarAction(
                     label: "Open log",
-                    onPressed: () => openGameLog(context, gameId),
+                    onPressed: () => openGameLog(context, ref, gameId),
                   )
                 : null,
           ),

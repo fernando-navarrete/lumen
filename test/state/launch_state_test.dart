@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lumen/common/app_paths.dart';
+import 'package:lumen/common/host_environment.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:lumen/state/launch_state.dart';
 import 'package:path/path.dart' as p;
@@ -1017,5 +1018,72 @@ exit $exitCode
       await notifier.stopGame(1);
       await waitSettled(container);
     });
+  });
+
+  group('LaunchNotifier — host environment (Phase 8)', () {
+    /// A `proton` that dumps its environment to `$DUMP_DIR/<$2 or game>.env`.
+    void writeEnvDumpingProton() {
+      final script = File('${protonDir.path}/proton');
+      script.writeAsStringSync('''
+#!/usr/bin/env bash
+if [ "\$2" = "wineboot" ]; then
+  mkdir -p "\$STEAM_COMPAT_DATA_PATH/pfx"
+  env > "\$DUMP_DIR/wineboot.env"
+  exit 0
+fi
+env > "\$DUMP_DIR/game.env"
+''');
+      Process.runSync('chmod', ['+x', script.path]);
+    }
+
+    test(
+      'no spawned process sees the AppImage runtime or the parent env',
+      () async {
+        writeEnvDumpingProton();
+        final dumpDir = Directory('${dataHome.path}/dump')..createSync();
+        final container = await createContainer();
+        final notifier = container.read(launchStateProvider.notifier);
+        notifier.environment = () => hostEnvironment({
+          'PATH': Platform.environment['PATH']!,
+          'APPIMAGE': '/x/Lumen.AppImage',
+          'APPDIR': '/tmp/.mount_x',
+          'ARGV0': 'Lumen',
+          'OWD': '/home/u',
+          'KEEP_ME': 'yes',
+        });
+
+        await notifier.launchGame(
+          1,
+          protonPath: protonDir.path,
+          installPath: installDir.path,
+          target: gameExe,
+          prefixPath: prefixDir.path,
+          envVars: {'DUMP_DIR': dumpDir.path, 'USER_VAR': 'u'},
+        );
+        await waitFor(
+          () =>
+              container.read(launchStateProvider).gameFor(1)!.status ==
+              LaunchStatus.exited,
+        );
+
+        final parentOnly = Platform.environment.keys.firstWhere(
+          (k) =>
+              k != 'PATH' && !const {'PWD', '_', 'SHLVL', 'OLDPWD'}.contains(k),
+        );
+        for (final name in ['wineboot', 'game']) {
+          final dump = File('${dumpDir.path}/$name.env').readAsLinesSync();
+          for (final gone in ['APPIMAGE', 'APPDIR', 'ARGV0', 'OWD']) {
+            expect(dump.where((l) => l.startsWith('$gone=')), isEmpty);
+          }
+          expect(dump, contains('KEEP_ME=yes'));
+          expect(dump, contains('USER_VAR=u'));
+          expect(
+            dump.where((l) => l.startsWith('STEAM_COMPAT_DATA_PATH=')),
+            isNotEmpty,
+          );
+          expect(dump.where((l) => l.startsWith('$parentOnly=')), isEmpty);
+        }
+      },
+    );
   });
 }

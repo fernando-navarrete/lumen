@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/app_paths.dart';
 import 'package:lumen/common/executable_lookup.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/host_environment.dart';
 import 'package:lumen/common/shell_words.dart';
 import 'package:lumen/models/launch_target.dart';
 import 'package:path/path.dart' as p;
@@ -82,7 +83,9 @@ class LaunchState {
 /// has one, else the executable's parent folder. The only environment
 /// variables the tool itself sets for the game are
 /// `STEAM_COMPAT_CLIENT_INSTALL_PATH` and `STEAM_COMPAT_DATA_PATH` — no
-/// WINEPREFIX, no DXVK/winetricks setup. If a
+/// WINEPREFIX, no DXVK/winetricks setup. Every process starts from
+/// `hostEnvironment()` (the app's environment minus what the AppImage runtime
+/// added) with `includeParentEnvironment: false`. If a
 /// launch wrapper is set (e.g. `gamescope -f --`), it is prepended to the
 /// `proton run ...` invocation, becoming the process actually spawned —
 /// mirroring Steam's launch-option wrappers. The wrapper never applies to
@@ -132,6 +135,10 @@ class LaunchNotifier extends Notifier<LaunchState> {
   /// `exited` for the whole session.
   @visibleForTesting
   Duration pipeDrainGrace = const Duration(seconds: 2);
+
+  /// The environment every spawned process starts from.
+  @visibleForTesting
+  Map<String, String> Function() environment = hostEnvironment;
 
   /// How long [stopGame] waits for the spawned process to exit after
   /// `wineserver -k` before sending it SIGTERM.
@@ -220,7 +227,7 @@ class LaunchNotifier extends Notifier<LaunchState> {
       final wrapperCommand = launchWrapper.first;
       final resolved = resolveExecutable(
         wrapperCommand,
-        pathEnv: envVars['PATH'] ?? Platform.environment['PATH'],
+        pathEnv: envVars['PATH'] ?? environment()['PATH'],
         cwd: cwd,
       );
       if (resolved == null) {
@@ -290,7 +297,8 @@ class LaunchNotifier extends Notifier<LaunchState> {
         final result = await Process.run(
           protonBinary,
           ['run', 'wineboot'],
-          environment: {...envVars, ...compatEnv},
+          environment: {...environment(), ...envVars, ...compatEnv},
+          includeParentEnvironment: false,
           stdoutEncoding: null,
           stderrEncoding: null,
         );
@@ -336,8 +344,8 @@ class LaunchNotifier extends Notifier<LaunchState> {
         wrapped.first,
         wrapped.sublist(1),
         workingDirectory: cwd,
-        environment: {...envVars, ...compatEnv},
-        includeParentEnvironment: true,
+        environment: {...environment(), ...envVars, ...compatEnv},
+        includeParentEnvironment: false,
       );
       log.writeln('Pid: ${process.pid}');
       final spawnedAt = Stopwatch()..start();
@@ -448,9 +456,11 @@ class LaunchNotifier extends Notifier<LaunchState> {
         wineserver,
         ['-k'],
         environment: {
+          ...environment(),
           ...live.compatEnv,
           'WINEPREFIX': '${live.prefixPath}/pfx',
         },
+        includeParentEnvironment: false,
         stdoutEncoding: null,
         stderrEncoding: null,
       );

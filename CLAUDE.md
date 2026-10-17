@@ -95,6 +95,14 @@ schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCH
 `gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand together, majors are off, 7-day release wait).
 `SECURITY.md` has the dependency rules.
 
+Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev`, present since
+the `-r4` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256` as artifacts; it runs on `v*` tags and is
+a manual job on MRs (never blocking). On a `vX.Y.Z` tag, `publish` (after `lint`, `test`, `secrets`, `scan-gate` and
+`package`) fails unless the tag commit is on `main` and `tool/release_notes.sh` passes — `pubspec.yaml`'s version equals
+the tag and `CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads both files to the project's generic
+package registry; `release` creates the GitLab release from that section with the two files as links. Every release
+(and patch) therefore needs its CHANGELOG section before the tag.
+
 `main` is protected: nobody pushes to it, and every change goes through a merge request with a green
 pipeline and resolved threads (semi-linear merge history, source branch deleted on merge). Branches are
 short-lived. Enable the format pre-commit hook once per clone with
@@ -282,7 +290,9 @@ footer with the exit code. The log is closed before the `exited`/`failed` state 
 the pipe drain capped by `pipeDrainGrace`, and a log that can't be opened never blocks the launch.
 `lib/common/game_log.dart` backs the "Open log" actions. The only env vars the tool itself injects into the game
 are `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks
-setup. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the release's
+setup. Every spawned process (wineboot, the game, `wineserver -k`, and `xdg-open` for "Open log" and the login URL via
+`openExternallyProvider`) starts from `hostEnvironment()` (`lib/common/host_environment.dart`) with
+`includeParentEnvironment: false`: the app's environment minus `APPDIR`/`APPIMAGE`/`ARGV0`/`OWD` when run as an AppImage. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the release's
 `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are reparented
 to init, so only wineserver can reach them), then escalates to SIGTERM/SIGKILL on the spawned pid
 (never its process group, which is Lumen's own). That `WINEPREFIX` goes to `wineserver` only, never

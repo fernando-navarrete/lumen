@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdl_flutter/gogdl_flutter.dart';
+import 'package:lumen/common/host_environment.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/screens/home/home_screen.dart';
 import 'package:lumen/screens/login/login_screen.dart';
@@ -188,5 +189,36 @@ void main() {
     await tester.enterText(find.byType(TextField), 'abc');
     await tester.pump();
     expect(checks(), 3);
+  });
+
+  testWidgets('Open GOG login hands the login URL to the desktop', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    final backend = FakeGogBackend()..loginUrl = 'https://auth.example/login';
+    await pumpApp(
+      tester,
+      const LoginScreen(),
+      backend: backend,
+      secureStorage: FakeSecureStorage(),
+      overrides: [
+        openExternallyProvider.overrideWithValue((target) async {
+          opened.add(target);
+          return false;
+        }),
+      ],
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('Open GOG login'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(opened, ['https://auth.example/login']);
+    expect(
+      find.text('Could not open login URL: https://auth.example/login'),
+      findsOneWidget,
+    );
   });
 }
