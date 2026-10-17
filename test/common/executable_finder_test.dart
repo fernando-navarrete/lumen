@@ -67,7 +67,7 @@ void main() {
     // alone: for games that ship goggame-<id>.info, its `playTasks`
     // (lib/common/goggame_info.dart) supersede this scan, which is only the
     // fallback now, and loosening it would just widen the picker.
-    group('known false negatives (current heuristic, see ROADMAP v1.2.0)', () {
+    group('known false negatives (current heuristic)', () {
       test('a legitimate exe containing "crash" is skipped', () {
         touch('CrashDay.exe');
 

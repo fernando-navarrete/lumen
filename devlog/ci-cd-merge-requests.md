@@ -101,9 +101,3 @@ threads must pass, skipped pipelines not counted as success, auto-cancel redunda
 Tracked in `GAPS.md` §7: the accepted RUSTSEC-2026-0285 until the bridge bumps `rustls`; running `scan` in
 `gogdl_flutter` and `gogdl-lib`; a release job with a Linux artifact on tags; MR coverage; digest-pinning the CI
 image (needs a registry); `lockFileMaintenance`.
-
-## Close-out checklist
-
-- [ ] `git fetch --prune` and `git branch -a`: only `main` and `origin/main`.
-- [ ] GitLab → Repository → Branches lists only `main`.
-- [ ] Delete local branches left behind (`ci/*`).

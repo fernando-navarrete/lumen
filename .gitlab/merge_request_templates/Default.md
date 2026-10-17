@@ -9,3 +9,4 @@
 - [ ] A git dependency changed: it comes from `https://github.com/fernando-navarrete/`, pinned by a `vX.Y.Z` tag, and `sh tool/check_bridge_pin.sh` passes
 - [ ] `gogdl_flutter` ref or `.fvmrc` changed: bumped the CI image tag in `.gitlab-ci.yml` (and `constraints.flutter` in `renovate.json` for `.fvmrc`)
 - [ ] Behavior or architecture changed: updated `CLAUDE.md` / `README.md`
+- [ ] Fixed or found a gap: removed or added it in `GAPS.md`
