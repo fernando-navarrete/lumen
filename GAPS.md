@@ -310,7 +310,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P2 — Unify the responsive side-column widths.** `OverviewTab`, `BuildsTab` and `ProductsTab`
   each use different `pow(...)` formulas (flagged in code comments); share one breakpoint helper.
   Fixed in `v1.5.0`: `sideColumnWidth` in `lib/theme/breakpoints.dart`.
-- [ ] **P2 — Check whether the GOG summary contains HTML** that's being shown raw in `OverviewTab`.
+- [x] **P2 — Check whether the GOG summary contains HTML** that's being shown raw in `OverviewTab`.
+  Not an issue (checked in `v1.5.1`): the bridge returns gamesdb's `en-US` summary, which is plain text
+  for every `game` record sampled (27). HTML only appears in `spam` records, which gogdl-lib rejects
+  as not a game.
 - [x] **P2 — Make the DLC tab usable.** It has no empty state when a game has no DLC. The label
   "Select all products to download" is unclear. Also add select-all and select-none actions.
   Fixed in `v1.4.0`: empty state, clearer labels, Select all / Select none.
