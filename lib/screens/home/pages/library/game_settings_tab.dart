@@ -547,7 +547,7 @@ class _GameSettingsTabState extends ConsumerState<GameSettingsTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                     ),
                     onPressed: hasLog
-                        ? () => openGameLog(context, gameId)
+                        ? () => openGameLog(context, ref, gameId)
                         : null,
                     child: Text(
                       "Open log",

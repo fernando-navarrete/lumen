@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/gog_error.dart';
+import 'package:lumen/common/host_environment.dart';
 import 'package:lumen/common/login_code.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/gradient_background.dart';
@@ -15,7 +16,6 @@ import 'package:lumen/theme/app_colors.dart';
 import 'package:lumen/theme/app_decorations.dart';
 import 'package:lumen/theme/app_dimens.dart';
 import 'package:lumen/theme/breakpoints.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -204,7 +204,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ).showSnackBar(const SnackBar(content: Text('No login URL available')));
       return;
     }
-    if (!await launchUrlString(loginUrl)) {
+    if (!await ref.read(openExternallyProvider)(loginUrl)) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not open login URL: $loginUrl')),

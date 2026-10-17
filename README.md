@@ -41,6 +41,16 @@ fvm flutter run -d linux
 fvm flutter build linux    # the bundle lands in build/linux/x64/release/bundle/
 ```
 
+### Building the AppImage
+
+```sh
+tool/build_appimage.sh    # writes build/appimage/Lumen-<version>-x86_64.AppImage and a .sha256
+```
+
+It runs a clean release build, then wraps the bundle with `appimagetool`. The script downloads two tools
+(`appimagetool` and the AppImage runtime) pinned by version and sha256 into `build/appimage-tools/`, and
+stops if a hash differs. The AppImage needs glibc 2.34 or newer and the host's GTK 3 and `libsecret`.
+
 ## Development
 
 The checks CI runs, locally:

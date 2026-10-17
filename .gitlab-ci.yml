@@ -27,6 +27,12 @@
 #                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
 #                variables scoped to the `renovate` environment, so no other job sees them. Renovate exits 0 even when it
 #                gives up on the repository, so the job also fails on "Temporary error" or an error result in its log.
+#   package:     tool/build_appimage.sh in the CI image: Lumen-<version>-x86_64.AppImage and its .sha256, kept as artifacts.
+#                Automatic on `v*` tags, manual on MRs (play it once to prove the build; it never blocks the MR).
+#   publish:     `v*` tags only (vX.Y.Z), after lint, test, secrets, scan-gate and package. Fails unless the tag is on
+#                main and tool/release_notes.sh passes (pubspec.yaml version == tag, CHANGELOG.md has `## X.Y.Z`),
+#                then uploads the AppImage and checksum to the project's generic package registry (CI_JOB_TOKEN).
+#   release:     creates the GitLab release for the tag from the CHANGELOG section, linking the two uploaded files.
 #   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
 # `gogdl_flutter` is a git dependency fetched from its public GitHub mirror over HTTPS
@@ -51,6 +57,8 @@ stages:
   - lint
   - test
   - scan
+  - package
+  - release
 
 default:
   interruptible: true # with "Auto-cancel redundant pipelines" on, a new push cancels the older run
@@ -68,7 +76,7 @@ variables:
 # changes, keeping it in step with the gogdl_flutter tag pinned in pubspec.yaml.
 .ci-image:
   image:
-    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r2
+    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r4
     pull_policy: if-not-present
 
 .flutter:
@@ -118,6 +126,125 @@ test:
   rules: !reference [.not-on-schedule, rules]
   script:
     - flutter test
+
+# The AppImage. Needs libsecret-1-dev, which the image has since r4. build_appimage.sh downloads appimagetool and the
+# runtime, pinned by sha256 and refused on a mismatch; build/appimage-tools/ is only a cache of those.
+package:
+  stage: package
+  extends: .flutter
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: never
+    - if: $CI_COMMIT_TAG =~ /^v/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true # a manual job that was never played must not leave the MR pipeline blocked
+  cache:
+    - key:
+        files:
+          - .fvmrc
+          - pubspec.lock
+      paths:
+        - .ci/pub-cache/
+        - .dart_tool/hooks_runner/
+    - key: appimage-tools
+      paths:
+        - build/appimage-tools/
+  script:
+    - FLUTTER=flutter bash tool/build_appimage.sh
+  artifacts:
+    expire_in: 30 days
+    paths:
+      - build/appimage/Lumen-*-x86_64.AppImage
+      - build/appimage/Lumen-*-x86_64.AppImage.sha256
+
+.release-tag-rules:
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
+
+# The GitLab host uses a private CA the images don't trust. The runner hands it to jobs as CI_SERVER_TLS_CA_FILE
+# when its config.toml has tls-ca-file; add it to the trust store (git, curl and Go read this bundle).
+.private-ca:
+  script:
+    - |
+      if [ -n "${CI_SERVER_TLS_CA_FILE:-}" ]; then
+        cat "$CI_SERVER_TLS_CA_FILE" >> /etc/ssl/certs/ca-certificates.crt
+      else
+        echo "warning: CI_SERVER_TLS_CA_FILE is not set; requests to GitLab will fail on the private CA unless the runner provides it" >&2
+      fi
+
+# Every check runs before anything is uploaded, so a bad tag publishes nothing.
+publish:
+  stage: release
+  extends: .ci-image
+  rules: !reference [.release-tag-rules, rules]
+  needs:
+    - { job: lint, artifacts: false }
+    - { job: test, artifacts: false }
+    - { job: secrets, artifacts: false }
+    - { job: scan-gate, artifacts: false }
+    - { job: package, artifacts: true }
+  variables:
+    GIT_DEPTH: 0 # the ancestry check needs history
+  cache: []
+  script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - !reference [.private-ca, script]
+    - git fetch origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+    - |
+      git merge-base --is-ancestor "$CI_COMMIT_SHA" "origin/$CI_DEFAULT_BRANCH" || {
+        echo "$CI_COMMIT_TAG points at $CI_COMMIT_SHA, which is not on $CI_DEFAULT_BRANCH: tag the merged release commit" >&2
+        exit 1
+      }
+    - sh tool/release_notes.sh "$CI_COMMIT_TAG" > release_notes.md
+    - cat release_notes.md
+    - |
+      version="${CI_COMMIT_TAG#v}"
+      base="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/lumen/$version"
+      cd build/appimage
+      test "$(ls Lumen-*-x86_64.AppImage | wc -l)" = 1 || { echo "expected exactly one AppImage" >&2; exit 1; }
+      file=$(ls Lumen-*-x86_64.AppImage)
+      [ "$file" = "Lumen-$version-x86_64.AppImage" ] || { echo "built $file, expected Lumen-$version-x86_64.AppImage" >&2; exit 1; }
+      sha256sum -c "$file.sha256"
+      for f in "$file" "$file.sha256"; do
+        curl --fail --silent --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$f" "$base/$f"
+      done
+      cd ../..
+      {
+        echo "APPIMAGE_FILE=$file"
+        echo "APPIMAGE_URL=$base/$file"
+        echo "SHA256_URL=$base/$file.sha256"
+      } > release.env
+  artifacts:
+    expire_in: 30 days
+    paths: [release_notes.md]
+    reports:
+      dotenv: release.env
+
+release:
+  stage: release
+  image:
+    name: registry.gitlab.com/gitlab-org/release-cli:v0.24.0@sha256:3f52d526f48e8d10625c722fa6d6423ee82aadeae1b1aa91f07b62551d96dacf
+    pull_policy: if-not-present
+  rules: !reference [.release-tag-rules, rules]
+  needs:
+    - { job: publish, artifacts: true }
+  cache: []
+  script:
+    - !reference [.private-ca, script]
+    - echo "Releasing $CI_COMMIT_TAG with $APPIMAGE_FILE"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: $CI_COMMIT_TAG
+    description: ./release_notes.md
+    assets:
+      links:
+        - name: $APPIMAGE_FILE
+          url: $APPIMAGE_URL
+          link_type: package
+        - name: $APPIMAGE_FILE.sha256
+          url: $SHA256_URL
+          link_type: other
 
 # On an MR it scans only the MR's commits; on tags, what HEAD, the remote branches and the tags reach
 # (GIT_DEPTH 0: the diff base and the full scan both need every commit). Not `--all`: that also walks
