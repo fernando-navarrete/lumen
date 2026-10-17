@@ -65,12 +65,13 @@ fvm flutter build linux    # the bundle lands in build/linux/x64/release/bundle/
 ### Building the AppImage
 
 ```sh
-tool/build_appimage.sh    # writes build/appimage/Lumen-<version>-x86_64.AppImage and a .sha256
+tool/build_appimage.sh    # writes build/appimage/Lumen-<version>-x86_64.AppImage, a .sha256 and a .zsync
 ```
 
 It runs a clean release build, then wraps the bundle with `appimagetool`. The script downloads two tools
 (`appimagetool` and the AppImage runtime) pinned by version and sha256 into `build/appimage-tools/`, and
-stops if a hash differs. See [Installing](#installing) for what the AppImage needs from the host.
+stops if a hash differs. The AppImage embeds update information pointing at the latest GitHub release,
+which the `.zsync` serves. See [Installing](#installing) for what the AppImage needs from the host.
 
 ## Development
 
