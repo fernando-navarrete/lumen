@@ -368,8 +368,10 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [x] **P2 — Tighten lints.** Done in CI/CD Phase 2: `unawaited_futures`, `cancel_subscriptions`, `close_sinks`,
   `avoid_dynamic_calls`, `prefer_final_locals`, `directives_ordering` and `always_declare_return_types` are on and gate `lint`.
   Fixed in `v1.5.0`: the leftover `print` in the login screen is a `debugPrint`.
-- [ ] **P2 — Merge `formatBytes`/`formatBytesBigint`** (`format.dart`), which are duplicates.
-- [ ] **P2 — Stale comment** at `gog_state.dart:315` about a `buildId` param that no longer exists.
+- [x] **P2 — Merge `formatBytes`/`formatBytesBigint`** (`format.dart`), which are duplicates.
+  Fixed in `v1.5.2`: `jobErrorText` converts the `BigInt`s with `toInt()` and calls `formatBytes`.
+- [x] **P2 — Stale comment** at `gog_state.dart:315` about a `buildId` param that no longer exists.
+  Fixed in `v1.5.2`: removed.
 - [x] **P2 — Packaging.** No AppImage, Flatpak or `.deb`, and no release pipeline.
   Fixed in `v1.5.0`: `tool/build_appimage.sh` builds the AppImage (see the open Flatpak item below).
 - [ ] **P2 — Flatpak and `.deb`.** The Phase 0 spike on `org.freedesktop.Platform` failed at startup

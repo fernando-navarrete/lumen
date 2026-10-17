@@ -33,9 +33,7 @@ void main() {
         ),
       );
 
-      expect(text, startsWith('Not enough disk space: needs '));
-      expect(text, contains('2.0 GB'));
-      expect(text, contains('1.0 GB'));
+      expect(text, 'Not enough disk space: needs 2.0 GB, only 1.0 GB free');
     });
 
     test('not enough space without a shortfall', () {

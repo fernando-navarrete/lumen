@@ -3,6 +3,12 @@
 One `## X.Y.Z` section per tag; the release job publishes the tag's section as the release notes.
 Versions before 1.5.0 are described in `devlog/`.
 
+## 1.5.2
+
+### Changed
+
+* No behaviour change. Internal cleanup: one byte formatter instead of two, and a stale comment removed.
+
 ## 1.5.1
 
 ### Changed
