@@ -22,8 +22,8 @@ String jobErrorText(Object error) {
       return shortfall == null
           ? 'Not enough disk space'
           : 'Not enough disk space: needs '
-                '${formatBytesBigint(shortfall.requiredBytes)}, only '
-                '${formatBytesBigint(shortfall.availableBytes)} free';
+                '${formatBytes(shortfall.requiredBytes.toInt())}, only '
+                '${formatBytes(shortfall.availableBytes.toInt())} free';
     case GogErrorKind.network:
       return 'Network error — check your connection and try again';
     case GogErrorKind.sessionExpired:

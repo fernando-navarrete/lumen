@@ -20,6 +20,11 @@ void main() {
       expect(formatBytes(1024 * 1024 * 1024), '1.0 GB');
     });
 
+    test('formats disk-sized values past 32 bits', () {
+      expect(formatBytes(2 * 1024 * 1024 * 1024), '2.0 GB');
+      expect(formatBytes(500 * 1024 * 1024 * 1024), '500.0 GB');
+    });
+
     test('caps out at TB rather than inventing a larger unit', () {
       final oneThousandTb = 1024 * 1024 * 1024 * 1024 * 1024; // 1024 TB
       expect(formatBytes(oneThousandTb), '1024.0 TB');

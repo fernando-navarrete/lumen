@@ -313,8 +313,6 @@ class GogState {
     String buildName,
   ) async {
     try {
-      // Backend param is named `buildId` but the Rust side takes the
-      // build's version name, not its id.
       return await _backend.getDownloadableProducts(
         gameId: gameId,
         buildName: buildName,
