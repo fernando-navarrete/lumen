@@ -43,7 +43,7 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         (_, next) {
           final gamesNotifier = ref.read(gamesStateProvider.notifier);
           for (final product in next.value ?? const <DownloadableProduct>[]) {
-            if (product.productType == "GAME") {
+            if (product.productType == ProductType.game) {
               gamesNotifier.addProductId(widget.gameId, product.id);
             }
           }
@@ -143,11 +143,11 @@ class _ProductsTabState extends ConsumerState<ProductsTab> {
         : ref.watch(gameProductsProvider(key));
     final allProducts = productsAsync?.value;
     final dlcProducts = allProducts
-        ?.where((product) => product.productType != "GAME")
+        ?.where((product) => product.productType != ProductType.game)
         .toList();
     final Set<int> baseIds = {
       for (final product in allProducts ?? const <DownloadableProduct>[])
-        if (product.productType == "GAME") product.id,
+        if (product.productType == ProductType.game) product.id,
     };
     final GameStatus status = gamesState.getGameStatus(widget.gameId);
     final bool installed = status == GameStatus.downloaded;
@@ -300,7 +300,7 @@ class _BuildListItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(product.name, style: AppText.cardTitle()),
-                    Text(product.productType, style: AppText.cardDesc()),
+                    Text(product.productType.label, style: AppText.cardDesc()),
                   ],
                 ),
               ),

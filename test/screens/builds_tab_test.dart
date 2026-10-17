@@ -91,7 +91,6 @@ void main() {
       const GameBuild(
         buildId: 'b1',
         versionName: '1.2.3',
-        releaseDate: '2026-01-01T00:00:00+0000',
         releaseDateTimestamp: 0,
       ),
     ];
@@ -101,6 +100,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('1.2.3'), findsOneWidget);
+    expect(find.text('1970-01-01'), findsOneWidget);
     expect(backend.callsTo('getGameBuilds'), hasLength(2));
   });
 
@@ -113,7 +113,6 @@ void main() {
           const GameBuild(
             buildId: 'b2',
             versionName: '2.0.0',
-            releaseDate: '2026-02-01T00:00:00+0000',
             releaseDateTimestamp: 1,
           ),
         ];
@@ -169,13 +168,11 @@ void main() {
           const GameBuild(
             buildId: 'b2',
             versionName: '2.0.0',
-            releaseDate: '2026-02-01T00:00:00+0000',
             releaseDateTimestamp: 2,
           ),
           const GameBuild(
             buildId: 'b1',
             versionName: '1.0.0',
-            releaseDate: '2026-01-01T00:00:00+0000',
             releaseDateTimestamp: 1,
           ),
         ];

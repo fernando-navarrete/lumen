@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lumen/common/clickable_container.dart';
+import 'package:lumen/common/format.dart';
 import 'package:lumen/components/centered_loader.dart';
 import 'package:lumen/components/panel.dart';
 import 'package:lumen/components/primary_button.dart';
@@ -252,7 +253,7 @@ class _BuildListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final releaseDate = gameBuild.releaseDate.replaceAll(RegExp(r'\+0000'), '');
+    final releaseDate = formatReleaseDate(gameBuild.releaseDateTimestamp);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
       child: ClickableContainer(

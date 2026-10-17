@@ -71,6 +71,10 @@ void main() {
     test('unknown kinds keep the bridge message', () {
       expect(jobErrorText(_FakeGogError(GogErrorKind.unknown)), 'raw message');
       expect(
+        jobErrorText(_FakeGogError(GogErrorKind.invalidLoginCode)),
+        'raw message',
+      );
+      expect(
         jobErrorText(_FakeGogError(GogErrorKind.cloudSavesUnsupported)),
         'raw message',
       );
@@ -89,13 +93,19 @@ void main() {
       );
     });
 
-    test('a network kind and any other GogError read differently', () {
-      final network = loginErrorText(_FakeGogError(GogErrorKind.network));
-      final other = loginErrorText(_FakeGogError(GogErrorKind.unknown));
-      expect(network, contains('Network error'));
-      expect(other, contains('copy the full value after code='));
-      expect(other, isNot(network));
-    });
+    test(
+      'a rejected code, a network failure and the rest read differently',
+      () {
+        final rejected = loginErrorText(
+          _FakeGogError(GogErrorKind.invalidLoginCode),
+        );
+        final network = loginErrorText(_FakeGogError(GogErrorKind.network));
+        final other = loginErrorText(_FakeGogError(GogErrorKind.unknown));
+        expect(rejected, contains("GOG didn't accept that code"));
+        expect(network, contains('Network error'));
+        expect(other, "Couldn't sign in: raw message");
+      },
+    );
 
     test('anything else includes the error text', () {
       expect(loginErrorText(StateError('boom')), contains('boom'));

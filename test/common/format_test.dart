@@ -25,4 +25,15 @@ void main() {
       expect(formatBytes(oneThousandTb), '1024.0 TB');
     });
   });
+
+  group('formatReleaseDate', () {
+    test('formats Unix seconds as a UTC date', () {
+      expect(formatReleaseDate(0), '1970-01-01');
+      expect(formatReleaseDate(1704067200), '2024-01-01');
+    });
+
+    test('is UTC, not local, at the day boundary', () {
+      expect(formatReleaseDate(1704067199), '2023-12-31');
+    });
+  });
 }
