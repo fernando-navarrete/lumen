@@ -397,5 +397,6 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — The GitHub rulesets don't stop the owner moving a tag.** Their bypass is the Repository admin role,
   so the mirror can push a restore. GitLab's `v*` protection is the guard; compare `git ls-remote` on both sides
   after any tag incident.
-- [ ] **P2 — `tool/check_bridge_pin.sh` hasn't run in a `v*` tag pipeline yet.** Tested locally and on every MR
+- [x] **P2 — `tool/check_bridge_pin.sh` hasn't run in a `v*` tag pipeline yet.** Tested locally and on every MR
   via `lint`; the next tag is its first tag run.
+  Fixed in `v1.5.0`: the `v1.5.0` tag pipeline ran it and was green.
