@@ -3,6 +3,14 @@
 One `## X.Y.Z` section per tag; the release job publishes the tag's section as the release notes.
 Versions before 1.5.0 are described in `devlog/`.
 
+## 1.5.1
+
+### Changed
+
+* No behaviour change. Confirmed that GOG's game summaries are plain text (HTML only appears in
+  non-game records, which the library already filters out), and added a test that pins the Overview
+  tab showing them verbatim.
+
 ## 1.5.0
 
 First packaged release: an AppImage built and published by the release pipeline.

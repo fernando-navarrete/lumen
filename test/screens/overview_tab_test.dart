@@ -30,6 +30,19 @@ void main() {
     expect((provider as ResizeImage).width, expected);
   });
 
+  /// `v1.5.1`: gamesdb's summaries for `game` records are plain text (the HTML
+  /// ones are `spam` records gogdl-lib filters out), so the tab shows the
+  /// string verbatim, line breaks included.
+  testWidgets('the summary is shown verbatim as plain text', (tester) async {
+    const summary = 'First paragraph.\n\nSecond paragraph.';
+    final backend = FakeGogBackend()..summaries[1] = summary;
+    await pumpApp(tester, const OverviewTab(gameId: 1), backend: backend);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text(summary), findsOneWidget);
+  });
+
   group('side column', () {
     Future<void> pumpAt(WidgetTester tester, double width) async {
       await pumpApp(
