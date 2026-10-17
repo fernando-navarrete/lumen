@@ -288,7 +288,7 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 
 ## 6. UI / UX
 
-- [ ] **P1 — Login screen polish.** Show a loading state while restoring auth (the login card currently
+- [x] **P1 — Login screen polish.** Show a loading state while restoring auth (the login card currently
   flashes before navigating home). Replace the hardcoded 10 s auto-advance to step 3. Show an error
   message that matches the actual failure, not always "code looks incomplete". Replace the
   `MediaQuery` width/height arithmetic in `SignInPanel` with a layout that works at small window
@@ -300,16 +300,24 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   reproduced at both 1600×1000 and 1920×4200 test surfaces, so it isn't just a small-window issue.
   This is also why `LoginScreen` has no widget test in `test/screens/`; see Phase 8 in
   `devlog/v1.1.0-foundation.md`.
-- [ ] **P2 — Set a window minimum size and a proper title** ("Lumen", not "lumen") in
+  Fixed in `v1.5.0`: a loader while the session restores, steps advance on resume/focus/typing (no timer),
+  a pasted redirect URL is reduced to its code, `loginErrorText` tells a rejected code, a network failure
+  and a keyring failure apart, and the card fits the 960×600 minimum (widget tests added).
+- [x] **P2 — Set a window minimum size and a proper title** ("Lumen", not "lumen") in
   `linux/runner/my_application.cc`, plus an app icon.
-- [ ] **P2 — Unify the responsive side-column widths.** `OverviewTab`, `BuildsTab` and `ProductsTab`
+  Fixed in `v1.5.0`: 960×600 minimum, an icon from the brand mark, and the new application ID.
+  Only checked on Hyprland; GNOME, KDE and X11 are untested.
+- [x] **P2 — Unify the responsive side-column widths.** `OverviewTab`, `BuildsTab` and `ProductsTab`
   each use different `pow(...)` formulas (flagged in code comments); share one breakpoint helper.
+  Fixed in `v1.5.0`: `sideColumnWidth` in `lib/theme/breakpoints.dart`.
 - [ ] **P2 — Check whether the GOG summary contains HTML** that's being shown raw in `OverviewTab`.
 - [x] **P2 — Make the DLC tab usable.** It has no empty state when a game has no DLC. The label
   "Select all products to download" is unclear. Also add select-all and select-none actions.
   Fixed in `v1.4.0`: empty state, clearer labels, Select all / Select none.
-- [ ] **P2 — Keyboard and accessibility.** `ClickableContainer` is a bare `GestureDetector`, so it has
+- [x] **P2 — Keyboard and accessibility.** `ClickableContainer` is a bare `GestureDetector`, so it has
   no focus, keyboard activation or semantics. Use `InkWell`/`FocusableActionDetector`.
+  Fixed in `v1.5.0`: `ClickableContainer` is a `FocusableActionDetector` with button semantics, Enter/Space
+  activation and a focus outline.
 - [x] **P2 — The "Installed" library filter also matches `downloading` and `paused`**
   (`library_page.dart:61`). Consider a separate "Installing" state or chip.
   Fixed in `v1.4.3`: "Installed" matches only `downloaded`; a new "Installing" chip matches
@@ -356,15 +364,29 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
   Fixed in the CI/CD GitHub mirror work (`devlog/ci-cd-github-mirror.md`).
 - [x] **P2 — Tighten lints.** Done in CI/CD Phase 2: `unawaited_futures`, `cancel_subscriptions`, `close_sinks`,
   `avoid_dynamic_calls`, `prefer_final_locals`, `directives_ordering` and `always_declare_return_types` are on and gate `lint`.
-  Still open: the `print` in `lib/screens/login/login_screen.dart:36` should be `debugPrint`/`logGogError`.
+  Fixed in `v1.5.0`: the leftover `print` in the login screen is a `debugPrint`.
 - [ ] **P2 — Merge `formatBytes`/`formatBytesBigint`** (`format.dart`), which are duplicates.
 - [ ] **P2 — Stale comment** at `gog_state.dart:315` about a `buildId` param that no longer exists.
-- [ ] **P2 — Packaging.** No AppImage, Flatpak or `.deb`, and no release pipeline.
+- [x] **P2 — Packaging.** No AppImage, Flatpak or `.deb`, and no release pipeline.
+  Fixed in `v1.5.0`: `tool/build_appimage.sh` builds the AppImage (see the open Flatpak item below).
+- [ ] **P2 — Flatpak and `.deb`.** The Phase 0 spike on `org.freedesktop.Platform` failed at startup
+  (no GTK 3 or `libsecret`); it needs `org.gnome.Platform` (408 MB download) or a bundled GTK. The Secret
+  Service, file-chooser portal paths and Proton inside the sandbox weren't tested.
+- [ ] **P2 — AppImage auto-update** (AppImageUpdate/zsync) and a **public download channel**: the
+  release lives on the self-hosted GitLab and the GitHub mirror carries no releases.
+- [ ] **P2 — The bridge panics without a system CA bundle** (`reqwest`: "No CA certificates were loaded
+  from the system"). Document or handle it.
+- [ ] **P2 — "Prefix has an invalid version?!"** after a Proton-GE upgrade (11-6 → 11-7) on an existing
+  prefix; the game exited with code 5.
+- [ ] **P2 — AppImage not fully tested.** Not run on a clean Ubuntu with a real install, launch and stop,
+  nor with a `/proc/<pid>/environ` check of a launched game; window min size/`app_id`/icon untested on
+  GNOME, KDE and X11.
 - [x] **P1 — RUSTSEC-2026-0285 accepted.** `rustls` 0.23.43 in `gogdl_flutter`'s `Cargo.lock` was ignored in
   `osv-scanner.toml`. Fixed by pinning bridge `v1.3.3` (`rustls` 0.23.45); the entry is gone.
 - [ ] **P2 — Scan in the dependency repos.** Run the same `scan` in `gogdl_flutter` and `gogdl-lib`, so a vulnerable
   crate is caught before Lumen pins the release.
-- [ ] **P2 — Release job.** A GitLab release from tag notes and a built Linux artifact on `v*` tags (no `CHANGELOG.md` yet).
+- [x] **P2 — Release job.** A GitLab release from tag notes and a built Linux artifact on `v*` tags (no `CHANGELOG.md` yet).
+  Fixed in `v1.5.0`: `CHANGELOG.md`, and the `package`, `publish` and `release` jobs.
 - [ ] **P2 — MR coverage.** `flutter test --coverage` plus a Cobertura conversion.
 - [ ] **P2 — CI image isn't digest-pinned.** `gogdl-flutter-ci` is built on the runner host and is in no registry.
 - [ ] **P2 — No `lockFileMaintenance`.** Renovate moves transitive packages only through a direct bump, since

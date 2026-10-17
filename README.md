@@ -11,6 +11,27 @@ fetching are done by the Rust bridge
 `pubspec.yaml` and fetched over HTTPS from its public GitHub mirror. A clone builds as is: no key,
 no SSH and no git setting.
 
+## Installing
+
+Lumen ships as an AppImage. Build it yourself (see [Building the AppImage](#building-the-appimage)),
+then:
+
+```sh
+chmod +x Lumen-<version>-x86_64.AppImage
+./Lumen-<version>-x86_64.AppImage
+```
+
+The host needs:
+
+- glibc 2.34 or newer, GTK 3 and `libsecret` (the AppImage doesn't bundle them).
+- A Secret Service provider (GNOME Keyring, KWallet) to store the GOG token.
+- FUSE 2, or run with `--appimage-extract-and-run`.
+- A system CA bundle (`ca-certificates`); without one the GOG bridge panics at startup.
+- A Vulkan driver for Proton.
+
+If AppImageLauncher's handler hangs the start, set `APPIMAGELAUNCHER_DISABLE=1`. After upgrading from
+a release before `1.5.0` you sign in once more (the application ID changed; settings are copied).
+
 ## Building from a clone
 
 ```sh
@@ -49,7 +70,7 @@ tool/build_appimage.sh    # writes build/appimage/Lumen-<version>-x86_64.AppImag
 
 It runs a clean release build, then wraps the bundle with `appimagetool`. The script downloads two tools
 (`appimagetool` and the AppImage runtime) pinned by version and sha256 into `build/appimage-tools/`, and
-stops if a hash differs. The AppImage needs glibc 2.34 or newer and the host's GTK 3 and `libsecret`.
+stops if a hash differs. See [Installing](#installing) for what the AppImage needs from the host.
 
 ## Development
 

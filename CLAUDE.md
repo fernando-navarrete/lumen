@@ -333,5 +333,7 @@ no longer has the game clears it. The details view tabs between Overview / Build
 is the shared status-driven action row (Install/Import while not installed, Play/Running once
 installed) reused in both the library hero and the game header.
 
+The Overview, Builds and DLC tabs share one responsive side column: `lib/theme/breakpoints.dart`'s `sideColumnWidth` (0 below `Breakpoints.compact` = 600, 280 up to `Breakpoints.wide` = 1200, 340 above) is applied by `lib/components/side_column_layout.dart`'s `SideColumnLayout`, whose `LayoutBuilder` measures the tab, not the window.
+
 Reusable presentational widgets live in `lib/components/`; theme constants (colors, decorations,
 spacing, text styles) live in `lib/theme/` — dark theme only, `Onest` via `google_fonts`.

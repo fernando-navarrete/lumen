@@ -26,6 +26,11 @@ First packaged release: an AppImage built and published by the release pipeline.
 * gogdl_flutter `v1.5.0` (named progress fields, new login error kinds, one request for a game's
   image links, paged Proton releases).
 
+### Known issues
+
+* The GOG bridge panics at startup when the system has no CA certificate bundle.
+* Only tested on Hyprland: the minimum window size and icon are untested on GNOME, KDE and X11.
+
 ### Upgrading
 
 * The application ID is now `io.github.fernando_navarrete.Lumen`. Your settings are copied over on
