@@ -101,12 +101,15 @@ describes each job, and [SECURITY.md](SECURITY.md) has the dependency rules.
   `screens/`, `components/`, `common/` (paths, launch resolution, errors), `models/`, `theme/`.
 - `test/`: unit and widget tests, with fakes under `test/helpers/`.
 - `linux/`: the Linux runner. There are no other platform folders.
-- `tool/`: `check_lockfile.sh`, `check_bridge_pin.sh` and the OSV gate.
+- `tool/`: the CI checks (`check_lockfile.sh`, `check_bridge_pin.sh`, the OSV gate and its Cargo.lock
+  pruner), the release scripts (`build_appimage.sh`, `release_notes.sh`) and `render_icons.sh`.
+- `linux/packaging/`: the icon, `.desktop` file and AppStream metadata.
 - `.githooks/`: the pre-commit hook.
 - `SECURITY.md`, `.gitleaks.toml`, `osv-scanner.toml`, `renovate.json`: supply-chain policy and the
   config of the `secrets`, `scan` and Renovate jobs.
 - `LICENSE-MIT`, `LICENSE-APACHE`: the license (see "License").
-- `CLAUDE.md`, `ROADMAP.md`, `GAPS.md`, `devlog/`: architecture notes, planned releases, known gaps
+- `CHANGELOG.md`: what changed in each release.
+- `CLAUDE.md`, `ROADMAP.md`, `GAPS.md`, `devlog/`: architecture notes, the next release, open gaps
   and the history of how each release was built.
 
 ## This repository is a mirror

@@ -15,35 +15,37 @@ facade nearly everything else talks to — wraps a `GogBackend`. `lib/state/gogd
 `GogdlBackend` is the implementation wired up in `gogBackendProvider` (`gog_state.dart`), which
 `gogStateProvider` watches, adapting each `GogBackend` method to a `GogdlApi` call.
 
-Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `ProtonReleasePage`, `GameLinks`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart
-classes under `lib/models/` (`DownloadableProduct.productType` is the app's own `ProductType` enum; `GameBuild` keeps only `releaseDateTimestamp`, which the Builds tab formats with `formatReleaseDate`), not bridge-generated ones — a new backend adapts its own types into
-these, not the other way around. `ProtonDownloadProgress`, `VerifyDownloadProgress`,
-`DownloadGameProgress`, `RepairGameProgress`, `DownloadSavesProgress` and `UploadSavesProgress` are
-the exceptions: all six stay the bridge's own freezed unions, and their owning notifiers
-(`ProtonNotifier` in `lib/state/proton_state.dart`, `DownloadsNotifier` in
-`lib/state/downloads_state.dart`, which owns `DownloadGameProgress` for downloads,
-`VerifyDownloadProgress` for verification, and `RepairGameProgress` for repair, and `SavesNotifier`
-in `lib/state/saves_state.dart` for both save-sync unions) adapt them directly rather than going
-through an app-owned model. Each of those six unions ends in a terminal `*_Cancelled` variant. `DownloadsNotifier.cancel(gameId)` (verification and repair) fires the job's `JobCancel`; the verify/repair `Cancelled` event then commits `TaskStatus.cancelled` — not a failure — and `onDone` leaves it alone, so a cancelled verification never marks the game installed. Downloads have their own pair: `pause(gameId)` (`Cancelled` commits `TaskStatus.paused` and `GameStatus.paused`, files kept) and `cancelDownload(gameId, {deleteFiles})` (discards the job, then optionally deletes the folder). A paused download resumes through `resumeDownload`, which always runs `repairDownload` — never `downloadGame`, since a killed or paused download's files are preallocated to full size and would pass its size check — as a `TaskKind.download` task with `resumed: true`; a failed resume goes back to `paused`. A `downloading` entry that has a `pendingInstallPath` loads as `paused` after an app restart (no auto-resume; the Downloads page lists it as "Paused — interrupted"), and `resumeDownload` fails without starting a job, clearing nothing, if that folder no longer exists. A download that fails with files in its folder also ends `paused` (an empty or missing folder resets the game to `notInstalled` instead), so the Downloads page's Retry is `retryDownload`: `resumeDownload` for a paused game, else a fresh `startDownload`; failed/cancelled repairs retry through `startRepair`. `clearFinished()` and the per-card dismiss go through `isDismissible`, which spares running and paused tasks and a failed download of a paused game. Download, verification and repair failures record `jobErrorText` (`lib/common/gog_error.dart`), which maps `GogError.kind()` to Lumen's own wording and falls back to `gogErrorText`.
+Bridge data types (`GameBuild`, `DownloadableProduct`, `ProtonRelease`, `ProtonReleasePage`,
+`GameLinks`, `InstallSize`, `ProductRemoval`) are app-owned plain-Dart classes under `lib/models/`
+(`DownloadableProduct.productType` is the app's own `ProductType` enum; `GameBuild` keeps only
+`releaseDateTimestamp`, which the Builds tab formats with `formatReleaseDate`), not bridge-generated
+ones — a new backend adapts its own types into these, not the other way around. The six job progress
+unions (`ProtonDownloadProgress`, `VerifyDownloadProgress`, `DownloadGameProgress`,
+`RepairGameProgress`, `DownloadSavesProgress`, `UploadSavesProgress`) are the exceptions: they stay
+the bridge's own freezed unions, and their owning notifiers (`ProtonNotifier` in
+`lib/state/proton_state.dart`; `DownloadsNotifier` in `lib/state/downloads_state.dart` for download,
+verification and repair; `SavesNotifier` in `lib/state/saves_state.dart` for both save syncs) adapt
+them directly. Each ends in a terminal `*_Cancelled` variant.
 
-The six job streams (verify, download, repair, Proton download, both save syncs) each take an
-app-owned `JobCancel` (`lib/state/gog_backend.dart`: plain Dart, `cancel()` plus `isCancelled`/
-`whenCancelled`). The bridge's `CancelToken` is native, so it appears only in `GogdlBackend`, which
-makes one per job and forwards `JobCancel.cancel()` to it; the caller owns the `JobCancel`. A
-cancelled job ends its stream with its `Cancelled` event and no error.
+The six job streams each take an app-owned `JobCancel` (`lib/state/gog_backend.dart`: plain Dart,
+`cancel()` plus `isCancelled`/`whenCancelled`). The bridge's `CancelToken` is native, so it appears
+only in `GogdlBackend`, which makes one per job and forwards `JobCancel.cancel()` to it; the caller
+owns the `JobCancel`. A cancelled job ends its stream with its `Cancelled` event and no error.
 
 ## Commands
 
 This project uses **fvm** (Flutter Version Management) — always prefix Flutter/Dart commands with
-`fvm`, not the bare `flutter`/`dart` binaries, so the pinned SDK version from `.fvm/fvm_config.json`
-is used (CI reads the same pin from `.fvmrc`).
+`fvm`, not the bare `flutter`/`dart` binaries, so the SDK pinned in `.fvmrc` is used (CI reads the
+same pin).
 
 ```bash
 fvm flutter pub get                        # install dependencies
-fvm flutter analyze                        # static analysis / lints (flutter_lints)
-fvm flutter run -d linux                    # run the app (only Linux target exists)
-fvm flutter build linux                     # build the Linux release binary
-fvm flutter test                            # run the test suite (no native library loaded by tests)
+fvm dart format lib test tool              # format (CI fails on unformatted files)
+fvm flutter analyze --fatal-infos          # static analysis / lints, as CI runs it
+fvm flutter run -d linux                   # run the app (only Linux target exists)
+fvm flutter build linux                    # build the Linux release binary
+fvm flutter test                           # run the test suite (no native library loaded by tests)
+tool/build_appimage.sh                     # build the release AppImage into build/appimage/
 ```
 
 Tests live under `test/`, built against the `GogBackend` interface. `test/helpers/fake_gog_backend.dart`'s
@@ -66,9 +68,9 @@ backed by a `createContainer()`-style `ProviderContainer` and sizes the test sur
 window; it doesn't call `pumpAndSettle()` itself because several screens show an indefinitely
 spinning `CenteredLoader` while their first fetch is pending.
 
-Since `gogdl_flutter` v1.2.1 its native library is built by a Native Assets build hook that runs
-cargo, so `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the
-bridge's `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
+The bridge's native library is built by a Native Assets build hook that runs cargo, so
+`pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the bridge's
+`rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
 CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
 bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes (and `constraints.flutter` in
 `renovate.json` when `.fvmrc` changes).
@@ -80,28 +82,35 @@ then `dart format --output=none --set-exit-if-changed lib test tool` and `flutte
 --fatal-infos` (the rules live in `analysis_options.yaml`); `test` runs `flutter test`. Both first
 run `tool/check_lockfile.sh` (every package in `pubspec.lock` comes from pub.dev, or is a git package
 from `https://github.com/fernando-navarrete/` — the only git source allowed) and
-`flutter pub get --enforce-lockfile`. CI fetches `gogdl_flutter` and its `gogdl-lib` from GitHub over
-HTTPS with no key, so it proves a clone builds without LAN access. GitHub
+`flutter pub get --enforce-lockfile`. CI fetches `gogdl_flutter` and its `gogdl-lib` from GitHub
+over HTTPS with no key, so it proves a clone builds without LAN access. GitHub
 (`fernando-navarrete/lumen`) is a read-only push mirror of `main` and `v*`; development stays on
-GitLab. `secrets` runs gitleaks
-(`.gitleaks.toml`, default rules, no allowlist) over the MR's commits, or over every branch and tag on a
-`v*` tag pipeline. `bridge-lock` exports the pinned `gogdl_flutter`'s
-`rust/Cargo.lock` pruned to the crates `cargo tree` resolves (`tool/prune_cargo_lock.dart`, since the lockfile
-also lists optional crates nothing builds, like `quinn-proto`), `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml`
-(accepted findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails
-on any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
-schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCHEDULE=renovate` runs only the
-`renovate` job, which opens one grouped minor/patch dependency MR per `renovate.json` (managers `pub` and `gitlabci`;
-`gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand together, majors are off, 7-day release wait).
-`SECURITY.md` has the dependency rules.
+GitLab. `secrets` runs gitleaks (`.gitleaks.toml`, default rules, no allowlist) over the MR's
+commits, or over every branch and tag on a `v*` tag pipeline. `bridge-lock` exports the pinned
+`gogdl_flutter`'s `rust/Cargo.lock` pruned to the crates `cargo tree` resolves
+(`tool/prune_cargo_lock.dart`, since the lockfile also lists optional crates nothing builds, like
+`quinn-proto`), `scan` runs OSV-Scanner on it and `pubspec.lock` against `osv-scanner.toml` (accepted
+findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_gate.dart`) fails on
+any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
+schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCHEDULE=renovate` runs
+only the `renovate` job, which opens one grouped minor/patch dependency MR per `renovate.json`
+(managers `pub` and `gitlabci`; `gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand
+together, majors are off, 7-day release wait). `SECURITY.md` has the dependency rules. The header of
+`.gitlab-ci.yml` describes every job.
 
-Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev` and `file`, present since
-the `-r5` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256` as artifacts; it runs on `v*` tags and is
-a manual job on MRs (never blocking). On a `vX.Y.Z` tag, `publish` (after `lint`, `test`, `secrets`, `scan-gate` and
-`package`) fails unless the tag commit is on `main` and `tool/release_notes.sh` passes — `pubspec.yaml`'s version equals
-the tag and `CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads both files to the project's generic
-package registry; `release` creates the GitLab release from that section with the two files as links. Every release
-(and patch) therefore needs its CHANGELOG section before the tag.
+Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev` and
+`file`, present since the `-r5` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256`
+as artifacts; it runs on `v*` tags and is a manual job on MRs (never blocking). On a `vX.Y.Z` tag,
+`publish` (after `lint`, `test`, `secrets`, `scan-gate` and `package`) fails unless the tag commit is
+on `main` and `tool/release_notes.sh` passes — `pubspec.yaml`'s version equals the tag and
+`CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads both files to the project's generic
+package registry; `release` creates the GitLab release from that section with the two files as
+links. Every release (and patch) therefore needs its CHANGELOG section before the tag; the rest of
+the release checklist is in `ROADMAP.md`.
+
+Docs: `ROADMAP.md` (what ships next), `GAPS.md` (open items only; delete one when it ships),
+`CHANGELOG.md` (user-facing, per tag), `devlog/` (one file per minor release: decisions and
+pitfalls, with its patches appended).
 
 `main` is protected: nobody pushes to it, and every change goes through a merge request with a green
 pipeline and resolved threads (semi-linear merge history, source branch deleted on merge). Branches are
@@ -146,14 +155,15 @@ The persisted `games` JSON is versioned: `GamesNotifier` writes
 `{"version": GamesNotifier.gamesSchemaVersion, "games": {...}}`, and `_load` runs the stored value
 through `_migrations` — an ordered list of raw-map transforms, one per version step — up to
 `gamesSchemaVersion` before decoding, so `_decodeGames` only ever has to read the current shape. A
-bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Version 2 added `GameConfig.pendingInstallPath` (where an unfinished
-download writes, cleared by `markInstalled`/cancel, so `installPath` keeps meaning "installed") and
-`ownsPendingInstallDir` (the folder was empty or missing when the download started; only then may
-cancelling delete it, and never one containing another game's install). Version 3 added `GameConfig.ownsInstallDir` (the installed folder was created by Lumen's own
-download, carried over from `ownsPendingInstallDir` by `markInstalled`; imports and older installs are
-false). Any future change to the
-per-game JSON shape must bump `gamesSchemaVersion` and append a step to `_migrations`, rather than
-adding more type-sniffing to the decoder.
+bare pre-`v1.1.5` `games` map (no envelope) is treated as version 0. Version 2 added
+`GameConfig.pendingInstallPath` (where an unfinished download writes, cleared by
+`markInstalled`/cancel, so `installPath` keeps meaning "installed") and `ownsPendingInstallDir` (the
+folder was empty or missing when the download started; only then may cancelling delete it, and never
+one containing another game's install). Version 3 added `GameConfig.ownsInstallDir` (the installed
+folder was created by Lumen's own download, carried over from `ownsPendingInstallDir` by
+`markInstalled`; imports and older installs are false). Any future change to the per-game JSON shape
+must bump `gamesSchemaVersion` and append a step to `_migrations`, rather than adding more
+type-sniffing to the decoder.
 
 `gogStateProvider` (`lib/state/gog_state.dart`) wraps a `GogBackend` (see "What this is" above); nearly
 every other notifier reads it via `ref.read(gogStateProvider)`. Its methods follow a consistent
@@ -161,9 +171,9 @@ convention: try the backend call, log the failure via `logGogError` (`lib/common
 which only prints in debug builds) and either `rethrow` or return `null`/empty — the same in debug
 and release — callers are expected to handle `null` as "the operation failed."
 
-`GogState.getOwnedGames` is filtered to real games by the bridge (`gogdl_flutter` v1.1.3+): DLC and
-other non-game products the account owns no longer come back in the list. That filtering is
-per-product, unordered and uncached upstream, so `GogState` sorts the list before returning it.
+`GogState.getOwnedGames` is filtered to real games by the bridge: DLC and other non-game products
+the account owns don't come back in the list. That filtering is per-product, unordered and uncached
+upstream, so `GogState` sorts the list before returning it.
 Caching is not `GogState`'s job: `lib/state/library_state.dart` holds the GOG metadata as
 `FutureProvider`s that are not `autoDispose`, so they live for the session and `ref.invalidate` is
 the refresh/Retry — `ownedGamesProvider`, and the families `gameTitleProvider`,
@@ -171,16 +181,19 @@ the refresh/Retry — `ownedGamesProvider`, and the families `gameTitleProvider`
 (keyed by `(gameId:, buildName:)`) and `protonReleasesProvider(page)`. A `GogState` `null` becomes a
 thrown `MetadataUnavailableError` (an `AsyncError`); summary and screenshots keep `''`/`[]` on
 failure. `gameTitleProvider` and `gameBuildsProvider` fetch through `metadataFetchLimiterProvider`, an 8-wide
-`AsyncLimiter` (`lib/common/async_limiter.dart`), so a large library loads titles in parallel and the grid fills in
-as each arrives. `gameUpdateProvider(gameId)` is the newest listed build when an installed game's
-`selectedBuild` is an older listed one (null while loading, on failure, when the installed build is delisted — the
-Builds tab's stale note — or for a game that isn't installed, which never fetches builds); it drives the "Update
-available" badge and the Builds tab's Update action. A repair records its build (`setSelectedBuild`) only when it
-succeeds, so a failed Switch/Update keeps the old build and the badge; likewise the product set. On an installed game the DLC tab keeps a pending selection and its Apply calls `DownloadsNotifier.applyProductChanges`: removals first via `GogState.removeProducts` (keeping every wanted product; a failure rethrows with the config untouched, and success drops those ids from the config at once), then a repair with the full set for additions, whose ids are recorded only when it succeeds. It refuses while the game or a job for it runs (`ProductChangeError`); the `GAME` products can never be dropped. For a game that isn't installed the toggles still write the config. The library's Refresh is `libraryRefresherProvider`'s `LibraryRefresher.refresh()`: it
-calls `GogState.clearCache()` (the bridge's `clearCache()`, which drops its memoized owned products, builds and downloadable products; a failure is logged and the refresh goes on, and the Builds tab's Refresh chip does the same before invalidating `gameBuildsProvider`), invalidates the
-titles that failed (loaded ones are kept), every `gameBuildsProvider` and `ownedGamesProvider`, whose previous value stays on
-screen meanwhile; it returns false if the owned list can't be fetched. Every provider passes `retry: noRetry`, since Riverpod 3's automatic retry would hammer GOG
-and hang widget tests; Retry is always an explicit invalidate. An empty owned list is real data
+`AsyncLimiter` (`lib/common/async_limiter.dart`), so a large library loads titles in parallel and
+the grid fills in as each arrives. `gameUpdateProvider(gameId)` is the newest listed build when an
+installed game's `selectedBuild` is an older listed one (null while loading, on failure, when the
+installed build is delisted — the Builds tab's stale note — or for a game that isn't installed, which
+never fetches builds); it drives the "Update available" badge and the Builds tab's Update action.
+The library's Refresh is `libraryRefresherProvider`'s `LibraryRefresher.refresh()`: it calls
+`GogState.clearCache()` (the bridge's `clearCache()`, which drops its memoized owned products, builds
+and downloadable products; a failure is logged and the refresh goes on, and the Builds tab's Refresh
+chip does the same before invalidating `gameBuildsProvider`), invalidates the titles that failed
+(loaded ones are kept), every `gameBuildsProvider` and `ownedGamesProvider`, whose previous value
+stays on screen meanwhile; it returns false if the owned list can't be fetched. Every provider passes
+`retry: noRetry`, since Riverpod 3's automatic retry would hammer GOG and hang widget tests; Retry is
+always an explicit invalidate. An empty owned list is real data
 (upstream drops a game whose lookup failed, so it may be transient) — the empty state's Retry
 invalidates. `readGameTitle(ref.read, id)` is the one-shot read for dialogs. Only the image links are
 still cached inside `GogState`, because the hero banners and cards feed them straight to
@@ -229,6 +242,43 @@ backend, so every library provider resets) and, because they `ref.read` `GogStat
 `downloadsStateProvider`, `savesStateProvider` and `protonStateProvider`, plus the nav, library selection and
 search providers. Installed games, configs, prefixes and Proton versions are kept. Riverpod reuses a
 `Notifier` instance across rebuilds, so fields assigned in `build()` must be `late`, not `late final`.
+
+### Downloads, verification and repair
+
+`DownloadsNotifier` (`lib/state/downloads_state.dart`) owns all three job kinds.
+
+- **Cancel (verification and repair):** `cancel(gameId)` fires the job's `JobCancel`; the
+  `Cancelled` event commits `TaskStatus.cancelled` — not a failure — and `onDone` leaves it alone, so
+  a cancelled verification never marks the game installed.
+- **Pause / cancel (downloads):** `pause(gameId)` (`Cancelled` commits `TaskStatus.paused` and
+  `GameStatus.paused`, files kept) and `cancelDownload(gameId, {deleteFiles})` (discards the job,
+  then optionally deletes the folder).
+- **Resume:** `resumeDownload` always runs `repairDownload` — never `downloadGame`, since a killed or
+  paused download's files are preallocated to full size and would pass its size check — as a
+  `TaskKind.download` task with `resumed: true`; a failed resume goes back to `paused`. A
+  `downloading` entry that has a `pendingInstallPath` loads as `paused` after an app restart (no
+  auto-resume; the Downloads page lists it as "Paused — interrupted"), and `resumeDownload` fails
+  without starting a job, clearing nothing, if that folder no longer exists.
+- **Failure and Retry:** a download that fails with files in its folder also ends `paused` (an empty
+  or missing folder resets the game to `notInstalled`), so the Downloads page's Retry is
+  `retryDownload`: `resumeDownload` for a paused game, else a fresh `startDownload`; failed/cancelled
+  repairs retry through `startRepair`. `clearFinished()` and the per-card dismiss go through
+  `isDismissible`, which spares running and paused tasks and a failed download of a paused game.
+  Failures record `jobErrorText` (`lib/common/gog_error.dart`), which maps `GogError.kind()` to
+  Lumen's own wording and falls back to `gogErrorText`.
+- **Builds and DLC:** a repair records its build (`setSelectedBuild`) only when it succeeds, so a
+  failed Switch/Update keeps the old build and the badge; likewise the product set. On an installed
+  game the DLC tab keeps a pending selection and its Apply calls `applyProductChanges`: removals
+  first via `GogState.removeProducts` (keeping every wanted product; a failure rethrows with the
+  config untouched, and success drops those ids from the config at once), then a repair with the
+  full set for additions, whose ids are recorded only when it succeeds. It refuses while the game or
+  a job for it runs (`ProductChangeError`); the `GAME` products can never be dropped. For a game that
+  isn't installed the toggles still write the config.
+- **Install folder:** always user-chosen via `DirPicker` (never under `lumenDataDir()`), through
+  `pickDirectoryProvider` (`lib/common/directory_picker.dart`) so tests can override it. After
+  picking, Install checks the folder's free space against `GogState.getInstallSize` in
+  `lib/components/install_space_dialog.dart`: it blocks only when `diskBytes > free`, warns under 5%
+  headroom, and never blocks on a failed lookup. Import, Resume, Retry and Update skip the check.
 
 ### Proton / launching games
 
@@ -288,11 +338,13 @@ exists". Every launch writes the per-game log: a header (command, cwd, the user'
 target's source), wineboot's output, the game's stdout/stderr (only there, never Lumen's stdout) and a
 footer with the exit code. The log is closed before the `exited`/`failed` state is committed, with
 the pipe drain capped by `pipeDrainGrace`, and a log that can't be opened never blocks the launch.
-`lib/common/game_log.dart` backs the "Open log" actions. The only env vars the tool itself injects into the game
-are `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no DXVK/winetricks
-setup. Every spawned process (wineboot, the game, `wineserver -k`, and `xdg-open` for "Open log" and the login URL via
-`openExternallyProvider`) starts from `hostEnvironment()` (`lib/common/host_environment.dart`) with
-`includeParentEnvironment: false`: the app's environment minus `APPDIR`/`APPIMAGE`/`ARGV0`/`OWD` when run as an AppImage. The one deliberate exception is `LaunchNotifier.stopGame`: it runs the release's
+`lib/common/game_log.dart` backs the "Open log" actions. The only env vars the tool itself injects
+into the game are `STEAM_COMPAT_CLIENT_INSTALL_PATH`/`STEAM_COMPAT_DATA_PATH` — no WINEPREFIX, no
+DXVK/winetricks setup. Every spawned process (wineboot, the game, `wineserver -k`, and `xdg-open` for
+"Open log" and the login URL via `openExternallyProvider`) starts from `hostEnvironment()`
+(`lib/common/host_environment.dart`) with `includeParentEnvironment: false`: the app's environment
+minus `APPDIR`/`APPIMAGE`/`ARGV0`/`OWD` when run as an AppImage. The one deliberate exception is
+`LaunchNotifier.stopGame`: it runs the release's
 `files/bin/wineserver -k` with `WINEPREFIX=<prefix>/pfx` (the game's Windows processes are reparented
 to init, so only wineserver can reach them), then escalates to SIGTERM/SIGKILL on the spawned pid
 (never its process group, which is Lumen's own). That `WINEPREFIX` goes to `wineserver` only, never
@@ -305,8 +357,6 @@ If the game's `launchWrapper` config (`GameConfig.launchWrapper`) is non-empty, 
 prepended to the `proton run <exe> <args>` invocation so the wrapper (e.g. `gamescope -f --`) becomes
 the spawned process — mirroring Steam's launch-option wrappers. The wineboot init call is never
 wrapped. This subsystem never talks to the bridge.
-
-Game install directories are always user-chosen via `DirPicker` (never under `lumenDataDir()`). The picker goes through `pickDirectoryProvider` (`lib/common/directory_picker.dart`) so tests can override it. Install, after picking, checks the folder's free space against `GogState.getInstallSize` in `lib/components/install_space_dialog.dart`: it blocks only when `diskBytes > free`, warns under 5% headroom, and never blocks on a failed lookup. Import, Resume and Retry skip the check.
 
 ### Cloud saves
 
@@ -323,17 +373,26 @@ zero files (`SaveTask.isEmpty`), or errors if it declares no cloud storage.
 
 ### UI structure
 
-`login_screen.dart` (shows a `CenteredLoader` while the stored session restores, so a restored session never builds the card; its steps advance on app resume, focus and typing, never a timer; failures show inline via `loginErrorText` in `gog_error.dart`, and a pasted redirect URL is reduced to its code by `extractLoginCode`; the branding pane hides below `Breakpoints.loginSplit`) → `home_screen.dart` (top nav bar switches between `library`, `downloads`,
+`login_screen.dart` → `home_screen.dart` (top nav bar switches between `library`, `downloads`,
 `settings` pages via `navBarItemProvider`, a `NavBarNotifier extends Notifier<NavBarItem>` in
 `lib/state/home_state.dart` — the single source of truth for the selected tab; `NavBar` and
 `HomeScreen` both watch it rather than keeping their own copy) → `library_page.dart` →
 `game_details_view.dart`. Which game is open, and which of its tabs, is `librarySelectionProvider`
 (`lib/state/home_state.dart`, null = grid), so it survives nav switches; a refresh whose owned list
-no longer has the game clears it. The details view tabs between Overview / Builds / Settings / DLC / Saves for a single game. `game_action_buttons.dart`
-is the shared status-driven action row (Install/Import while not installed, Play/Running once
-installed) reused in both the library hero and the game header.
+no longer has the game clears it. The details view tabs between Overview / Builds / Settings / DLC /
+Saves for a single game. `game_action_buttons.dart` is the shared status-driven action row
+(Install/Import while not installed, Play/Running once installed) reused in both the library hero
+and the game header.
 
-The Overview, Builds and DLC tabs share one responsive side column: `lib/theme/breakpoints.dart`'s `sideColumnWidth` (0 below `Breakpoints.compact` = 600, 280 up to `Breakpoints.wide` = 1200, 340 above) is applied by `lib/components/side_column_layout.dart`'s `SideColumnLayout`, whose `LayoutBuilder` measures the tab, not the window.
+The login screen shows a `CenteredLoader` while the stored session restores, so a restored session
+never builds the card. Its steps advance on app resume, focus and typing, never a timer; failures
+show inline via `loginErrorText` (`gog_error.dart`), a pasted redirect URL is reduced to its code by
+`extractLoginCode`, and the branding pane hides below `Breakpoints.loginSplit`.
+
+The Overview, Builds and DLC tabs share one responsive side column: `lib/theme/breakpoints.dart`'s
+`sideColumnWidth` (0 below `Breakpoints.compact` = 600, 280 up to `Breakpoints.wide` = 1200, 340
+above) is applied by `lib/components/side_column_layout.dart`'s `SideColumnLayout`, whose
+`LayoutBuilder` measures the tab, not the window.
 
 Reusable presentational widgets live in `lib/components/`; theme constants (colors, decorations,
 spacing, text styles) live in `lib/theme/` — dark theme only, `Onest` via `google_fonts`.

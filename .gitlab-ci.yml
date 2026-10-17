@@ -1,6 +1,6 @@
-# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor) — see
-# devlog/v1.1.0-foundation.md Phase 0/8. Pipelines run for merge requests and `v*` tags, never for a plain branch
-# push or a push to main (main only receives a tree an MR pipeline already tested; see devlog/ci-cd-merge-requests.md).
+# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor). Pipelines run for merge
+# requests and `v*` tags, never for a plain branch push or a push to main (main only receives a tree an MR pipeline
+# already tested; see devlog/ci-cd-merge-requests.md).
 #   lint:        tool/check_bridge_pin.sh first (the gogdl_flutter tag pinned in pubspec.lock is on its GitHub mirror at the
 #                locked SHA), then the `dart format` check on lib, test and tool, then `flutter analyze --fatal-infos` (the rules are in
 #                analysis_options.yaml). Before `pub get`, tool/check_lockfile.sh fails on a package in pubspec.lock
