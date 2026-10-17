@@ -95,8 +95,8 @@ schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCH
 `gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand together, majors are off, 7-day release wait).
 `SECURITY.md` has the dependency rules.
 
-Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev`, present since
-the `-r4` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256` as artifacts; it runs on `v*` tags and is
+Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev` and `file`, present since
+the `-r5` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256` as artifacts; it runs on `v*` tags and is
 a manual job on MRs (never blocking). On a `vX.Y.Z` tag, `publish` (after `lint`, `test`, `secrets`, `scan-gate` and
 `package`) fails unless the tag commit is on `main` and `tool/release_notes.sh` passes — `pubspec.yaml`'s version equals
 the tag and `CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads both files to the project's generic

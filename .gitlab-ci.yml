@@ -76,7 +76,7 @@ variables:
 # changes, keeping it in step with the gogdl_flutter tag pinned in pubspec.yaml.
 .ci-image:
   image:
-    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r4
+    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r5
     pull_policy: if-not-present
 
 .flutter:
@@ -127,7 +127,7 @@ test:
   script:
     - flutter test
 
-# The AppImage. Needs libsecret-1-dev, which the image has since r4. build_appimage.sh downloads appimagetool and the
+# The AppImage. Needs libsecret-1-dev, which the image has since r4, and file(1) (appimagetool needs it) since r5. build_appimage.sh downloads appimagetool and the
 # runtime, pinned by sha256 and refused on a mismatch; build/appimage-tools/ is only a cache of those.
 package:
   stage: package
