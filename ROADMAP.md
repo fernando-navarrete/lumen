@@ -120,7 +120,7 @@ Follow-up patches (`v1.4.1+`), one per tag:
 2. ✅ `v1.4.2`: use `BoxFit.cover` and `cacheWidth` for screenshots (§5).
 3. ✅ `v1.4.3`: add a separate "Installing" state in library filters (§6).
 
-## v1.5.0 — UI polish and packaging
+## v1.5.0 ✅ — UI polish and packaging
 
 - Login screen: loading state on auth restore, no hardcoded 10 s advance, accurate errors, layout
   that works at small window sizes (§6).
@@ -128,7 +128,9 @@ Follow-up patches (`v1.4.1+`), one per tag:
 - Shared responsive breakpoint helper for the detail tabs (§6).
 - Keyboard focus and semantics for `ClickableContainer` (§6).
 - Rewrite the README, clean up `pubspec.yaml`, and tighten lints (§7).
-- AppImage and/or Flatpak packaging and a release pipeline (§7).
+- AppImage packaging and a release pipeline (§7); Flatpak moved to GAPS.
+- Move off the bridge's deprecated getters (§6) and adopt `gogdl_flutter` `v1.5.0`'s breaking cleanup
+  and login error kinds.
 
 Follow-up patches (`v1.5.1+`), one per tag:
 1. `v1.5.1`: check whether the GOG summary is HTML and render it correctly (§6).
