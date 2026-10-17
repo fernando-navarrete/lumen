@@ -27,13 +27,23 @@
 #                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
 #                variables scoped to the `renovate` environment, so no other job sees them. Renovate exits 0 even when it
 #                gives up on the repository, so the job also fails on "Temporary error" or an error result in its log.
-#   package:     tool/build_appimage.sh in the CI image: Lumen-<version>-x86_64.AppImage and its .sha256, kept as artifacts.
+#   package:     tool/build_appimage.sh in the CI image: Lumen-<version>-x86_64.AppImage, its .sha256 and its .zsync, kept as
+#                artifacts. The AppImage embeds update information pointing at the latest GitHub release's .zsync.
 #                Automatic on `v*` tags, manual on MRs (play it once to prove the build; it never blocks the MR).
 #   publish:     `v*` tags only (vX.Y.Z), after lint, test, secrets, scan-gate and package. Fails unless the tag is on
 #                main and tool/release_notes.sh passes (pubspec.yaml version == tag, CHANGELOG.md has `## X.Y.Z`),
-#                then uploads the AppImage and checksum to the project's generic package registry (CI_JOB_TOKEN).
-#   release:     creates the GitLab release for the tag from the CHANGELOG section, linking the two uploaded files.
-#   Branches:    main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
+#                then uploads the AppImage, checksum and .zsync to the project's generic package registry (CI_JOB_TOKEN).
+#   release:     creates the GitLab release for the tag from the CHANGELOG section, linking the three uploaded files.
+#   github-release: vX.Y.Z tags only, after release. tool/github_release.dart waits for the push mirror to bring the
+#                tag to GitHub at CI_COMMIT_SHA, then creates the GitHub release as a draft, uploads the same three
+#                files, checks the draft's assets (names, sizes, sha256) and only then publishes, since the repository
+#                has immutable releases on. A re-run finishes a leftover draft, and on an already-published release
+#                only compares the files. "Latest" only when the tag is the highest published vX.Y.Z, so an older-minor
+#                hotfix never becomes what auto-update fetches. GITHUB_RELEASE_TOKEN (fine-grained, Contents: read and
+#                write on lumen only, 90 days) is a masked, protected variable scoped to the `github-release`
+#                environment. On MRs, github-release-dry-run (manual, never blocking, no token) rehearses the latest
+#                GitLab tag read-only: its notes and registry files, the mirror check, the lookup and "Latest".
+#   Branches:   main is protected: no pushes, every change is an MR whose pipeline must pass (SECURITY.md).
 #
 # `gogdl_flutter` is a git dependency fetched from its public GitHub mirror over HTTPS
 # (https://github.com/fernando-navarrete/gogdl_flutter), and so is its `gogdl-lib`: no key, no ssh and no git CLI
@@ -157,6 +167,7 @@ package:
     paths:
       - build/appimage/Lumen-*-x86_64.AppImage
       - build/appimage/Lumen-*-x86_64.AppImage.sha256
+      - build/appimage/Lumen-*-x86_64.AppImage.zsync
 
 .release-tag-rules:
   rules:
@@ -206,7 +217,7 @@ publish:
       file=$(ls Lumen-*-x86_64.AppImage)
       [ "$file" = "Lumen-$version-x86_64.AppImage" ] || { echo "built $file, expected Lumen-$version-x86_64.AppImage" >&2; exit 1; }
       sha256sum -c "$file.sha256"
-      for f in "$file" "$file.sha256"; do
+      for f in "$file" "$file.sha256" "$file.zsync"; do
         curl --fail --silent --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file "$f" "$base/$f"
       done
       cd ../..
@@ -214,6 +225,7 @@ publish:
         echo "APPIMAGE_FILE=$file"
         echo "APPIMAGE_URL=$base/$file"
         echo "SHA256_URL=$base/$file.sha256"
+        echo "ZSYNC_URL=$base/$file.zsync"
       } > release.env
   artifacts:
     expire_in: 30 days
@@ -245,6 +257,69 @@ release:
         - name: $APPIMAGE_FILE.sha256
           url: $SHA256_URL
           link_type: other
+        - name: $APPIMAGE_FILE.zsync
+          url: $ZSYNC_URL
+          link_type: other
+
+# After `release`, so a GitLab release always exists before the GitHub one. The image has dart and git, and the tool
+# imports only dart:* libraries: no pub get.
+github-release:
+  stage: release
+  extends: .ci-image
+  rules: !reference [.release-tag-rules, rules]
+  needs:
+    - { job: release, artifacts: false }
+    - { job: publish, artifacts: true } # release_notes.md and APPIMAGE_FILE
+    - { job: package, artifacts: true }
+  # Variables scoped to the `github-release` environment reach only this job. `access` records no deployment.
+  environment:
+    name: github-release
+    action: access
+  cache: []
+  script:
+    - '[ -n "${GITHUB_RELEASE_TOKEN:-}" ] || { echo "GITHUB_RELEASE_TOKEN is not set (masked, protected, environment scope github-release)" >&2; exit 1; }'
+    - |
+      a="build/appimage/$APPIMAGE_FILE"
+      dart tool/github_release.dart --tag "$CI_COMMIT_TAG" --commit "$CI_COMMIT_SHA" --notes release_notes.md \
+        "$a" "$a.sha256" "$a.zsync"
+
+# The MR's rehearsal of github-release: the latest vX.Y.Z tag on GitLab, its own notes and the files `publish`
+# uploaded for it, run with --dry-run (no token, only GETs, prints every write). Protected variables never reach an MR
+# pipeline anyway.
+github-release-dry-run:
+  stage: release
+  extends: .ci-image
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true # a manual job that was never played must not leave the MR pipeline blocked
+  needs: []
+  variables:
+    GIT_DEPTH: 0 # the tag's commit and tree
+  cache: []
+  script:
+    - git config --global --add safe.directory "$CI_PROJECT_DIR"
+    - !reference [.private-ca, script]
+    - git fetch --tags origin
+    - |
+      tag=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+      [ -n "$tag" ] || { echo "no vX.Y.Z tag on GitLab" >&2; exit 1; }
+      commit=$(git rev-list -n 1 "$tag")
+      version="${tag#v}"
+      echo "Rehearsing $tag ($commit)"
+      # That tag's own release_notes.sh, CHANGELOG and pubspec: this branch's may already be a version ahead.
+      git worktree add --detach .ci/release-tag "$tag"
+      (cd .ci/release-tag && sh tool/release_notes.sh "$tag") > release_notes.md
+      base="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/lumen/$version"
+      file="Lumen-$version-x86_64.AppImage"
+      mkdir dry-run
+      for f in "$file" "$file.sha256"; do
+        curl --fail --silent --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" --output "dry-run/$f" "$base/$f"
+      done
+      curl --fail --silent --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" --output "dry-run/$file.zsync" "$base/$file.zsync" \
+        || { echo "$tag has no .zsync (released before v1.6.0)"; rm -f "dry-run/$file.zsync"; }
+      (cd dry-run && sha256sum -c "$file.sha256")
+      dart tool/github_release.dart --dry-run --tag "$tag" --commit "$commit" --notes release_notes.md dry-run/*
 
 # On an MR it scans only the MR's commits; on tags, what HEAD, the remote branches and the tags reach
 # (GIT_DEPTH 0: the diff base and the full scan both need every commit). Not `--all`: that also walks

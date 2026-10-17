@@ -100,12 +100,19 @@ together, majors are off, 7-day release wait). `SECURITY.md` has the dependency 
 
 Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev` and
 `file`, present since the `-r5` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256`
+and `.zsync` (the AppImage embeds update information pointing at the latest GitHub release's `.zsync`)
 as artifacts; it runs on `v*` tags and is a manual job on MRs (never blocking). On a `vX.Y.Z` tag,
 `publish` (after `lint`, `test`, `secrets`, `scan-gate` and `package`) fails unless the tag commit is
 on `main` and `tool/release_notes.sh` passes — `pubspec.yaml`'s version equals the tag and
-`CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads both files to the project's generic
-package registry; `release` creates the GitLab release from that section with the two files as
-links. Every release (and patch) therefore needs its CHANGELOG section before the tag; the rest of
+`CHANGELOG.md` has a non-empty `## X.Y.Z` section — then uploads the three files to the project's
+generic package registry; `release` creates the GitLab release from that section with the three files
+as links. Then `github-release` (`tool/github_release.dart`, with `GITHUB_RELEASE_TOKEN` scoped to the
+`github-release` environment) waits for the push mirror to bring the tag to GitHub at the pipeline's
+commit and publishes the same three files there: draft, upload, check the assets, publish, since the
+repository's releases are immutable; a re-run finishes a leftover draft or only compares a published
+release's files, and it is "Latest" only for the highest published `vX.Y.Z`, so an older-minor hotfix
+never becomes the auto-update target. On MRs, the manual `github-release-dry-run` rehearses it without
+a token against the latest GitLab tag's notes and registry files. Every release (and patch) therefore needs its CHANGELOG section before the tag; the rest of
 the release checklist is in `ROADMAP.md`.
 
 Docs: `ROADMAP.md` (what ships next), `GAPS.md` (open items only; delete one when it ships),

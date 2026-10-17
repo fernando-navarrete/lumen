@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds Lumen-<version>-x86_64.AppImage (and its .sha256) into build/appimage/.
+# Builds Lumen-<version>-x86_64.AppImage (and its .sha256 and .zsync) into build/appimage/.
 # Wraps the `flutter build linux --release` bundle; GTK 3 and libsecret come from the host.
+# The AppImage embeds update information pointing at the latest GitHub release's .zsync.
 # Downloads two pinned tools into build/appimage-tools/ and refuses any whose sha256 differs.
 # FLUTTER overrides the Flutter command (CI runs the bare `flutter`).
 set -euo pipefail
@@ -11,11 +12,12 @@ id=io.github.fernando_navarrete.Lumen
 version=$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)
 [ -n "$version" ] || { echo "no version in pubspec.yaml" >&2; exit 1; }
 
-tools=build/appimage-tools
+tools="$PWD/build/appimage-tools"
 appimagetool_url=https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
 appimagetool_sha=ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
 runtime_url=https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 runtime_sha=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+update_info='gh-releases-zsync|fernando-navarrete|lumen|latest|Lumen-*-x86_64.AppImage.zsync'
 
 fetch() { # url sha256 file
   mkdir -p "$tools"
@@ -52,7 +54,10 @@ chmod +x "$appdir/AppRun"
 
 out="Lumen-$version-x86_64.AppImage"
 # No FUSE in CI containers, and AppImageLauncher's binfmt handler hangs the tool.
-APPIMAGE_EXTRACT_AND_RUN=1 APPIMAGELAUNCHER_DISABLE=1 ARCH=x86_64 \
-  "$tools/appimagetool" --runtime-file "$tools/runtime-x86_64" "$appdir" "build/appimage/$out"
+# appimagetool writes the .zsync into the current directory, so run it from build/appimage.
+(cd build/appimage && APPIMAGE_EXTRACT_AND_RUN=1 APPIMAGELAUNCHER_DISABLE=1 ARCH=x86_64 \
+  "$tools/appimagetool" --runtime-file "$tools/runtime-x86_64" -u "$update_info" \
+  Lumen.AppDir "$out")
+[ -f "build/appimage/$out.zsync" ] || { echo "appimagetool wrote no build/appimage/$out.zsync" >&2; exit 1; }
 (cd build/appimage && sha256sum "$out" > "$out.sha256")
 echo "build/appimage/$out"

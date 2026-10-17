@@ -77,6 +77,11 @@ and on a `v*` tag pipeline over every branch and tag. A red `secrets` blocks the
 
 - A false positive gets a narrow allowlist entry (`targetRules` plus `paths` or `regexes`, with a comment saying why),
   reviewed in the MR. Never a blanket path.
+- `GITHUB_RELEASE_TOKEN` is the only credential that can publish a GitHub release: a fine-grained token with
+  `Contents: read and write` on `lumen` only and a 90-day expiry, separate from the mirror's token so rotating one
+  never breaks the other. It is a masked, protected CI/CD variable scoped to the `github-release` environment, so only
+  the `github-release` job on a protected `v*` tag sees it; `tool/github_release.dart` reads it from the environment
+  and redacts it from any error, and its MR dry run runs without it.
 - Whatever reaches `main` or a `v*` tag is public on GitHub within minutes. A leak found after that is rotated
   first and dealt with in history second. A history rewrite changes every SHA and tag, so it is a decision of its
   own, not a cleanup step.
@@ -99,7 +104,9 @@ tagged branch onto `main`: semi-linear merges would land different SHAs than the
    `pub get`, `analyze` and `test` time.
 3. **Rotate secrets** if it could have run: `RENOVATE_TOKEN` and `GITHUB_COM_TOKEN` (protected and scoped to the
    `renovate` environment; the `renovate` job runs a package manager against `pubspec.yaml` too), the GitHub mirror token (a new fine-grained token, `Contents: read and write` on `lumen` only, with an expiry,
-   pasted into Settings → Repository → Mirroring repositories), and any local tokens or SSH keys the machine
+   pasted into Settings → Repository → Mirroring repositories), `GITHUB_RELEASE_TOKEN` (a new fine-grained token,
+   `Contents: read and write` on `lumen` only, 90-day expiry, pasted into the masked, protected variable scoped to the
+   `github-release` environment; revoke the old one on GitHub), and any local tokens or SSH keys the machine
    could reach.
 4. **Pin a known-good version.** A direct dependency gets an exact version in `pubspec.yaml`; a transitive one gets a
    `dependency_overrides` entry. Merge through an MR as usual.
