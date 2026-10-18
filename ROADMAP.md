@@ -35,5 +35,7 @@ what already shipped is in [CHANGELOG.md](CHANGELOG.md) and `devlog/` (one file 
 
 ## Later
 
+- Launch through umu-launcher as an opt-in runner, after a hands-on spike settles the prefix layout,
+  stopping a game inside the runtime container and the exit behaviour (GAPS §2).
 - An AUR package (`lumen-gog-bin`), updated by an `aur` job after `github-release`. Blocked until AUR
   account registration reopens (GAPS §4).

@@ -32,6 +32,32 @@ Priority tags: **P0** = broken behavior users will hit · **P1** = important gap
 - [ ] **P2 — Playtime and last-played tracking** (the hero banner already says "CONTINUE PLAYING").
   (`v1.7.0`)
 - [ ] **P2 — `.desktop` shortcuts / launch by game id** from outside the app. (`v1.7.0`)
+- [ ] **P2 — umu-launcher as a runner.** Run `umu-run <exe>` with `PROTONPATH` set to the chosen
+  Proton-GE release, `WINEPREFIX`, `GAMEID` and `STORE=gog`, instead of `proton run`, so games run in
+  the Steam Linux Runtime with umu-database protonfixes. Opt-in; direct Proton stays the default.
+  - Spike first, by hand on one installed game, to settle three open questions:
+    - Prefix layout: umu treats `WINEPREFIX` as both the Wine prefix and the compat data dir (and, as
+      far as known, adds a `pfx` symlink to itself), while Lumen's prefixes keep the Wine prefix in
+      `<prefix>/pfx`. Pick `WINEPREFIX=<prefix>/pfx`, a separate umu prefix per game, or umu for new
+      prefixes only, keeping `drive_c` under `<protonPrefixPath>/pfx` for cloud saves, uninstall and
+      prefix deletion.
+    - Stop: whether the host's `files/bin/wineserver -k` reaches a wineserver inside the container,
+      and whether SIGTERM/SIGKILL on the `umu-run` pid gets past python → pressure-vessel → bwrap.
+    - Exit: umu's default `PROTON_VERB=waitforexitandrun` waits for the whole prefix, which changes
+      launcher-style play tasks and may change the `immediateExitWindow` rule.
+  - Then, in `LaunchNotifier.launchGame`: a second command and environment branch sharing the
+    validation, log and wrapper handling; `umu-run` found with `resolveExecutable` on `PATH` (or a
+    configured path) with a clear "not found" error; no wineboot step (umu creates the prefix); the
+    runner and umu variables in the log header.
+  - `GAMEID`: from umu's database API (`store=gog`, codename = the GOG product id, as Heroic does),
+    failing softly to a generic id without fixes. Check the exact format in the spike.
+  - First launch downloads the runtime (several hundred MB) into `~/.local/share/umu`, so say so
+    instead of sitting in "launching", and expect network failures.
+  - umu is a user-installed dependency (Arch `umu-launcher`), not bundled in the AppImage.
+  - A global Settings switch first; a per-game choice means a `GameConfig` field and a
+    `gamesSchemaVersion` 3 → 4 migration (default: direct Proton).
+  - Tests with a fake `umu-run` script (command and env, not found, stop, migration), and CLAUDE.md's
+    launching section ("the only env vars the tool itself injects").
 - [ ] **P2 — Cancel a Proton-GE download.** The bridge takes a `CancelToken` and gogdl-lib cleans up a
   dropped extraction, so only `ProtonNotifier` (which ignores `Cancelled`) and a UI action are missing.
 - [ ] **P2 — Cancel a save sync.** Same for `SavesNotifier`, which maps `Cancelled` to `failed` today.
