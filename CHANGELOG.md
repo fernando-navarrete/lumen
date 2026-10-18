@@ -4,6 +4,23 @@ One `## X.Y.Z` section per tag; the release job publishes the tag's section as t
 Versions before 1.5.0 are described in `devlog/` (one file per minor release, plus
 `v1.0.x-bugfixes.md`).
 
+## 1.6.0
+
+Releases on GitHub, and an AppImage that updates itself. No change to the app itself.
+
+### Added
+
+* Releases are published on GitHub (<https://github.com/fernando-navarrete/lumen/releases>) with the
+  AppImage, its `.sha256` and a `.zsync`, as well as on GitLab.
+* AppImage auto-update: the AppImage embeds update information pointing at the latest GitHub
+  release, so AppImageUpdate, Gear Lever or AppImageLauncher update it in place, downloading only the
+  changed blocks.
+
+### Upgrading
+
+* AppImages before 1.6.0 carry no update information: download 1.6.0 by hand once; later releases
+  then update in place.
+
 ## 1.5.2
 
 ### Changed
