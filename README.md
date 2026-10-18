@@ -13,13 +13,16 @@ no SSH and no git setting.
 
 ## Installing
 
-Lumen ships as an AppImage. Build it yourself (see [Building the AppImage](#building-the-appimage)),
-then:
+Lumen ships as an AppImage. Download `Lumen-<version>-x86_64.AppImage` and its `.sha256` from the
+[latest release](https://github.com/fernando-navarrete/lumen/releases/latest), then:
 
 ```sh
+sha256sum -c Lumen-<version>-x86_64.AppImage.sha256
 chmod +x Lumen-<version>-x86_64.AppImage
 ./Lumen-<version>-x86_64.AppImage
 ```
+
+Or build it yourself (see [Building the AppImage](#building-the-appimage)).
 
 The host needs:
 
@@ -31,6 +34,13 @@ The host needs:
 
 If AppImageLauncher's handler hangs the start, set `APPIMAGELAUNCHER_DISABLE=1`. After upgrading from
 a release before `1.5.0` you sign in once more (the application ID changed; settings are copied).
+
+### Updating
+
+From `1.6.0` on, the AppImage embeds update information pointing at the latest GitHub release, so
+[AppImageUpdate](https://github.com/AppImageCommunity/AppImageUpdate), Gear Lever or AppImageLauncher
+update it in place, downloading only the changed blocks (through the release's `.zsync`). Earlier
+AppImages carry no update information: replace them by hand once with `1.6.0` or later.
 
 ## Building from a clone
 
@@ -93,6 +103,8 @@ GitLab CI runs on merge requests and `v*` tags. `lint` runs `tool/check_bridge_p
 `flutter analyze --fatal-infos`; `test` runs the suite; `secrets` runs gitleaks over the commits;
 `bridge-lock`, `scan` and `scan-gate` run OSV-Scanner on `pubspec.lock` and the bridge's
 `Cargo.lock`, which also runs weekly. Renovate opens one grouped minor and patch update MR a week.
+On a `vX.Y.Z` tag, `package` builds the AppImage, `publish` and `release` publish it as a GitLab
+release, and `github-release` publishes the same files as the GitHub release.
 `main` is protected, so every change goes through a merge request. The header of `.gitlab-ci.yml`
 describes each job, and [SECURITY.md](SECURITY.md) has the dependency rules.
 
@@ -103,7 +115,8 @@ describes each job, and [SECURITY.md](SECURITY.md) has the dependency rules.
 - `test/`: unit and widget tests, with fakes under `test/helpers/`.
 - `linux/`: the Linux runner. There are no other platform folders.
 - `tool/`: the CI checks (`check_lockfile.sh`, `check_bridge_pin.sh`, the OSV gate and its Cargo.lock
-  pruner), the release scripts (`build_appimage.sh`, `release_notes.sh`) and `render_icons.sh`.
+  pruner), the release scripts (`build_appimage.sh`, `release_notes.sh`, `github_release.dart`) and
+  `render_icons.sh`.
 - `linux/packaging/`: the icon, `.desktop` file and AppStream metadata.
 - `.githooks/`: the pre-commit hook.
 - `SECURITY.md`, `.gitleaks.toml`, `osv-scanner.toml`, `renovate.json`: supply-chain policy and the
@@ -117,8 +130,10 @@ describes each job, and [SECURITY.md](SECURITY.md) has the dependency rules.
 
 Development happens on a self-hosted GitLab. This GitHub repository is a read-only push mirror of
 `main` and the `v*` tags (GitLab's built-in push mirror, protected refs only, with a fine-grained
-token limited to this repository): issues, pull requests and Actions are off here. Report a problem
-to the maintainer directly (see [SECURITY.md](SECURITY.md)).
+token limited to this repository): issues, pull requests and Actions are off here. The
+[releases](https://github.com/fernando-navarrete/lumen/releases) are published here too, by the
+GitLab tag pipeline, and are immutable once published. Report a problem to the maintainer directly
+(see [SECURITY.md](SECURITY.md)).
 
 ## License
 

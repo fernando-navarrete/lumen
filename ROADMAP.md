@@ -11,17 +11,20 @@ what already shipped is in [CHANGELOG.md](CHANGELOG.md) and `devlog/` (one file 
 - For each release: bump `version:` in `pubspec.yaml`, add the `## X.Y.Z` section to `CHANGELOG.md`
   (the tag pipeline refuses a tag without both), remove the shipped items from `GAPS.md`, merge, then
   tag the merge commit on `main`.
+- After pushing the tag, check that its pipeline is green, the GitLab release has three files (the
+  AppImage, `.sha256` and `.zsync`), and the GitHub release is published with the same three files
+  and marked "Latest" (unless it is a hotfix on an older minor, which must not be).
 - A minor release gets a `devlog/vX.Y.0-<name>.md` with its decisions and pitfalls; its patches are
   appended to it.
 
-## v1.6.0 — Distribution
+## v1.6.0 — Distribution ✅
 
-- GitHub releases from the tag pipeline: a `github-release` job after `release` (GAPS §4).
-- An AUR package (`lumen` is taken; e.g. `lumen-gog-bin`), updated by an `aur` job after
-  `github-release` (§4).
-- AppImage auto-update through zsync update information on the GitHub releases (§4).
-- Docs: the `.gitlab-ci.yml` header, CLAUDE.md's release section, the new secrets in SECURITY.md's
+- GitHub releases from the tag pipeline: a `github-release` job after `release`.
+- AppImage auto-update through zsync update information on the GitHub releases.
+- Docs: the `.gitlab-ci.yml` header, CLAUDE.md's release section, the new secret in SECURITY.md's
   "Rotate secrets" list, and the release steps under "Versioning rules".
+- README "Installing": download from the GitHub release, and updating in place.
+- SECURITY.md and README: the GitHub mirror also carries the releases.
 
 ## v1.7.0 — Extras
 
@@ -29,3 +32,8 @@ what already shipped is in [CHANGELOG.md](CHANGELOG.md) and `devlog/` (one file 
 - Desktop notifications when a task finishes (§2).
 - Playtime and last-played tracking (§2).
 - `.desktop` shortcuts and launch by game id (§2).
+
+## Later
+
+- An AUR package (`lumen-gog-bin`), updated by an `aur` job after `github-release`. Blocked until AUR
+  account registration reopens (GAPS §4).

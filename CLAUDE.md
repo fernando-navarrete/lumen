@@ -85,7 +85,8 @@ from `https://github.com/fernando-navarrete/` — the only git source allowed) a
 `flutter pub get --enforce-lockfile`. CI fetches `gogdl_flutter` and its `gogdl-lib` from GitHub
 over HTTPS with no key, so it proves a clone builds without LAN access. GitHub
 (`fernando-navarrete/lumen`) is a read-only push mirror of `main` and `v*`; development stays on
-GitLab. `secrets` runs gitleaks (`.gitleaks.toml`, default rules, no allowlist) over the MR's
+GitLab. It also carries the releases users download, published only by `github-release` (below) and
+immutable once published. `secrets` runs gitleaks (`.gitleaks.toml`, default rules, no allowlist) over the MR's
 commits, or over every branch and tag on a `v*` tag pipeline. `bridge-lock` exports the pinned
 `gogdl_flutter`'s `rust/Cargo.lock` pruned to the crates `cargo tree` resolves
 (`tool/prune_cargo_lock.dart`, since the lockfile also lists optional crates nothing builds, like
@@ -112,7 +113,9 @@ commit and publishes the same three files there: draft, upload, check the assets
 repository's releases are immutable; a re-run finishes a leftover draft or only compares a published
 release's files, and it is "Latest" only for the highest published `vX.Y.Z`, so an older-minor hotfix
 never becomes the auto-update target. On MRs, the manual `github-release-dry-run` rehearses it without
-a token against the latest GitLab tag's notes and registry files. Every release (and patch) therefore needs its CHANGELOG section before the tag; the rest of
+a token against the latest GitLab tag's notes and registry files; the tool is unit-tested through
+injected HTTP, `ls-remote` and sha256 seams in `test/tool/github_release_test.dart`. Every release
+(and patch) therefore needs its CHANGELOG section before the tag; the rest of
 the release checklist is in `ROADMAP.md`.
 
 Docs: `ROADMAP.md` (what ships next), `GAPS.md` (open items only; delete one when it ships),

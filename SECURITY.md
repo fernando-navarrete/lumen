@@ -5,8 +5,9 @@ a finding, and what to do when a package we use is reported compromised. The job
 the header of `.gitlab-ci.yml` and in `README.md` ("Development").
 
 This is a single-maintainer project developed on a self-hosted GitLab. `github.com/fernando-navarrete/lumen` is a
-read-only push mirror of `main` and the `v*` tags, with issues and pull requests off. Report a problem to the
-maintainer directly, not in a public issue.
+read-only push mirror of `main` and the `v*` tags, with issues and pull requests off. It also carries the releases,
+published only by the `github-release` job and immutable once published. Report a problem to the maintainer
+directly, not in a public issue.
 
 ## Adding a dependency
 
@@ -82,7 +83,8 @@ and on a `v*` tag pipeline over every branch and tag. A red `secrets` blocks the
   never breaks the other. It is a masked, protected CI/CD variable scoped to the `github-release` environment, so only
   the `github-release` job on a protected `v*` tag sees it; `tool/github_release.dart` reads it from the environment
   and redacts it from any error, and its MR dry run runs without it.
-- Whatever reaches `main` or a `v*` tag is public on GitHub within minutes. A leak found after that is rotated
+- Whatever reaches `main` or a `v*` tag is public on GitHub within minutes, and a `vX.Y.Z` tag also becomes a GitHub
+  release whose files can never be replaced (immutable releases). A leak found after that is rotated
   first and dealt with in history second. A history rewrite changes every SHA and tag, so it is a decision of its
   own, not a cleanup step.
 
