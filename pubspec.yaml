@@ -21,7 +21,7 @@ dependencies:
   gogdl_flutter:
     git:
       url: https://github.com/fernando-navarrete/gogdl_flutter.git
-      ref: v1.5.0
+      ref: v1.5.1
 
 dev_dependencies:
   flutter_test:

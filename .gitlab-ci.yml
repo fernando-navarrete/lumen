@@ -1,4 +1,4 @@
-# CI for lumen. Runs on the self-hosted runner on thinkcentre.home (Docker executor). Pipelines run for merge
+# CI for lumen on gitlab.ferlabs.io (the instance runner, Docker executor). Pipelines run for merge
 # requests and `v*` tags, never for a plain branch push or a push to main (main only receives a tree an MR pipeline
 # already tested; see devlog/ci-cd-merge-requests.md).
 #   lint:        tool/check_bridge_pin.sh first (the gogdl_flutter tag pinned in pubspec.lock is on its GitHub mirror at the
@@ -23,8 +23,9 @@
 #                bridge-lock, scan and scan-gate, weekly, so an advisory published after a dependency landed is
 #                noticed. A second schedule with SCHEDULE=renovate runs only renovate. Any other schedule runs nothing.
 #   renovate:    only on the SCHEDULE=renovate schedule. Opens one grouped minor/patch dependency MR per renovate.json.
-#                RENOVATE_TOKEN (a masked project access token with api + write_repository, role Developer) and
-#                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) are protected
+#                RENOVATE_TOKEN (a masked project access token with api + write_repository, role Developer),
+#                GITHUB_COM_TOKEN (a no-permission fine-grained GitHub token, for release lookups) and
+#                CI_IMAGES_REGISTRY_TOKEN (read_registry on infra/ci-images, for the CI image's digests) are protected
 #                variables scoped to the `renovate` environment, so no other job sees them. Renovate exits 0 even when it
 #                gives up on the repository, so the job also fails on "Temporary error" or an error result in its log.
 #   package:     tool/build_appimage.sh in the CI image: Lumen-<version>-x86_64.AppImage, its .sha256 and its .zsync, kept as
@@ -48,12 +49,6 @@
 # `gogdl_flutter` is a git dependency fetched from its public GitHub mirror over HTTPS
 # (https://github.com/fernando-navarrete/gogdl_flutter), and so is its `gogdl-lib`: no key, no ssh and no git CLI
 # setting, so CI proves that a clone builds anywhere.
-#
-# The runner still needs thinkcentre.home to reach GitLab itself. If a job fails to resolve it, the runner's
-# containers aren't seeing the LAN's /etc/hosts entry (it's a hosts-file entry, not real DNS).
-# Fix it in /etc/gitlab-runner/config.toml under [runners.docker]:
-#   extra_hosts = ["thinkcentre.home:192.168.8.234"]
-# then restart the runner (`sudo gitlab-runner restart`).
 
 workflow:
   rules:
@@ -76,17 +71,20 @@ default:
 variables:
   PUB_CACHE: "$CI_PROJECT_DIR/.ci/pub-cache"
 
-# Jobs run in gogdl_flutter's prebuilt CI image: since gogdl_flutter v1.2.1 its
-# native library is built by a Native Assets hook (hook/build.dart runs cargo)
-# on every `flutter pub get`/`analyze`/`test`, so the job needs Flutter *and* the
-# pinned Rust toolchain. Flutter (/opt/flutter) and Rust (/opt/cargo) are baked
-# in; the image is built on the runner host from the gogdl_flutter repo
-# (ci/build-image.sh), so it is in no registry and can't be digest-pinned. Bump
-# the tag below whenever .fvmrc or the bridge's rust/rust-toolchain.toml
-# changes, keeping it in step with the gogdl_flutter tag pinned in pubspec.yaml.
+# Jobs run in the shared `flutter-rust:<flutter>-rust<ver>-frb<ver>` image from infra/ci-images
+# (registry.ferlabs.io/infra/ci-images/flutter-rust: Debian bookworm, commit-pinned Flutter at /opt/flutter,
+# the pinned Rust at /opt/cargo, libsecret-1-dev, file and the ferlabs root CA), the same one gogdl_flutter uses:
+# since gogdl_flutter v1.2.1 its native library is built by a Native Assets hook (hook/build.dart runs cargo) on
+# every `flutter pub get`/`analyze`/`test`, so jobs need Flutter *and* the bridge's Rust. The image's Rust must
+# equal rust/rust-toolchain.toml at the gogdl_flutter tag in pubspec.yaml, and its Flutter must equal .fvmrc;
+# Lumen doesn't choose its Rust. It is pinned by digest, so `pull_policy: if-not-present` can't go stale; jobs
+# pull it with CI_JOB_TOKEN (the gogdl group is on ci-images' job-token allowlist). ci-images rebuilds it weekly
+# for apt security updates and Renovate then opens a digest MR. To move Flutter or the bridge: the matching
+# flutter-rust tag goes into infra/ci-images first, then gogdl_flutter moves, then one Lumen MR changes
+# pubspec.yaml, .fvmrc, `constraints` in renovate.json and the image below together.
 .ci-image:
   image:
-    name: gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r5
+    name: registry.ferlabs.io/infra/ci-images/flutter-rust:3.47.2-rust1.98.1-frb2.13.0@sha256:c1afa666e83abdfb98ee01b7d9be4e5f335a930b5da29e7fce874cdf490cf073
     pull_policy: if-not-present
 
 .flutter:
@@ -137,8 +135,8 @@ test:
   script:
     - flutter test
 
-# The AppImage. Needs libsecret-1-dev, which the image has since r4, and file(1) (appimagetool needs it) since r5. build_appimage.sh downloads appimagetool and the
-# runtime, pinned by sha256 and refused on a mismatch; build/appimage-tools/ is only a cache of those.
+# The AppImage. Needs the image's libsecret-1-dev and file(1) (appimagetool needs it). build_appimage.sh downloads
+# appimagetool and the runtime, pinned by sha256 and refused on a mismatch; build/appimage-tools/ is only a cache of those.
 package:
   stage: package
   extends: .flutter
@@ -173,8 +171,9 @@ package:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/
 
-# The GitLab host uses a private CA the images don't trust. The runner hands it to jobs as CI_SERVER_TLS_CA_FILE
-# when its config.toml has tls-ca-file; add it to the trust store (git, curl and Go read this bundle).
+# gitlab.ferlabs.io uses the ferlabs private CA. The CI image trusts it already; third-party images (release-cli)
+# don't. The runner hands it to jobs as CI_SERVER_TLS_CA_FILE when its config.toml has tls-ca-file; add it to the
+# trust store (git, curl and Go read this bundle).
 .private-ca:
   script:
     - |
@@ -200,7 +199,6 @@ publish:
   cache: []
   script:
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
-    - !reference [.private-ca, script]
     - git fetch origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
     - |
       git merge-base --is-ancestor "$CI_COMMIT_SHA" "origin/$CI_DEFAULT_BRANCH" || {
@@ -299,7 +297,6 @@ github-release-dry-run:
   cache: []
   script:
     - git config --global --add safe.directory "$CI_PROJECT_DIR"
-    - !reference [.private-ca, script]
     - git fetch --tags origin
     - |
       tag=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
@@ -435,8 +432,11 @@ renovate:
     RENOVATE_REQUIRE_CONFIG: required
     LOG_LEVEL: info
   script:
-    # thinkcentre.home uses a private CA: the runner's tls-ca-file covers Node (Renovate) and git (for that host only).
     - '[ -n "$RENOVATE_TOKEN" ] || { echo "RENOVATE_TOKEN is not set (protected, environment scope renovate)"; exit 1; }'
+    - '[ -n "$CI_IMAGES_REGISTRY_TOKEN" ] || { echo "CI_IMAGES_REGISTRY_TOKEN is not set (protected, environment scope renovate)"; exit 1; }'
+    # Registry credentials for the CI image's digest lookups, kept out of renovate.json.
+    - export RENOVATE_HOST_RULES="[{\"hostType\":\"docker\",\"matchHost\":\"registry.ferlabs.io\",\"username\":\"renovate\",\"password\":\"$CI_IMAGES_REGISTRY_TOKEN\"}]"
+    # gitlab.ferlabs.io uses a private CA: the runner's tls-ca-file covers Node (Renovate) and git (for that host only).
     - |
       if [ -n "$CI_SERVER_TLS_CA_FILE" ]; then
         export NODE_EXTRA_CA_CERTS="$CI_SERVER_TLS_CA_FILE"

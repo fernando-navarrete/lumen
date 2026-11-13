@@ -146,8 +146,6 @@ Tested against `FakeGogBackend` or on one desktop only.
 - [ ] **P2 — Scan in the dependency repos.** Run the same `scan` in `gogdl_flutter` and `gogdl-lib`, so
   a vulnerable crate is caught before Lumen pins the release.
 - [ ] **P2 — MR coverage.** `flutter test --coverage` plus a Cobertura conversion.
-- [ ] **P2 — CI image isn't digest-pinned.** `gogdl-flutter-ci` is built on the runner host and is in no
-  registry.
 - [ ] **P2 — No `lockFileMaintenance`.** Renovate moves transitive packages only through a direct bump,
   since maintenance would skip the 7-day wait. Revisit if the lockfile goes stale.
 - [ ] **P2 — GitHub token expiry is a calendar reminder.** The GitHub mirror token expires about

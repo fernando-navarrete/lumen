@@ -71,11 +71,13 @@ spinning `CenteredLoader` while their first fetch is pending.
 The bridge's native library is built by a Native Assets build hook that runs cargo, so
 `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the bridge's
 `rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
-CI therefore runs in the bridge's prebuilt image (`gogdl-flutter-ci:flutter-<v>-rust-<v>-frb-<v>`);
-bump the tag in `.gitlab-ci.yml` when `.fvmrc` or that Rust pin changes (and `constraints.flutter` in
-`renovate.json` when `.fvmrc` changes).
+CI therefore runs in the shared `registry.ferlabs.io/infra/ci-images/flutter-rust:<flutter>-rust<v>-frb<v>`
+image (the same one the bridge uses), pinned by digest in `.ci-image`. Its Rust must equal that bridge
+pin and its Flutter `.fvmrc`: when either changes, the matching tag goes into `infra/ci-images` first,
+then one MR moves `pubspec.yaml`, `.fvmrc`, `constraints.flutter` in `renovate.json` and the image.
+Renovate only moves the image's digest (after ci-images' weekly rebuild).
 
-CI (GitLab CI, self-hosted runner on `thinkcentre.home`, `.gitlab-ci.yml`) runs for merge requests and
+CI (GitLab CI on `gitlab.ferlabs.io`, the instance runner, `.gitlab-ci.yml`) runs for merge requests and
 `v*` tags — not for branch pushes or pushes to `main`. `lint` first runs `tool/check_bridge_pin.sh`
 (`gogdl_flutter` is pinned by a `vX.Y.Z` tag that its GitHub mirror has at the locked `resolved-ref`),
 then `dart format --output=none --set-exit-if-changed lib test tool` and `flutter analyze
@@ -95,12 +97,12 @@ findings, each with a `reason` and `ignoreUntil`), and `scan-gate` (`tool/osv_ga
 any vulnerability left while only reporting RUSTSEC informational advisories. A weekly pipeline
 schedule with `SCHEDULE=scan` runs just those three. A second schedule with `SCHEDULE=renovate` runs
 only the `renovate` job, which opens one grouped minor/patch dependency MR per `renovate.json`
-(managers `pub` and `gitlabci`; `gogdl_flutter`, the local CI image and `.fvmrc` are bumped by hand
+(managers `pub` and `gitlabci`; `gogdl_flutter`, the CI image tag and `.fvmrc` are bumped by hand
 together, majors are off, 7-day release wait). `SECURITY.md` has the dependency rules. The header of
 `.gitlab-ci.yml` describes every job.
 
 Releases: `package` runs `tool/build_appimage.sh` in the CI image (needs its `libsecret-1-dev` and
-`file`, present since the `-r5` tag) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256`
+`file`) and keeps `Lumen-<version>-x86_64.AppImage` plus its `.sha256`
 and `.zsync` (the AppImage embeds update information pointing at the latest GitHub release's `.zsync`)
 as artifacts; it runs on `v*` tags and is a manual job on MRs (never blocking). On a `vX.Y.Z` tag,
 `publish` (after `lint`, `test`, `secrets`, `scan-gate` and `package`) fails unless the tag commit is
