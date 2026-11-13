@@ -101,3 +101,19 @@ threads must pass, skipped pipelines not counted as success, auto-cancel redunda
 Tracked in `GAPS.md` §7: the accepted RUSTSEC-2026-0285 until the bridge bumps `rustls`; running `scan` in
 `gogdl_flutter` and `gogdl-lib`; a release job with a Linux artifact on tags; MR coverage; digest-pinning the CI
 image (needs a registry); `lockFileMaintenance`.
+
+## ci-images migration (2026-11-12)
+
+The CI image moved from the hand-built `gogdl-flutter-ci:flutter-3.47.2-rust-1.98.1-frb-2.13.0-r5` (built on the
+runner host by the bridge's `ci/build-image.sh`, in no registry) to the shared
+`registry.ferlabs.io/infra/ci-images/flutter-rust:3.47.2-rust1.98.1-frb2.13.0`, pinned by digest. It is the same
+digest gogdl_flutter pins, since Lumen's Rust is the bridge's (`v1.5.0` → 1.98.1).
+
+- Jobs pull it with `CI_JOB_TOKEN` (the `gogdl` group is on ci-images' job-token allowlist): no registry secret.
+- The image trusts the ferlabs root CA, so `publish` and `github-release-dry-run` no longer run `.private-ca`. Only
+  `release` keeps it (the third-party `release-cli` image).
+- Renovate now opens digest MRs for the image after ci-images' weekly rebuild; the tag (Flutter, Rust, frb) stays
+  a hand bump with the bridge. The `renovate` job needs `CI_IMAGES_REGISTRY_TOKEN` (read_registry on
+  infra/ci-images, protected, masked, environment `renovate`) to read the digests.
+- The image is Debian bookworm (glibc 2.36), like the old one, so the AppImage's glibc floor doesn't move.
+- Closes the "CI image isn't digest-pinned" gap.

@@ -69,7 +69,7 @@ The release AppImage is built by `tool/build_appimage.sh`, which downloads `appi
 are pinned by version and sha256 in the script, which refuses a file whose hash differs. When bumping, take a release
 at least 7 days old and copy its hash from the release page (or compute it from a download you inspected), never from
 the host the script then fetches from. The `release` job's `release-cli` image is pinned by digest, as are the other
-job images; the CI image itself is built locally by the bridge repo's `ci/build-image.sh`.
+job images, including the CI image itself, which comes from `infra/ci-images` (`flutter-rust`).
 
 ## Secrets
 
