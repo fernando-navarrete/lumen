@@ -54,7 +54,7 @@ You need:
 - [fvm](https://fvm.app/), which installs the Flutter version pinned in `.fvmrc` (`3.47.2`, with
   `fvm install`). Prefix Flutter and Dart commands with `fvm`, not the bare binaries.
 - [rustup](https://rustup.rs). The bridge builds its native library with a Native Assets build hook
-  that runs cargo, and its `rust-toolchain.toml` pins Rust `1.98.1`, which rustup installs on the
+  that runs cargo, and its `rust-toolchain.toml` pins Rust `1.99.0`, which rustup installs on the
   first build. `pub get`, `analyze` and `test` need it too, even though tests never load the library.
 - The Linux desktop build tools: `clang`, `cmake`, `ninja`, `pkg-config`, and the GTK 3 and
   `libsecret-1` development packages (`libsecret` 0.18.4 or newer).

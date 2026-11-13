@@ -70,7 +70,7 @@ spinning `CenteredLoader` while their first fetch is pending.
 
 The bridge's native library is built by a Native Assets build hook that runs cargo, so
 `pub get`/`analyze`/`test` need a Rust toolchain (rustup, the version pinned in the bridge's
-`rust/rust-toolchain.toml`, currently 1.98.1) even though tests never load the library.
+`rust/rust-toolchain.toml`, currently 1.99.0) even though tests never load the library.
 CI therefore runs in the shared `registry.ferlabs.io/infra/ci-images/flutter-rust:<flutter>-rust<v>-frb<v>`
 image (the same one the bridge uses), pinned by digest in `.ci-image`. Its Rust must equal that bridge
 pin and its Flutter `.fvmrc`: when either changes, the matching tag goes into `infra/ci-images` first,

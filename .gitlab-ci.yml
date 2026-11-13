@@ -84,7 +84,7 @@ variables:
 # pubspec.yaml, .fvmrc, `constraints` in renovate.json and the image below together.
 .ci-image:
   image:
-    name: registry.ferlabs.io/infra/ci-images/flutter-rust:3.47.2-rust1.98.1-frb2.13.0@sha256:c1afa666e83abdfb98ee01b7d9be4e5f335a930b5da29e7fce874cdf490cf073
+    name: registry.ferlabs.io/infra/ci-images/flutter-rust:3.47.2-rust1.99.0-frb2.13.0@sha256:3c54dfe65dd2c9e4da79104208cd7a3f4908653fa4a6b36cb4719828dbed9cc8
     pull_policy: if-not-present
 
 .flutter:
